@@ -1,0 +1,5 @@
+eclipse.preferences.version=1
+encoding/lrecord.c=UTF-8
+encoding/sndwav_common.c=UTF-8
+encoding/wav_parser.c=UTF-8
+encoding/wav_parser.h=UTF-8

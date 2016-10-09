@@ -40,8 +40,10 @@ pthread_t s_id;
  */
 typedef struct {
 
+	struct epoll_event event;   // 告诉内核要监听什么事件
 	int fd;
 	struct sockaddr_in cli_addr;
+	int clilen;
 	char clint_mac[24];
 
 }Client_Info;
@@ -326,21 +328,33 @@ static void process_rev_msg(int* cli_fd, const char* value, int* length)
 	}
 
 }
+
 static void* control_tcp_recv(void* p)
 {
 	int sockfd;
 	int epoll_fd;
 	struct epoll_event event;   // 告诉内核要监听什么事件
-    struct epoll_event wait_event; //内核监听完的结果
+    struct epoll_event* wait_event; //内核监听完的结果
 
+	struct sockaddr_in cli_addr;
+	int clilen = sizeof(cli_addr);
+
+    int n;
+    int connfd;
     int ctrl_ret,wait_ret;
+
+	int len = 0;
+	char buf[1024] = "";
+
     /*
      *socket init
      */
     sockfd = local_addr_init();
     set_noblock(sockfd);
 
+
     /*
+     * epoll event init
      * 除了参数size被忽略外,此函数和epoll_create完全相同
      */
     epoll_fd = epoll_create1(0);
@@ -363,16 +377,15 @@ static void* control_tcp_recv(void* p)
     }
 
     /* Buffer where events are returned */
-    //wait_event = calloc (MAXEVENTS, sizeof wait_event);
+//    wait_event = calloc (MAXEVENTS, sizeof wait_event);
 
 	//epoll相应参数准备
-	int fd[OPEN_MAX];
+//	int fd[OPEN_MAX];
 	int i = 0, maxi = 0;
-	memset(fd,-1, sizeof(fd));
-	fd[0] = sockfd;
+//	memset(fd,-1, sizeof(fd));
+//	fd[0] = sockfd;
+//	printf("sockfd %d \n",sockfd);
 
-	struct sockaddr_in cli_addr;
-	int clilen = sizeof(cli_addr);
 
 	/*
 	 * 设备连接后，发送一个获取mac的数据单包
@@ -381,158 +394,267 @@ static void* control_tcp_recv(void* p)
 	char ask_buf[] = {0x26,0x09,0x01};
 	char send_buf[1024] = {0};
 	int send_len;
+
 	frame_compose(send_buf,ask_buf,&send_len,sizeof(ask_buf));
 	printf("send_len %d \n",send_len);
 
 	int conc_num = 0;
+
+	wait_event = calloc(1000,sizeof(struct epoll_event));
 
 	while(1)
 	{
 		printf("epoll_wait...\n");
 		// 监视并等待多个文件（标准输入，udp套接字）描述符的属性变化（是否可读）
         // 没有属性变化，这个函数会阻塞，直到有变化才往下执行，这里没有设置超时
-		wait_ret = epoll_wait(epoll_fd, &wait_event, maxi+1, -1);
-
-		//监测sockfd(监听套接字)是否存在连接
-		if(( sockfd == wait_event.data.fd )
-            && ( EPOLLIN == wait_event.events & EPOLLIN ))
+		wait_ret = epoll_wait(epoll_fd, wait_event, maxi+1, -1);
+		if(wait_ret == -1)
+		{
+			perror("epoll_wait");
+			break;
+		}
+		for (n = 0; n < wait_ret; ++n)
 		{
 
-			printf("main sock listen the connect\n");
-			//从tcp完成连接中提取客户端
-			int connfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
-			if(connfd < 0)
+			if (wait_event[n].data.fd == sockfd
+					&& ( EPOLLIN == wait_event[n].events & (EPOLLIN|EPOLLERR)))
 			{
-				perror("accept this time");
 
-
-			}else{
-				conc_num++;
-				set_noblock(connfd);
-				// 打印客户端的 ip 和端口
-				printf("%d----------------------------------------------\n",conc_num);
-				printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
-						ntohs(cli_addr.sin_port));
-
-
-				/*
-				 * 设备上线，发送一个信息获取
-				 */
-				send(connfd, send_buf, send_len, 0);
-				/*
-				 * print the data
-				 */
-				for(i =0;i<send_len;i++)
-				{
-					printf("%02x ",send_buf[i]);
+				connfd = accept(sockfd, (struct sockaddr *) &cli_addr,
+								&clilen);
+				if (connfd < 0) {
+					perror("accept");
+					continue;
 				}
-				printf("\n");
-			}
-
-			//将提取到的connfd放入fd数组中，以便下面轮询客户端套接字
-			for(i=1; i<OPEN_MAX; i++)
-			{
-				if(fd[i] < 0)
+				else
 				{
-					fd[i] = connfd;
-					event.data.fd = connfd; //监听套接字
-					event.events = EPOLLIN | EPOLLET; // 表示对应的文件描述符可以读
+					conc_num++;
+					set_noblock(connfd);
+					// 打印客户端的 ip 和端口
+					printf("%d----------------------------------------------\n",conc_num);
+					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
+							ntohs(cli_addr.sin_port));
 
-					//事件注册函数，将监听套接字描述符 connfd 加入监听事件
-					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, connfd, &event);
-					if(-1 == ctrl_ret){
-						perror("epoll_ctl");
+					/*
+					 * 设备上线，发送一个信息获取
+					 */
+					send(connfd, send_buf, send_len, 0);
+//					/*
+//					 * print the data
+//					 */
+//					for(i =0;i<send_len;i++)
+//					{
+//						printf("%02x ",send_buf[i]);
+//					}
+//					printf("\n");
+
+					event.events = EPOLLIN | EPOLLET;
+					event.data.fd = connfd;
+					if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, connfd, &event) < 0) {
+						fprintf(stderr, "add socket '%d' to epoll failed %s\n",
+								connfd, strerror(errno));
 						pthread_exit(0);
 					}
-					break;
+					maxi++;
 				}
-			}
 
-			//maxi更新
-			if(i > maxi)
-				maxi = i;
+			} else {
 
-			//如果没有就绪的描述符，就继续epoll监测，否则继续向下看
-			if(--wait_ret <= 0)
-				continue;
-		}
+				len = recv(wait_event[n].data.fd, buf, sizeof(buf), 0);
 
-		//继续响应就绪的描述符
-		for(i=1; i<=maxi; i++)
-		{
-			printf("%d client %d \n",i,fd[i]);
-			if(fd[i] < 0)
-				continue;
-
-			if(( fd[i] == wait_event.data.fd )
-            && ( EPOLLIN == wait_event.events & (EPOLLIN|EPOLLERR)))
-			{
-
-				int len = 0;
-				char buf[1024] = "";
-
-				len = recv(fd[i], buf, sizeof(buf), 0);
-
-				printf("%s  len = %d,%d\n",len,__func__,__LINE__);
-				//接受客户端数据
-				if(len < 0)
+				printf("%s  len = %d,%d\n",__func__,len,__LINE__);
+				//客户端关闭连接
+				if(len < 0 && errno != EAGAIN)
 				{
-					if(errno == ECONNRESET)//tcp连接超时、RST
+//					if(errno == ECONNRESET)//tcp连接超时、RST
+//					{
+//						close(fd[i]);
+//						fd[i] = -1;
+//					}
+//					else
+//						perror("read error:");
+//					printf("wait_event[n].data.fd--%d\n",wait_event[n].data.fd);
+					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
+							wait_event[n].data.fd,&event);
+					if( ctrl_ret < 0)
 					{
-						close(fd[i]);
-						fd[i] = -1;
+					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
+							 wait_event[n].data.fd, strerror(errno));
 					}
-					else
-						perror("read error:");
+					maxi--;
+					conc_num--;
+					close(wait_event[n].data.fd);
 
 				}
 				else if(len == 0)//客户端关闭连接
 				{
-					printf("client %d offline\n",fd[i]);
-					close(fd[i]);
-					fd[i] = -1;
+					printf("client %d offline\n",wait_event[n].data.fd);
+					close(wait_event[n].data.fd);
+					maxi--;
+					conc_num--;
 				}
 				else
 				{
-					getpeername(fd[i],(struct sockaddr*)&cli_addr,&clilen);
+					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
+							&clilen);
 					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
-					process_rev_msg(&fd[i],buf,&len);
+					process_rev_msg(&wait_event[n].data.fd,buf,&len);
 					//将测试数据返回发送
-					send(fd[i], buf, len, 0);
+					send(wait_event[n].data.fd, buf, len, 0);
 				}
-				//所有的就绪描述符处理完了，就退出当前的for循环，继续poll监测
-				if(--wait_ret <= 0)
-					break;
-			}
-			else{
-				/*
-				 * 客户端连接异常，清除异常连接
-				 */
-				printf("tcp connect abnormal eixt\n");
-				for(i=1; i<=maxi; i++)
-				{
-					if(fd[i] > 0)
-					{
-						event.data.fd = fd[i]; //监听套接字
-						event.events = EPOLLIN ; // 表示对应的文件描述符可以读
-						ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd[i], NULL);
-						if(-1 == ctrl_ret){
-							perror("epoll_ctl");
-							pthread_exit(0);
-						}
-						fd[i] = -1;
-					}
+			}//end if
 
+		}//end for
 
-				}
-				maxi = 0;
-			}
-		}
+//		//监测sockfd(监听套接字)是否存在连接
+//		if(( sockfd == wait_event.data.fd )
+//            && ( EPOLLIN == wait_event.events & EPOLLIN ))
+//		{
+//
+//			printf("main sock listen the connect\n");
+//			//从tcp完成连接中提取客户端
+//			int connfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+//			if(connfd < 0)
+//			{
+//				perror("accept this time");
+//
+//
+//			}else{
+//				conc_num++;
+//				set_noblock(connfd);
+//				// 打印客户端的 ip 和端口
+//				printf("%d----------------------------------------------\n",conc_num);
+//				printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
+//						ntohs(cli_addr.sin_port));
+//
+//
+//				/*
+//				 * 设备上线，发送一个信息获取
+//				 */
+//				send(connfd, send_buf, send_len, 0);
+//				/*
+//				 * print the data
+//				 */
+//				for(i =0;i<send_len;i++)
+//				{
+//					printf("%02x ",send_buf[i]);
+//				}
+//				printf("\n");
+//			}
+//
+//			//将提取到的connfd放入fd数组中，以便下面轮询客户端套接字
+//			for(i=1; i<OPEN_MAX; i++)
+//			{
+//				if(fd[i] < 0)
+//				{
+//					fd[i] = connfd;
+//					event.data.fd = connfd; //监听套接字
+//					event.events = EPOLLIN | EPOLLET; // 表示对应的文件描述符可以读
+//
+//					//事件注册函数，将监听套接字描述符 connfd 加入监听事件
+//					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, connfd, &event);
+//					if(-1 == ctrl_ret){
+//						perror("epoll_ctl");
+//						pthread_exit(0);
+//					}
+//					break;
+//				}
+//			}
+//
+//			//maxi更新
+//			if(i > maxi)
+//				maxi = i;
+//
+//			//如果没有就绪的描述符，就继续epoll监测，否则继续向下看
+//			if(--wait_ret <= 0)
+//				continue;
+//		}else{
+//			;
+//		}
+//
+//		//继续响应就绪的描述符
+//		for(i=1; i<=maxi; i++)
+//		{
+//			printf("0 client %d \n",fd[0]);
+//			printf("%d client %d \n",i,fd[i]);
+//			printf("%d wait_event.data.fd %d \n",i,wait_event.data.fd);
+//			if(fd[i] < 0)
+//				continue;
+//
+//			if(( fd[i] == wait_event.data.fd )
+//            && ( EPOLLIN == wait_event.events & (EPOLLIN|EPOLLERR)))
+//			{
+//
+//				int len = 0;
+//				char buf[1024] = "";
+//
+//				len = recv(fd[i], buf, sizeof(buf), 0);
+//
+//				printf("%s  len = %d,%d\n",len,__func__,__LINE__);
+//				//接受客户端数据
+//				if(len < 0)
+//				{
+//					if(errno == ECONNRESET)//tcp连接超时、RST
+//					{
+//						close(fd[i]);
+//						fd[i] = -1;
+//					}
+//					else
+//						perror("read error:");
+//
+//				}
+//				else if(len == 0)//客户端关闭连接
+//				{
+//					printf("client %d offline\n",fd[i]);
+//					close(fd[i]);
+//					fd[i] = -1;
+//				}
+//				else
+//				{
+//					getpeername(fd[i],(struct sockaddr*)&cli_addr,&clilen);
+//					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
+//							ntohs(cli_addr.sin_port));
+//
+//					process_rev_msg(&fd[i],buf,&len);
+//					//将测试数据返回发送
+//					send(fd[i], buf, len, 0);
+//				}
+//				//所有的就绪描述符处理完了，就退出当前的for循环，继续poll监测
+//				if(--wait_ret <= 0)
+//					break;
+//			}
+//			else
+//			{
+//				/*
+//				 * 客户端连接异常，清除异常连接
+//				 */
+//				printf("tcp connect abnormal eixt\n");
+////				for(i=1; i<=maxi; i++)
+////				{
+////					if((fd[i] != wait_event.data.fd) && (fd[i] > 0))
+////					{
+////						event.data.fd = fd[i]; //监听套接字
+////						event.events = EPOLLIN | EPOLLET; // 表示对应的文件描述符可以读
+////						ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd[i] , &event);
+////						if(-1 == ctrl_ret){
+////							perror("epoll_ctl");
+////							pthread_exit(0);
+////						}
+////	//					close(fd[i]);
+////
+////					}
+////				}
+////				maxi--;
+//
+//			}
+//
+//		}
 
-	}
+	}//end while
 
+	free(wait_event);
     close(sockfd);
     pthread_exit(0);
 

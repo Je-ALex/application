@@ -1107,12 +1107,6 @@ static void* control_tcp_send(void* p)
 		 * 读和写
 		 * 会议类数据建议是一次设置完或一次查询完
 		 */
-		set_the_conference_parameters();
-
-		get_the_conference_parameters();
-
-
-
 		switch(s)
 		{
 			case 1:

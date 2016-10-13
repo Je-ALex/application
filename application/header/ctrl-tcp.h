@@ -58,6 +58,7 @@ enum{
 	BINDERRO,
 	LISNERRO,
 	SUCCESS = 0,
+	ERROR = -1,
 
 };
 /*
@@ -75,8 +76,7 @@ typedef enum{
 
 /*
  * 0x01	事件型数据
- * 0x02	单元参数
- * 0x03	会议参数
+ * 0x03	会议型参数
  */
 typedef enum{
 

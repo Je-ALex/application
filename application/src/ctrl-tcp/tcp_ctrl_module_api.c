@@ -25,7 +25,7 @@ extern pclient_node list_head;
  * @name--对应终端的姓名，单主机情况是不需要设置姓名
  * @msg_ty结构体--下发的消息类型(控制消息，请求消息，应答消息，查询消息)
  */
-int edit_client_info(Pframe_type type)
+int ctrl_module_edit_info(Pframe_type type)
 {
 
 	pclient_node tmp = NULL;
@@ -63,22 +63,7 @@ int edit_client_info(Pframe_type type)
 	if(find_fd < 0)
 	{
 		printf("please input the right fd..\n");
-		return;
-	}
-	/*
-	 * 会议类数据再次处理
-	 * 根据type参数，确定数据的内容和格式
-	 */
-	switch(type->data_type)
-	{
-		case CONFERENCE_DATA:
-			edit_conference_info(type,buf);
-			break;
-
-		case EVENT_DATA:
-
-			break;
-
+		return ERROR;
 	}
 	/*
 	 * 发送消息组包
@@ -101,20 +86,63 @@ int edit_client_info(Pframe_type type)
 
 	}
 
+	return SUCCESS;
 }
 
 /*
  * 设置会议参数
+ *
  */
-int set_the_conference_parameters(int fd_vaule,int client_id,char client_seat,
-		char client_name,char subj)
+int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
+		char* client_name,char* subj)
 {
 
+	frame_type data_type;
+
+	/*
+	 * 将参数保存
+	 */
+	data_type.fd = fd_value;
+	data_type.con_data.id = client_id;
+	data_type.con_data.seat = client_seat;
+	memcpy(data_type.con_data.name,client_name,strlen(client_name));
+	memcpy(data_type.con_data.subj,client_name,strlen(subj));
+
+	data_type.msg_type = Write_msg;
+	data_type.data_type = CONFERENCE_DATA;
+	data_type.dev_type = HOST_CTRL;
+
+	ctrl_module_edit_info(&data_type);
+
+	return SUCCESS;
+
+}
+/*
+ * 查询会议参数
+ *
+ */
+int get_the_conference_parameters(int fd_value,int* client_id,char* client_seat,
+		char* client_name,char* subj)
+{
+
+	frame_type data_type;
+
+	/*
+	 * 将参数保存
+	 */
+	data_type.fd = fd_value;
+
+	data_type.msg_type = Read_msg;
+	data_type.data_type = CONFERENCE_DATA;
+	data_type.dev_type = HOST_CTRL;
+
+	ctrl_module_edit_info(&data_type);
 
 
-
-
-
+	data_type.con_data.id = client_id;
+	data_type.con_data.seat = client_seat;
+	memcpy(data_type.con_data.name,client_name,strlen(client_name));
+	memcpy(data_type.con_data.subj,client_name,strlen(subj));
 
 	return SUCCESS;
 

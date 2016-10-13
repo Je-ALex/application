@@ -18,15 +18,15 @@
 int port = 8080;
 pthread_t s_id;
 
-#define IP "192.168.10.71"
-//#define IP "1270.0.0.1"
+//#define IP "192.168.10.57"
+#define IP "1270.0.0.1"
 
 
 static void* control_tcp_cli(void* p)
 {
   struct sockaddr_in pin;
   int sock_fd;
-  char buf[20] = {0};
+  unsigned char buf[256] = {0};
   int n,i;
 
   int num = (int)p;
@@ -48,6 +48,7 @@ static void* control_tcp_cli(void* p)
 	 char str[] ={"DS "};
 	 char s2[4];
   //NULL != fgets(str,MAXLINE, stdin)
+
   while(1)
   {
 
@@ -57,16 +58,18 @@ static void* control_tcp_cli(void* p)
 //	strcat(str,s2);
 
     //write(sock_fd, str, strlen(str)+1);
-    n=read(sock_fd, buf, sizeof(buf));
-    printf("the %d thread receive\n",num);
+	  n=recv(sock_fd, buf, sizeof(buf), 0);
+//    n=read(sock_fd, buf, sizeof(buf));
+//    printf("the %d thread receive\n",num);
     if (n == 0)
     {
         printf("the othere side has been closed.\n");
-
+        pthread_exit(0);
     }
     else
     {
-    	printf("receive from server: ");
+    	printf("the %d receive from server: ",num);
+//    	printf("%s\n ",buf);
     	for(i=0;i<n;i++)
     	   printf("%x ",buf[i]);
     }
@@ -89,7 +92,7 @@ int main(void)
 	for(i=0;i<5;i++)
 	{
 		pthread_create(&s_id, NULL, (void *)control_tcp_cli, (void*)i);  //创建线程
-		//pthread_detach(s_id); // 线程分离，结束时自动回收资源
+//		pthread_detach(s_id); // 线程分离，结束时自动回收资源
 		usleep(100000);
 		printf("thread number %d\n",i);
 	}

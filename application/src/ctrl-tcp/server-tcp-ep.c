@@ -41,8 +41,10 @@ pthread_t s_id;
 pthread_mutex_t mutex;
 
 Server_Info fd_info[1000];
+Client_Info* info = 0;
 
-static int local_addr_init()
+
+static int tc_local_addr_init()
 {
 
 	struct sockaddr_in sin;
@@ -81,7 +83,7 @@ static int local_addr_init()
 
 }
 
-static void set_noblock(int fd)
+static void tc_set_noblock(int fd)
 {
     int fl=fcntl(fd,F_GETFL);
     if(fl<0)
@@ -101,7 +103,7 @@ static void set_noblock(int fd)
  * 主要功能
  * 计算校验和
  */
-static void frame_compose(char* result_data,char* data,int* send_len,int len)
+static void tc_frame_compose(char* result_data,char* data,int* send_len,int len)
 {
 
 	int i;
@@ -156,7 +158,7 @@ static void frame_compose(char* result_data,char* data,int* send_len,int len)
 	printf("\n");
 
 }
-static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* frame_type)
+static void tc_frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* frame_type)
 {
 
 	int i;
@@ -169,23 +171,27 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
 	/*
 	 * print the receive data
 	 */
-	for(i=0;i<*len;i++)
-	{
-		printf("%x ",buf[i]);
-	}
-	printf("\n");
+
+//	for(i=0;i<*len;i++)
+//	{
+//		printf("%x ",buf[i]);
+//	}
+//	printf("\n");
+
+
 	printf("length: %d\n",length);
 
 	/*
 	 * 验证数据头是否正确buf[0]~buf[3]
 	 */
 	//printf("%c,%c,%c,%c\n",buf[0],buf[1],buf[2],buf[3]);
-	while (buf[0] != 'D' || buf[1] != 'S'
-			|| buf[2] != 'D' || buf[3] != 'S') {
-
-		printf( "%s--not legal headers---%d\n", __FUNCTION__, __LINE__);
-		return;
-	}
+//	fixme
+//	while (buf[0] != 'D' || buf[1] != 'S'
+//			|| buf[2] != 'D' || buf[3] != 'S') {
+//
+//		printf( "%s--not legal headers---%d\n", __FUNCTION__, __LINE__);
+//		return;
+//	}
 	/*
 	 * buf[4]
 	 * 判断数据类型
@@ -198,7 +204,7 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
 	frame_type->dev_type = buf[4] & 0x03;
 
 	/*
-	 * 计算数据长度buf[5]-buf[6]
+	 * 计算帧总长度buf[5]-buf[6]
 	 * 小端模式：低位为高，高位为低
 	 */
 	package_len = buf[5] & 0xff;
@@ -210,8 +216,8 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
 	if(length < 0x0e || (length !=package_len))
 	{
 		printf( "%s--not legal length---%d\n  ", __FUNCTION__, __LINE__);
-
-		return;
+//fixme
+		//return;
 	}
 
 	/*
@@ -224,15 +230,27 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
 	if(sum != buf[package_len-1])
 	{
 		printf( "%s---check sum not legal %d\n", __FUNCTION__, __LINE__);
-		return;
+		//fixme
+		//return;
 	}
 
 	/*
-	 * 保存有效数据
-	 * 将有效数据另存为一个内存区域
+	 * 计算data内容长度
+	 * package_len减去帧信息长度4字节头，1字节信息，2字节长度，4字节目标地址，1字节校验和
+	 *
+	 * data_len = package_len - 12
 	 */
-	buffer = calloc(2,sizeof(char));
-	memcpy(buffer,buf+11,2);
+	int data_len = package_len -12;
+
+	/*
+	 * 保存有效数据
+	 * 将有数据另存为一个内存区域
+	 */
+//	buffer = calloc(data_len,sizeof(char));
+//	memcpy(buffer,buf+11,data_len);
+
+	buffer = calloc(length,sizeof(char));
+	memcpy(buffer,buf,length);
 
 	printf("buffer: ");
 	for(i=0;i<strlen(buffer);i++)
@@ -242,6 +260,32 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
 	printf("\n");
 }
 
+static void tc_process_ctrl_msg_from_reply()
+{
+
+}
+
+static void tc_process_ctrl_msg_from_unit(int* cli_fd,char* handlbuf,Frame_Type* frame_type)
+{
+
+	printf("%s",handlbuf);
+
+	switch(frame_type->msg_type)
+	{
+
+		case REQUEST_DATA:
+			//tc_process_ctrl_msg_from_request();
+			break;
+
+
+		case REPLY_DATA:
+			tc_process_ctrl_msg_from_reply();
+			break;
+
+	}
+
+
+}
 /*
  * 接收消息的初步处理
  * 分类：
@@ -254,7 +298,7 @@ static void frame_analysis(const char* buf,int* len,char* handlbuf,Frame_Type* f
  *
  *
  */
-static void process_rev_msg(int* cli_fd, const char* value, int* length)
+static void tc_process_rev_msg(int* cli_fd, const char* value, int* length)
 {
 
 
@@ -268,7 +312,10 @@ static void process_rev_msg(int* cli_fd, const char* value, int* length)
 
 	char* handlbuf;
 
-	frame_analysis(value,length,handlbuf,&frame_type);
+
+	printf("receive from %d---%s\n",*cli_fd,value);
+
+	tc_frame_analysis(value,length,handlbuf,&frame_type);
 
 
 	switch(frame_type.dev_type)
@@ -276,6 +323,11 @@ static void process_rev_msg(int* cli_fd, const char* value, int* length)
 		case PC_CTRL:
 			printf("process the pc data\n");
 			//process_ctrl_msg_from_pc(cli_fd,handlbuf,&frame_type);
+			break;
+
+		case UNIT_CTRL:
+			printf("process the unit data\n");
+			tc_process_ctrl_msg_from_unit(cli_fd,handlbuf,&frame_type);
 			break;
 
 	}
@@ -314,8 +366,8 @@ static void* control_tcp_recv(void* p)
     /*
      *socket init
      */
-    sockfd = local_addr_init();
-    set_noblock(sockfd);
+    sockfd = tc_local_addr_init();
+    tc_set_noblock(sockfd);
 
 
     /*
@@ -372,7 +424,7 @@ static void* control_tcp_recv(void* p)
 				else
 				{
 
-					set_noblock(connfd);
+					tc_set_noblock(connfd);
 					// 打印客户端的 ip 和端口
 					printf("%d----------------------------------------------\n",conc_num);
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
@@ -454,7 +506,7 @@ static void* control_tcp_recv(void* p)
 					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
-					process_rev_msg(&wait_event[n].data.fd,buf,&len);
+					tc_process_rev_msg(&wait_event[n].data.fd,buf,&len);
 
 					//将测试数据返回发送
 					//send(wait_event[n].data.fd, buf, len, 0);
@@ -479,14 +531,28 @@ static void scanf_client(Client_Info* info)
 {
 	int i;
 
+	char get_client_mac[] = "get mac addr";
+
 	info->clilen = sizeof(info->cli_addr);
+
+	info = (Client_Info*)calloc(conc_num,sizeof(Client_Info));
 
 	for(i=0;i<conc_num;i++)
 	{
 		getpeername(fd_info[i].fd,(struct sockaddr*)&info->cli_addr,
 									&info->clilen);
+		printf("client %s:%d\n",inet_ntoa(info->cli_addr.sin_addr),
+									ntohs(info->cli_addr.sin_port));
 	}
-
+	for(i=0;i<conc_num;i++)
+	{
+		if(fd_info[i].fd > 0)
+		{
+			pthread_mutex_lock(&mutex);
+			write(fd_info[i].fd, get_client_mac, sizeof(get_client_mac));
+			pthread_mutex_unlock(&mutex);
+		}
+	}
 
 
 }
@@ -500,59 +566,49 @@ static void* control_tcp_send(void* p)
 	char ask_buf[] = {0x26,0x09,0x01};
 	char send_buf[1024] = {0};
 	int send_len;
-	char str[10];
+	char str;
 	int control;
 
 	int i;
-	frame_compose(send_buf,ask_buf,&send_len,sizeof(ask_buf));
+	tc_frame_compose(send_buf,ask_buf,&send_len,sizeof(ask_buf));
 	printf("%s send_len %d \n",__func__,send_len);
 
-	Client_Info* info;
-	/*
-	 * 模拟对单元机的控制
-	 * ‘S’扫描单元机
-	 * ‘I’ID设置
-	 * ‘X’席别
-	 *
-	 */
-	if(NULL != fgets(str,MAXLINE, stdin))
-	{
-		if(strcmp(str,"scan"))
-			control = 0;
 
-		switch(str)
-		{
-			case 'S':
-				scanf_client(info);
-				break;
-			case 'I':
 
-				break;
-			case 'X':
-
-				break;
-
-		}
-	}
 	while(1)
 	{
-
-		for(i=0;i<conc_num;i++)
+		/*
+		 * 模拟对单元机的控制
+		 * ‘S’扫描单元机
+		 * ‘I’ID设置
+		 * ‘X’席别
+		 *
+		 */
+		str = fgetc(stdin);
+		if(str != 'o')
 		{
-			printf("fd_info[%d].fd-->%d \n",i,fd_info[i].fd);
-			if(fd_info[i].fd > 0)
+			printf("str--%c\n",str);
+			switch(str)
 			{
-				pthread_mutex_lock(&mutex);
-				printf("i=%d\n",i);
-				write(fd_info[i].fd, send_buf, send_len);
-				pthread_mutex_unlock(&mutex);
+				case 'S':
+					scanf_client(info);
+					break;
+				case 'I':
+
+					break;
+				case 'X':
+
+					break;
+
+				default:
+					break;
 			}
 		}
-
-		usleep(10000);
+//		usleep(10000);
 
 
 	}
+	free(info);
 
 
 }

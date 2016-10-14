@@ -93,9 +93,16 @@ typedef enum{
  */
 typedef enum{
 
+	//控制
 	Write_msg = 1,
+	//读取
 	Read_msg,
+	//以上是发送端的类型
+
+	//请求类型可能是发送类，可能是接收类
 	Request_msg,
+	//以下是接收端的类型
+	//应答
 	Reply_msg,
 
 }Message_Type;
@@ -105,7 +112,7 @@ typedef enum{
  */
 typedef struct {
 
-	unsigned char evt_name;
+	unsigned char unit_power;
 
 
 }event_data;
@@ -129,7 +136,8 @@ typedef struct {
 	char dev_type;
 
 	//查询是需要给此赋值
-	unsigned char name_type;
+	unsigned char name_type[128];
+	unsigned char code_type[128];
 
 	int fd;
 	int data_len;
@@ -137,7 +145,6 @@ typedef struct {
 
 	event_data evt_data;
 	conference_data con_data;
-
 
 }frame_type,*Pframe_type;
 

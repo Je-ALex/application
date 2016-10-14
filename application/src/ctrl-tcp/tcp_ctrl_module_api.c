@@ -11,6 +11,7 @@
 #include "../../header/tc_list.h"
 
 extern pclient_node list_head;
+
 /*
  * 会议类类信息(0x02)设置
  *
@@ -88,6 +89,7 @@ int ctrl_module_edit_info(Pframe_type type)
 
 	return SUCCESS;
 }
+
 
 /*
  * 设置会议参数

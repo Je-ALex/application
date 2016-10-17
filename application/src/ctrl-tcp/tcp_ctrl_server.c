@@ -16,13 +16,13 @@
  *  Created on: 2016年9月29日
  *      Author: leon
  */
+
+
 #include "../../header/tcp_ctrl_server.h"
-
+#include "../../header/tcp_ctrl_data_compose.h"
 #include "../../header/tcp_ctrl_data_process.h"
-
 #include "../../header/tcp_ctrl_list.h"
 
-#include "../../header/tcp_ctrl_module_api.h"
 
 int port = 8080;
 
@@ -109,7 +109,7 @@ static void tc_set_noblock(int fd)
  *
  *
  */
-static void tc_process_rev_msg(int* cli_fd, unsigned const char* value, int* length)
+static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned const char* value, int* length)
 {
 
 	/*
@@ -125,7 +125,7 @@ static void tc_process_rev_msg(int* cli_fd, unsigned const char* value, int* len
 	type = (Pframe_type)malloc(sizeof(frame_type));
 	memset(type,0,sizeof(frame_type));
 
-	handlbuf = tc_frame_analysis(cli_fd,value,length,type);
+	handlbuf = tcp_ctrl_frame_analysis(cli_fd,value,length,type);
 
 	printf("type->dev_type = %d\n",type->dev_type);
 	/*
@@ -135,12 +135,12 @@ static void tc_process_rev_msg(int* cli_fd, unsigned const char* value, int* len
 	{
 		case PC_CTRL:
 			printf("process the pc data\n");
-			tc_from_pc(handlbuf,type);
+			tcp_ctrl_from_pc(handlbuf,type);
 			break;
 
 		case HOST_CTRL:
 			printf("process the unit data\n");
-			tc_from_unit(handlbuf,type);
+			tcp_ctrl_from_unit(handlbuf,type);
 			break;
 
 	}
@@ -154,7 +154,7 @@ static void tc_process_rev_msg(int* cli_fd, unsigned const char* value, int* len
  * 主要是初始化TCP端子，设置服务端模式，采用epoll进行多终端管理
  * 客户端连接后 ，生成一个唯一的fd，保存在
  */
-static void* control_tcp_recv(void* p)
+static void* tcp_control_module(void* p)
 {
 	int sockfd;
 	int epoll_fd;
@@ -318,9 +318,11 @@ static void* control_tcp_recv(void* p)
 				{
 					printf("client %d offline\n",wait_event[n].data.fd);
 
-
 					list_delete(list_head,wait_event[n].data.fd);
 					close(wait_event[n].data.fd);
+
+					printf("size--%d\n",list_head->size);
+
 					maxi--;
 				}
 				else
@@ -330,7 +332,7 @@ static void* control_tcp_recv(void* p)
 					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
-					tc_process_rev_msg(&wait_event[n].data.fd,buf,&len);
+					tcp_ctrl_process_rev_msg(&wait_event[n].data.fd,buf,&len);
 
 					//将测试数据返回发送
 					//send(wait_event[n].data.fd, buf, len, 0);
@@ -345,40 +347,15 @@ static void* control_tcp_recv(void* p)
     close(sockfd);
     pthread_exit(0);
 
+    return;
+
 
 }
 
 
 
 
-/*
- * 扫描信息主要是MAC地址，IP地址信息等
- */
-static void scanf_client()
-{
 
-	pclient_node tmp = NULL;
-	Pclient_info pinfo;
-	int i;
-	char get_client_mac[] = "mac";
-
-
-	tmp = list_head->next;
-
-	while(tmp != NULL)
-	{
-		pinfo = tmp->data;
-		if(pinfo->client_fd > 0)
-		{
-			pthread_mutex_lock(&mutex);
-			write(pinfo->client_fd, get_client_mac, sizeof(get_client_mac));
-			pthread_mutex_unlock(&mutex);
-		}
-		tmp = tmp->next;
-
-	}
-
-}
 
 void delete_client(int num)
 {
@@ -411,6 +388,32 @@ void view_client_info()
 }
 
 
+
+void read_file(){
+
+	Pclient_info pinfo;
+	int i;
+	FILE* file;
+
+	pinfo = malloc(sizeof(client_info));
+
+	file = fopen("info.txt","r");
+
+	for(i=0;i<list_head->size;i++){
+
+		fread(pinfo,sizeof(client_info),1,file);
+		perror("fread");
+
+		printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+
+		usleep(100000);
+	}
+
+
+
+	fclose(file);
+}
+
 static void* control_tcp_send(void* p)
 {
 
@@ -436,8 +439,20 @@ static void* control_tcp_send(void* p)
 		 * ‘X’席别
 		 *
 		 */
+		printf("-----------------\n");
+		printf("1 means scanf\n");
+		printf("2 means set id,seat,name,subj\n");
+		printf("4 means set seat\n");
+		printf("5 means set name\n");
+		printf("6 means set subject\n");
+
 		scanf("%d",&s);
-		if(s > 0)
+
+		if(s == 1)
+		{
+
+		}
+		if(s == 2)
 		{
 			scanf("%d",&fd);
 //			scanf("%d",&data_type.msg_type);
@@ -500,17 +515,23 @@ static void* control_tcp_send(void* p)
 		{
 			case 1:
 				scanf_client();
+
 				break;
 			case 2:
-//				edit_client_info(&data_type);
 				set_the_conference_parameters(fd,0,0,0,0);
-
+				break;
+			case 3:
+				get_the_conference_parameters(fd);
+				break;
+			case 4:
+				set_the_conference_vote_result();
+				break;
+			case 5:
+				read_file();
 				break;
 			default:
 				break;
 		}
-
-
 
 	}
 
@@ -524,7 +545,7 @@ int control_tcp_module()
 	pthread_mutex_init(&mutex, NULL);
 
 
-	pthread_create(&s_id,NULL,control_tcp_recv,NULL);
+	pthread_create(&s_id,NULL,tcp_control_module,NULL);
 
 
 	pthread_create(&s_id,NULL,control_tcp_send,NULL);

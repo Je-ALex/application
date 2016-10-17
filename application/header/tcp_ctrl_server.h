@@ -58,7 +58,7 @@ typedef enum{
 	WRITE_MSG = 1,
 	READ_MSG,
 	REQUEST_MSG,
-	REPLY_MSG,
+	W_REPLY_MSG,
 	R_REPLY_MSG,
 
 }Message_Type;
@@ -108,6 +108,19 @@ typedef enum {
 
 }client_code_type;
 
+
+/*
+ * 投票结果
+ *
+ */
+typedef enum {
+
+	WIFI_MEETING_CON_V_ASSENT  = 1,
+	WIFI_MEETING_CON_V_NAY,
+	WIFI_MEETING_CON_V_WAIVER ,
+	WIFI_MEETING_CON_V_TOUT ,
+
+}vote_name;
 /*
  * 会议类名称编码
  *
@@ -144,32 +157,6 @@ typedef enum {
 }event_name_type;
 
 
-/*
- * 主机TCP控制模块保存的终端信息参数
- *
- * 不区分上位机还是单元机，统一使用这个结构体，保存
- * @client_from 描述终端设备类型，单元机（0x02）还是上位机(0x01)
- */
-typedef struct{
-
-	/*终端的源，区分上位机还是单元机*/
-	char	client_from;
-	/*终端sock_fd属性*/
-	int 	client_fd;
-	/*终端id属性,若是pc则为空*/
-	int 	client_id;
-	/*终端mac属性*/
-	char 	client_mac[24];
-	/*终端ip属性信息*/
-	char 	ip_addr[20];
-	struct sockaddr_in cli_addr;
-	int 	clilen;
-	/*终端席别属性，若是主机则为默认值0*/
-	char 	client_seats;
-	/*终端的姓名属性,主机则默认为host_pc*/
-	char	client_name[32];
-
-} client_info,*Pclient_info;
 
 /*
  * event data
@@ -182,6 +169,15 @@ typedef struct {
 	unsigned char unit_vote;
 
 }event_data;
+
+typedef struct{
+
+	unsigned short assent;
+	unsigned short nay;
+	unsigned short waiver;
+	unsigned short timeout;
+}vote_result;
+
 /*
  * conference data
  */
@@ -191,7 +187,7 @@ typedef struct {
 	unsigned char seat;
 	unsigned char name[128];
 	unsigned char subj[128];
-
+	vote_result v_result;
 
 }conference_data;
 
@@ -213,6 +209,29 @@ typedef struct {
 	conference_data con_data;
 
 }frame_type,*Pframe_type;
+
+
+/*
+ * 主机TCP控制模块保存的终端信息参数
+ *
+ * 不区分上位机还是单元机，统一使用这个结构体，保存
+ * @client_from 描述终端设备类型，单元机（0x02）还是上位机(0x01)
+ */
+typedef struct{
+
+	/*终端sock_fd属性*/
+	int 	client_fd;
+	/*终端id属性,若是pc则为空*/
+	int 	client_id;
+	/*终端mac属性*/
+	char 	client_mac[24];
+	/*终端ip属性信息*/
+	struct sockaddr_in cli_addr;
+	int 	clilen;
+
+
+} client_info,*Pclient_info;
+
 
 
 #endif /* HEADER_TCP_CTRL_SERVER_H_ */

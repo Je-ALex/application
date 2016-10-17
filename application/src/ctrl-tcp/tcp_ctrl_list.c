@@ -39,12 +39,10 @@ pclient_node list_add(pclient_node head,void* data)
 			tail = tail->next;
 		}
 	}
-
 	tail->next = newnode;
-
+	head->size++;
 
 	pclient_node tmep;
-
 	tmep = head->next;
 
 	printf("instert node success\n");
@@ -53,8 +51,8 @@ pclient_node list_add(pclient_node head,void* data)
 	{
 		pinfo = tmep->data;
 		printf("client_fd--%d ,client_id--%d ,"
-				"client_mac--%s ,cli_addr--%s ",pinfo->client_fd,pinfo->client_id,
-				pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr));
+				"client_mac--%s ,cli_addr--%s ,size--%d",pinfo->client_fd,pinfo->client_id,
+				pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr),head->size);
 		tmep = tmep->next;
 		printf("\n");
 	}
@@ -78,10 +76,9 @@ pclient_node list_delete(pclient_node head,int fd)
 	pclient_node tmp,tmp2,tmp3;
 	Pclient_info pinfo;
 	int num = 0;
-
 	char state = -1;
-	tmp3 = head;
 
+	tmp3 = head;
 	tmp=tmp3->next;
 
 	printf("delete fd = %d\n",fd);
@@ -105,6 +102,7 @@ pclient_node list_delete(pclient_node head,int fd)
 				printf("data in the first\n");
 				tmp3->next = tmp2->next;
 				free(tmp2);
+				head->size--;
 				break;
 
 			}
@@ -126,6 +124,7 @@ pclient_node list_delete(pclient_node head,int fd)
 					printf("data in the last\n");
 					tmp->next = tmp2->next;
 					free(tmp2);
+					head->size--;
 					break;
 
 				}
@@ -162,3 +161,6 @@ pclient_node list_head_init()
 	return head;
 
 }
+
+
+

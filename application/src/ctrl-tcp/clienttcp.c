@@ -18,7 +18,7 @@
 int port = 8080;
 pthread_t s_id;
 
-//#define IP "192.168.10.57"
+//#define IP "192.168.10.56"
 #define IP "127.0.0.1"
 
 
@@ -30,7 +30,7 @@ static void* control_tcp_cli(void* p)
   int n,i;
   unsigned char buf_name[256] = {0};
   unsigned char buf_sub[256] = {0};
-  int num = 0;
+  int num = (int)p;
 
   bzero(&pin, sizeof(pin));
   pin.sin_family = AF_INET;

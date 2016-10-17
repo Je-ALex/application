@@ -15,15 +15,15 @@
  *
  * 创建查询线程，轮训比对，有差异，就返回新状态
  */
-frame_type new_uint_data = {0};
-frame_type last_uint_data = {0};
+frame_type new_uint_data;
+frame_type last_uint_data;
 
 
 
 /*
  * 数据包解析函数，将有效数据提出到handlbuf中
  */
-char* tc_frame_analysis(int* fd,const unsigned char* buf,int* len,Pframe_type frame_type)
+char* tcp_ctrl_frame_analysis(int* fd,const unsigned char* buf,int* len,Pframe_type frame_type)
 {
 
 	int i;
@@ -65,8 +65,8 @@ char* tc_frame_analysis(int* fd,const unsigned char* buf,int* len,Pframe_type fr
 
 	printf("package_len: %d\n",package_len);
 
-	/*
-	 * 长度最小不小于12(帧信息字节)+1(data字节，最小为一个名称码)
+	/* fixme
+	 * 长度最小不小于12(帧信息字节)+1(data字节，最小为一个名称码) = 13
 	 */
 	if(length < 0x0d || (length != package_len))
 	{
@@ -128,132 +128,19 @@ char* tc_frame_analysis(int* fd,const unsigned char* buf,int* len,Pframe_type fr
 
 
 
-/*
- * 主机发送数据组包函数
- * 首先确认组包消息的格式
- * 输入：
- * 帧数据类型：消息类型，数据类型，设备类型
- * 帧数据内容：控制类数据类型，会议型数据
- *
- * 输出：
- * 发送数据包内容，发送数据包长度
- *
- * 返回值：
- * 成功，失败
- */
-int tc_frame_compose(Pframe_type type,char* params,unsigned char* result_buf)
-{
-
-	unsigned char msg,data,machine,info;
-	int length = 0;
-	struct sockaddr_in cli_addr;
-	int clilen = sizeof(cli_addr);
-
-	int tc_index = 0;
-
-	msg=data=machine=info=0;
-
-	if(result_buf == NULL)
-		return -1;
-
-	/*
-	 * HEAD
-	 */
-	result_buf[tc_index++] = 'D';
-	result_buf[tc_index++] = 'S';
-	result_buf[tc_index++] = 'D';
-	result_buf[tc_index++] = 'S';
-
-	/*
-	 * edit the frame information to the buf
-	 * 三类info的地址分别是
-	 * xxx 	xxx 	xx
-	 * 0xe0	0x1c	0x03
-	 * 每个type分别进行移位运算后进行位与，得到第四字节的信息
-	 *
-	 */
-	msg = type->msg_type;
-	printf("msg = %x\n",msg);
-	msg = (msg << 5) & 0xe0;
-	printf("msg = %x\n",msg);
-
-	data = type->data_type;
-	printf("data = %x\n",data);
-	data = (data << 2) & 0x1c;
-	printf("data = %x\n",data);
-
-	machine = type->dev_type;
-	printf("machine = %x\n",machine);
-	machine = machine & 0x03;
-	printf("machine = %x\n",machine);
-
-	info = msg+data+machine;
-	printf("info = %x\n",info);
-
-	/*
-	 * 存储第四字节的信息
-	 */
-	result_buf[tc_index++] = info;
-
-	/*
-	 * LENGTH
-	 * 数据长度加上固定长度
-	 * 固定长度为4个头字节+1个消息类+2个长度+4个目标地址+1个校验和，共12个固定字节
-	 */
-	length = type->data_len + 12;
-	result_buf[tc_index++] = (length >> 8) & 0xff;
-	result_buf[tc_index++] = length & 0xff;
-
-	getpeername(type->fd,(struct sockaddr*)&cli_addr,
-								&clilen);
-
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 0 ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 8 ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 16  ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 24  ) & 0xff);
-
-	/*
-	 * 数据拷贝
-	 */
-	memcpy(&result_buf[tc_index],params,type->data_len);
-
-	tc_index = tc_index + type->data_len;
-
-	int i;
-	unsigned char sum = 0;
-	/*
-	 * 计算校验和
-	 */
-	for(i=0;i<tc_index;i++)
-	{
-		sum += result_buf[i];
-	}
-	result_buf[tc_index] = (unsigned char) (sum & 0xff);
-
-	type->frame_len = tc_index+1;
-
-	printf("result data: ");
-	for(i=0;i<tc_index+1;i++)
-	{
-		printf("%x ",result_buf[i]);
-	}
-	printf("\n");
-
-	return 0;
-}
-
-
 
 
 /*
- * 处理应答类会议消息
+ * tcp_ctrl_unit_reply_conference.c
+ * 单元机会议类应答消息处理函数
+ * 处理接收到的消息，将消息内容进行解析，存取到全局结构体中@new_uint_data
  *
- * 应答类消息内容：
- * 终端状态应答，分为错误码和正常码
- *
+ * in:
+ * @msg数据内容
+ * @Pframe_type帧信息
  *
  */
-int tc_unit_reply_conference(const char* msg,Pframe_type frame_type)
+int tcp_ctrl_unit_reply_conference(const unsigned char* msg,Pframe_type frame_type)
 {
 
 
@@ -364,11 +251,18 @@ int tc_unit_reply_conference(const char* msg,Pframe_type frame_type)
 
 }
 /*
- * 处理单元机数据
- * 在此函数下，将消息分为请求类和应答类
+ * tcp_ctrl_from_unit.c
+ * 设备控制模块单元机数据处理函数
+ *
+ * in：
+ * @handlbuf解析后的数据内容
+ * @Pframe_type帧信息内容
+ *
+ * 函数先进行消息类型判别，分为请求类和控制应答、查询应答类
+ * 在应答类消息中有细分为事件型和会议型
  *
  */
-int tc_from_unit(const char* handlbuf,Pframe_type frame_type)
+int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type frame_type)
 {
 	int i;
 	int tc_index = 0;
@@ -395,14 +289,20 @@ int tc_from_unit(const char* handlbuf,Pframe_type frame_type)
 
 			}
 			break;
-			/*
-			 * 此类应答消息只包含终端应答的错误消息
-			 */
-		case REPLY_MSG:
+		case W_REPLY_MSG:
+
+			if(frame_type->data_type == EVENT_DATA)
+			{
+				tcp_ctrl_unit_reply_conference(handlbuf,frame_type);
+			}
+			else{
+//				tc_unit_reply_event(handlbuf,frame_type);
+			}
+			break;
+		case R_REPLY_MSG:
 
 			if(frame_type->data_type == CONFERENCE_DATA)
 			{
-				tc_unit_reply_conference(handlbuf,frame_type);
 			}
 			else{
 //				tc_unit_reply_event(handlbuf,frame_type);
@@ -416,7 +316,7 @@ int tc_from_unit(const char* handlbuf,Pframe_type frame_type)
 /*
  * 处理上位机数据
  */
-int tc_from_pc(const char* handlbuf,Pframe_type frame_type)
+int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 {
 	int i;
 	int tc_index = 0;

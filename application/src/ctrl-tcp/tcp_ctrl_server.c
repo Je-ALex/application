@@ -1,13 +1,4 @@
 /*
- * server_node.c
- *
- *  Created on: 2016年10月10日
- *      Author: leon
- */
-
-
-/*
- * server-tcp-ep.c
  *
  *	控制类消息的TCP线程 主要功能是接收和处理tcp控制类消息
  *	上位机的通讯部分
@@ -25,21 +16,31 @@
  *  Created on: 2016年9月29日
  *      Author: leon
  */
-#include "../../header/ctrl-tcp.h"
+#include "../../header/tcp_ctrl_server.h"
+
 #include "../../header/tcp_ctrl_data_process.h"
-#include "../../header/tc_list.h"
+
+#include "../../header/tcp_ctrl_list.h"
+
+#include "../../header/tcp_ctrl_module_api.h"
 
 int port = 8080;
+
 pthread_t s_id;
 pthread_mutex_t mutex;
 
 
 pclient_node list_head;
 
-
+/*
+ * 服务端socket初始化
+ *
+ * 返回值
+ * 错误码和成功后的端口号
+ *
+ */
 static int tc_local_addr_init()
 {
-
 	struct sockaddr_in sin;
 	int sock_fd;
 	int ret;
@@ -76,6 +77,10 @@ static int tc_local_addr_init()
 
 }
 
+
+/*
+ * 设置socket_fd为非阻塞模式
+ */
 static void tc_set_noblock(int fd)
 {
     int fl=fcntl(fd,F_GETFL);
@@ -93,64 +98,6 @@ static void tc_set_noblock(int fd)
 
 
 /*
- * 处理单元机数据
- */
-static void tc_from_unit(const char* handlbuf,Pframe_type frame_type)
-{
-	int i;
-	int tc_index = 0;
-
-	printf("handlbuf: ");
-	for(i=0;i<sizeof(handlbuf);i++)
-	{
-		printf("0x%02x ",handlbuf[i]);
-	}
-	printf("\n");
-
-
-	switch(frame_type->msg_type)
-	{
-		case Request_msg:
-			//tc_unit_request();
-			break;
-		case Reply_msg:
-			tc_unit_reply(handlbuf,frame_type);
-			break;
-
-	}
-
-
-}
-/*
- * 处理上位机数据
- */
-static void tc_from_pc(const char* handlbuf,Pframe_type frame_type)
-{
-	int i;
-	int tc_index = 0;
-
-	printf("handlbuf: ");
-	for(i=0;i<sizeof(handlbuf);i++)
-	{
-		printf("0x%02x ",handlbuf[i]);
-	}
-	printf("\n");
-
-
-	switch(frame_type->msg_type)
-	{
-		case Write_msg:
-			break;
-		case Read_msg:
-			break;
-		case Request_msg:
-			break;
-		case Reply_msg:
-			break;
-	}
-
-}
-/*
  * 接收消息的初步处理
  * 分类：
  * 上位机通讯部分
@@ -162,7 +109,7 @@ static void tc_from_pc(const char* handlbuf,Pframe_type frame_type)
  *
  *
  */
-static void tc_process_rev_msg(int* cli_fd, const char* value, int* length)
+static void tc_process_rev_msg(int* cli_fd, unsigned const char* value, int* length)
 {
 
 	/*
@@ -181,6 +128,9 @@ static void tc_process_rev_msg(int* cli_fd, const char* value, int* length)
 	handlbuf = tc_frame_analysis(cli_fd,value,length,type);
 
 	printf("type->dev_type = %d\n",type->dev_type);
+	/*
+	 * 设备类型分类
+	 */
 	switch(type->dev_type)
 	{
 		case PC_CTRL:
@@ -204,7 +154,7 @@ static void tc_process_rev_msg(int* cli_fd, const char* value, int* length)
  * 主要是初始化TCP端子，设置服务端模式，采用epoll进行多终端管理
  * 客户端连接后 ，生成一个唯一的fd，保存在
  */
-void* control_tcp_recv(void* p)
+static void* control_tcp_recv(void* p)
 {
 	int sockfd;
 	int epoll_fd;
@@ -224,7 +174,7 @@ void* control_tcp_recv(void* p)
      *
      */
 	int len = 0;
-	char buf[1024] = {0};
+	unsigned char buf[1024] = {0};
 
     /*
      *socket init
@@ -398,6 +348,9 @@ void* control_tcp_recv(void* p)
 
 }
 
+
+
+
 /*
  * 扫描信息主要是MAC地址，IP地址信息等
  */
@@ -457,317 +410,6 @@ void view_client_info()
 
 }
 
-/*
- * 会议类数据
- * 分成控制类，查询类
- */
-void edit_conference_info(Pframe_type type,unsigned char* buf)
-{
-	int i;
-	int num = 0;
-
-	memset(buf,0,sizeof(buf));
-
-	/*
-	 * 下发的控制消息
-	 */
-	switch (type->msg_type)
-	{
-
-		case Write_msg:
-		{
-			/*
-			 * 拷贝座位号信息
-			 * name-0x01
-			 * code-0x05
-			 * 进行移位操作，高位保存第字节
-			 */
-			if(type->con_data.id > 0)
-			{
-				unsigned char data = 0;
-				buf[num++]=WIFI_MEETING_CON_ID;
-				buf[num++]=WIFI_MEETING_INT;
-				data =(unsigned char) (( type->con_data.id >> 24 ) & 0xff);
-				buf[num++] = data;
-				data =(unsigned char) (( type->con_data.id >> 16 ) & 0xff);
-				buf[num++] = data;
-				data =(unsigned char) (( type->con_data.id >> 8 ) & 0xff);
-				buf[num++] = data;
-				data =(unsigned char) (( type->con_data.id >> 0 ) & 0xff);
-				buf[num++] = data;
-	//			for(i=0;i<num;i++)
-	//			{
-	//				printf("%x ",buf[i]);
-	//
-	//			}
-			}
-			/*
-			 * 席别信息
-			 * name-0x02
-			 * code-0x01
-			 */
-			if(type->con_data.seat > 0)
-			{
-				buf[num++]=WIFI_MEETING_CON_SEAT;
-				buf[num++]=WIFI_MEETING_CHAR;
-				buf[num++] = type->con_data.seat;
-			}
-			/*
-			 * 姓名信息
-			 * name-0x03
-			 * code-0x0a
-			 * 姓名编码+数据格式编码+内容长度+内容
-			 */
-			if(strlen(type->con_data.name) > 0)
-			{
-				buf[num++] = WIFI_MEETING_CON_NAME;
-				buf[num++] = WIFI_MEETING_STRING;
-				buf[num++] = strlen(type->con_data.name);
-				memcpy(&buf[num],type->con_data.name,strlen(type->con_data.name));
-				num = num+strlen(type->con_data.name);
-			}
-			/*
-			 * 议题信息
-			 * name-0x03
-			 * code-0x0a
-			 * 姓名编码+数据格式编码+内容长度+内容
-			 */
-			if(strlen(type->con_data.subj) > 0)
-			{
-				buf[num++] = WIFI_MEETING_CON_SUBJ;
-				buf[num++] = WIFI_MEETING_STRING;
-				buf[num++] = strlen(type->con_data.subj);
-				memcpy(&buf[num],type->con_data.subj,strlen(type->con_data.subj));
-				num = num+strlen(type->con_data.subj);
-
-			}
-			type->data_len = num;
-
-			break;
-		}
-		case Read_msg:
-		{
-			if(type->name_type > 0)
-			{
-				buf[num++] = type->name_type[0];
-
-				buf[num++] = WIFI_MEETING_STRING;
-				buf[num++] = strlen(type->con_data.subj);
-
-			}
-
-		}
-			break;
-		default:
-			printf("%s,message type is not legal\n",__func__);
-	}
-//	if(type->msg_type == Write_msg)
-//	{
-//		/*
-//		 * 拷贝座位号信息
-//		 * name-0x01
-//		 * code-0x05
-//		 * 进行移位操作，高位保存第字节
-//		 */
-//		if(type->con_data.id > 0)
-//		{
-//			unsigned char data = 0;
-//			buf[num++]=WIFI_MEETING_CON_ID;
-//			buf[num++]=WIFI_MEETING_INT;
-//			data =(unsigned char) (( type->con_data.id >> 24 ) & 0xff);
-//			buf[num++] = data;
-//			data =(unsigned char) (( type->con_data.id >> 16 ) & 0xff);
-//			buf[num++] = data;
-//			data =(unsigned char) (( type->con_data.id >> 8 ) & 0xff);
-//			buf[num++] = data;
-//			data =(unsigned char) (( type->con_data.id >> 0 ) & 0xff);
-//			buf[num++] = data;
-////			for(i=0;i<num;i++)
-////			{
-////				printf("%x ",buf[i]);
-////
-////			}
-//		}
-//		/*
-//		 * 席别信息
-//		 * name-0x02
-//		 * code-0x01
-//		 */
-//		if(type->con_data.seat > 0)
-//		{
-//			buf[num++]=WIFI_MEETING_CON_SEAT;
-//			buf[num++]=WIFI_MEETING_CHAR;
-//			buf[num++] = type->con_data.seat;
-//		}
-//		/*
-//		 * 姓名信息
-//		 * name-0x03
-//		 * code-0x0a
-//		 * 姓名编码+数据格式编码+内容长度+内容
-//		 */
-//		if(strlen(type->con_data.name) > 0)
-//		{
-//			buf[num++] = WIFI_MEETING_CON_NAME;
-//			buf[num++] = WIFI_MEETING_STRING;
-//			buf[num++] = strlen(type->con_data.name);
-//			memcpy(&buf[num],type->con_data.name,strlen(type->con_data.name));
-//			num = num+strlen(type->con_data.name);
-//		}
-//		/*
-//		 * 议题信息
-//		 * name-0x03
-//		 * code-0x0a
-//		 * 姓名编码+数据格式编码+内容长度+内容
-//		 */
-//		if(strlen(type->con_data.subj) > 0)
-//		{
-//			buf[num++] = WIFI_MEETING_CON_SUBJ;
-//			buf[num++] = WIFI_MEETING_STRING;
-//			buf[num++] = strlen(type->con_data.subj);
-//			memcpy(&buf[num],type->con_data.subj,strlen(type->con_data.subj));
-//			num = num+strlen(type->con_data.subj);
-//
-//		}
-//		type->data_len = num;
-//	}
-//	/*
-//	 * 下发的查询信息
-//	 */
-//	else if(type->msg_type == Read_msg)
-//	{
-//
-//		if(type->name_type > 0)
-//		{
-//			buf[num++] = type->name_type;
-//		}
-//		type->data_len = num;
-//	}
-//	/*
-//	 * 下发的请求信息
-//	 */
-//	else if(type->msg_type == Request_msg){
-//
-//	}
-//	/*
-//	 * 下发的应答信息
-//	 */
-//	else if(type->msg_type == Reply_msg){
-//
-//	}else{
-//
-//		printf("%s,message type is not legal\n",__func__);
-//	}
-
-	for(i=0;i<num;i++)
-	{
-		printf("%x ",buf[i]);
-
-	}
-	printf("\n");
-
-}
-
-/*
- * 会议类类信息(0x02)设置
- *
- * 此API是事件类数据统一接口
- *
- * 编辑终端属性，设置id，seats等
- *
- * 输入：
- * @fd--设置终端的fd
- * @id--分配的id
- * @seats--分配的席位,主席机，客席机，旁听机
- * @name--对应终端的姓名，单主机情况是不需要设置姓名
- * @msg_ty结构体--下发的消息类型(控制消息，请求消息，应答消息，查询消息)
- */
-//
-static void edit_client_info(Pframe_type type)
-{
-
-	pclient_node tmp = NULL;
-	Pclient_info pinfo;
-
-	char find_fd = -1;
-
-	unsigned int id_num = 0;
-	int c_seat = 0;
-	char c_name[32] = {0};
-	char c_subj[32] = {0};
-
-	unsigned char buf[256] = {0};
-	unsigned char s_buf[256] = {0};
-
-	/**************************************
-	 * 将数据信息进行组包
-	 * 参照通讯协议中会议类参数信息进行编码
-	 *
-	 * 名称		编码格式	数据格式	值
-	 * seat		0x01	char	1,2,3
-	 * id		0x02	char 	1,2,3...
-	 * name		0x03	char	"hushan"
-	 ************************************/
-	int i;
-	/*
-	 * 判断是否有此客户端
-	 */
-	tmp = list_head->next;
-	while(tmp != NULL)
-	{
-		pinfo = tmp->data;
-		if(pinfo->client_fd == type->fd)
-		{
-			find_fd = 1;
-			break;
-		}
-		tmp = tmp->next;
-
-	}
-	if(find_fd < 0)
-	{
-		printf("please input the right fd..\n");
-		return;
-	}
-	/*
-	 * 会议类数据再次处理
-	 * 根据type参数，确定数据的内容和格式
-	 */
-	switch(type->data_type)
-	{
-		case CONFERENCE_DATA:
-			edit_conference_info(type,buf);
-			break;
-
-		case EVENT_DATA:
-
-			break;
-
-	}
-	/*
-	 * 发送消息组包
-	 * 对数据内容进行封装，增数据头等信息
-	 */
-	tc_frame_compose(type,buf,s_buf);
-
-	tmp = list_head->next;
-
-	while(tmp != NULL)
-	{
-		pinfo = tmp->data;
-		if(pinfo->client_fd == type->fd)
-		{
-			pthread_mutex_lock(&mutex);
-			write(pinfo->client_fd, s_buf, type->frame_len);
-			pthread_mutex_unlock(&mutex);
-			break;
-		}
-		tmp = tmp->next;
-
-	}
-
-
-}
-
 
 static void* control_tcp_send(void* p)
 {
@@ -798,48 +440,48 @@ static void* control_tcp_send(void* p)
 		if(s > 0)
 		{
 			scanf("%d",&fd);
-			scanf("%d",&data_type.msg_type);
-			//查询
-			if(data_type.msg_type == 2)
-			{
-				scanf("%d",&data_type.data_type);
-				scanf("%d",&data_type.name_type[0]);
-			}
+//			scanf("%d",&data_type.msg_type);
+//			//查询
+//			if(data_type.msg_type == 2)
+//			{
+//				scanf("%d",&data_type.data_type);
+//				scanf("%d",&data_type.name_type[0]);
+//			}
 
 		}
-		data_type.fd = fd;
-		data_type.dev_type = HOST_CTRL;
+//		data_type.fd = fd;
+//		data_type.dev_type = HOST_CTRL;
+//
+//		printf("s=%d,fd=%d,msg=%d,dt=%d,na=%d\n",s,data_type.fd,data_type.msg_type,
+//				data_type.data_type,data_type.name_type[0]);
 
-		printf("s=%d,fd=%d,msg=%d,dt=%d,na=%d\n",s,data_type.fd,data_type.msg_type,
-				data_type.data_type,data_type.name_type[0]);
-
-		if(data_type.msg_type == Write_msg)
-		{
-			printf("please input the ID:\n");
-			scanf("%d",&id_num);
-			printf("get input ID:%x\n",id_num);
-
-			printf("please input the seat:\n");
-			scanf("%d",&c_seat);
-			printf("get input seat:%x\n",c_seat);
-
-			printf("please input the name:\n");
-			scanf("%s",c_name);
-			printf("get input name:%s\n",c_name);
-
-			printf("please input the subject:\n");
-			scanf("%s",c_subj);
-			printf("get input subject:%s\n",c_subj);
-
-			/*
-			 * 确定此API的帧信息
-			 * 会议类参数
-			 */
-			data_type.con_data.id = id_num;
-			data_type.con_data.seat = c_seat;
-			memcpy(&data_type.con_data.name,c_name,strlen(c_name));
-			memcpy(&data_type.con_data.subj,c_subj,strlen(c_subj));
-		}
+//		if(data_type.msg_type == Write_msg)
+//		{
+//			printf("please input the ID:\n");
+//			scanf("%d",&id_num);
+//			printf("get input ID:%x\n",id_num);
+//
+//			printf("please input the seat:\n");
+//			scanf("%d",&c_seat);
+//			printf("get input seat:%x\n",c_seat);
+//
+//			printf("please input the name:\n");
+//			scanf("%s",c_name);
+//			printf("get input name:%s\n",c_name);
+//
+//			printf("please input the subject:\n");
+//			scanf("%s",c_subj);
+//			printf("get input subject:%s\n",c_subj);
+//
+//			/*
+//			 * 确定此API的帧信息
+//			 * 会议类参数
+//			 */
+//			data_type.con_data.id = id_num;
+//			data_type.con_data.seat = c_seat;
+//			memcpy(&data_type.con_data.name,c_name,strlen(c_name));
+//			memcpy(&data_type.con_data.subj,c_subj,strlen(c_subj));
+//		}
 		/*
 		 * 主要分为事件类和会议类
 		 * 再其次是写信息，读信息，查询，请求信息
@@ -860,7 +502,9 @@ static void* control_tcp_send(void* p)
 				scanf_client();
 				break;
 			case 2:
-				edit_client_info(&data_type);
+//				edit_client_info(&data_type);
+				set_the_conference_parameters(fd,0,0,0,0);
+
 				break;
 			default:
 				break;

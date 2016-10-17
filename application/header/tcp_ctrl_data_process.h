@@ -8,20 +8,20 @@
 #ifndef HEADER_TCP_CTRL_DATA_PROCESS_H_
 #define HEADER_TCP_CTRL_DATA_PROCESS_H_
 
-#include "ctrl-tcp.h"
+#include "tcp_ctrl_server.h"
 
 
 
-char* tc_frame_analysis(int* fd,const char* buf,int* len,Pframe_type frame_type);
+char* tc_frame_analysis(int* fd,unsigned const char* buf,int* len,Pframe_type frame_type);
 int tc_frame_compose(Pframe_type type,char* params,unsigned char* result_buf);
 int tc_unit_reply(const char* msg,Pframe_type frame_type);
 
 
 
 
+int tc_from_unit(const char* handlbuf,Pframe_type frame_type);
 
-
-
+int tc_from_pc(const char* handlbuf,Pframe_type frame_type);
 
 
 

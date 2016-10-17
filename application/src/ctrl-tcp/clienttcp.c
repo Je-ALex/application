@@ -19,7 +19,7 @@ int port = 8080;
 pthread_t s_id;
 
 //#define IP "192.168.10.57"
-#define IP "1270.0.0.1"
+#define IP "127.0.0.1"
 
 
 static void* control_tcp_cli(void* p)
@@ -28,8 +28,9 @@ static void* control_tcp_cli(void* p)
   int sock_fd;
   unsigned char buf[256] = {0};
   int n,i;
-
-  int num = (int)p;
+  unsigned char buf_name[256] = {0};
+  unsigned char buf_sub[256] = {0};
+  int num = 0;
 
   bzero(&pin, sizeof(pin));
   pin.sin_family = AF_INET;
@@ -52,15 +53,7 @@ static void* control_tcp_cli(void* p)
   while(1)
   {
 
-//	i++;
-//	snprintf(s2,sizeof(int),"%x",i);
-//
-//	strcat(str,s2);
-
-    //write(sock_fd, str, strlen(str)+1);
 	  n=recv(sock_fd, buf, sizeof(buf), 0);
-//    n=read(sock_fd, buf, sizeof(buf));
-//    printf("the %d thread receive\n",num);
     if (n == 0)
     {
         printf("the othere side has been closed.\n");
@@ -68,16 +61,21 @@ static void* control_tcp_cli(void* p)
     }
     else
     {
-    	printf("the %d receive from server: ",num);
-//    	printf("%s\n ",buf);
+    	printf("the %d receive from server: \n",num);
+
+    	memcpy(buf_name,&buf[23],buf[22]);
+    	printf("%s\n ",buf_name);
+
+    	memcpy(buf_sub,&buf[23+buf[22]+3],buf[23+buf[22]+2]);
+    	printf("%s\n ",buf_sub);
+
+
     	for(i=0;i<n;i++)
     	   printf("%x ",buf[i]);
     }
     printf("\n");
 
     write(sock_fd, buf, n);
-//    memset(str+3,0,4);
-//    sleep(1);
 
   }
   close(sock_fd);

@@ -11,8 +11,8 @@
 #include <unistd.h>
 #include <malloc.h>
 
-#include "../../header/tc_list.h"
-#include "../../header/ctrl-tcp.h"
+#include "../../header/tcp_ctrl_list.h"
+#include "../../header/tcp_ctrl_server.h"
 
 /*
  * 将新结点加入链表中

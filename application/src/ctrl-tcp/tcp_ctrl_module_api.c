@@ -7,10 +7,125 @@
 
 
 
-#include "../../header/ctrl-tcp.h"
-#include "../../header/tc_list.h"
+#include "../../header/tcp_ctrl_list.h"
+#include "../../header/tcp_ctrl_data_process.h"
+
 
 extern pclient_node list_head;
+extern pthread_mutex_t mutex;
+
+
+/*
+ * 会议类数据
+ * 分成控制类，查询类
+ */
+static void tcp_ctrl_edit_conference_info(Pframe_type type,unsigned char* buf)
+{
+	int i;
+	int num = 0;
+
+	/*
+	 * 下发的控制消息
+	 */
+	switch (type->msg_type)
+	{
+
+		case WRITE_MSG:
+		{
+			/*
+			 * 拷贝座位号信息
+			 * name-0x01
+			 * code-0x05
+			 * 进行移位操作，高位保存第字节
+			 */
+			if(type->con_data.id > 0)
+			{
+				unsigned char data = 0;
+				buf[num++]=WIFI_MEETING_CON_ID;
+				buf[num++]=WIFI_MEETING_INT;
+				data =(unsigned char) (( type->con_data.id >> 24 ) & 0xff);
+				buf[num++] = data;
+				data =(unsigned char) (( type->con_data.id >> 16 ) & 0xff);
+				buf[num++] = data;
+				data =(unsigned char) (( type->con_data.id >> 8 ) & 0xff);
+				buf[num++] = data;
+				data =(unsigned char) (( type->con_data.id >> 0 ) & 0xff);
+				buf[num++] = data;
+	//			for(i=0;i<num;i++)
+	//			{
+	//				printf("%x ",buf[i]);
+	//
+	//			}
+			}
+			/*
+			 * 席别信息
+			 * name-0x02
+			 * code-0x01
+			 */
+			if(type->con_data.seat > 0)
+			{
+				buf[num++]=WIFI_MEETING_CON_SEAT;
+				buf[num++]=WIFI_MEETING_CHAR;
+				buf[num++] = type->con_data.seat;
+			}
+			/*
+			 * 姓名信息
+			 * name-0x03
+			 * code-0x0a
+			 * 姓名编码+数据格式编码+内容长度+内容
+			 */
+			if(strlen(type->con_data.name) > 0)
+			{
+				buf[num++] = WIFI_MEETING_CON_NAME;
+				buf[num++] = WIFI_MEETING_STRING;
+				buf[num++] = strlen(type->con_data.name);
+				memcpy(&buf[num],type->con_data.name,strlen(type->con_data.name));
+				num = num+strlen(type->con_data.name);
+			}
+			/*
+			 * 议题信息
+			 * name-0x03
+			 * code-0x0a
+			 * 姓名编码+数据格式编码+内容长度+内容
+			 */
+			if(strlen(type->con_data.subj) > 0)
+			{
+				buf[num++] = WIFI_MEETING_CON_SUBJ;
+				buf[num++] = WIFI_MEETING_STRING;
+				buf[num++] = strlen(type->con_data.subj);
+				memcpy(&buf[num],type->con_data.subj,strlen(type->con_data.subj));
+				num = num+strlen(type->con_data.subj);
+
+			}
+			type->data_len = num;
+
+			break;
+		}
+		case READ_MSG:
+		{
+			if(type->name_type > 0)
+			{
+				buf[num++] = type->name_type[0];
+
+				buf[num++] = WIFI_MEETING_STRING;
+				buf[num++] = strlen(type->con_data.subj);
+
+			}
+
+		}
+			break;
+		default:
+			printf("%s,message type is not legal\n",__func__);
+	}
+	for(i=0;i<num;i++)
+	{
+		printf("%x ",buf[i]);
+
+	}
+	printf("\n");
+
+}
+
 
 /*
  * 会议类类信息(0x02)设置
@@ -26,7 +141,7 @@ extern pclient_node list_head;
  * @name--对应终端的姓名，单主机情况是不需要设置姓名
  * @msg_ty结构体--下发的消息类型(控制消息，请求消息，应答消息，查询消息)
  */
-int ctrl_module_edit_info(Pframe_type type)
+int tcp_ctrl_module_edit_info(Pframe_type type)
 {
 
 	pclient_node tmp = NULL;
@@ -66,6 +181,24 @@ int ctrl_module_edit_info(Pframe_type type)
 		printf("please input the right fd..\n");
 		return ERROR;
 	}
+
+	/*
+	 * 会议类数据再次处理
+	 * 根据type参数，确定数据的内容和格式
+	 */
+	switch(type->data_type)
+	{
+		case CONFERENCE_DATA:
+			tcp_ctrl_edit_conference_info(type,buf);
+			break;
+
+		case EVENT_DATA:
+
+			break;
+
+	}
+	printf("name %s\n",type->con_data.name);
+	printf("subj %s\n",type->con_data.subj);
 	/*
 	 * 发送消息组包
 	 * 对数据内容进行封装，增数据头等信息
@@ -94,27 +227,38 @@ int ctrl_module_edit_info(Pframe_type type)
 /*
  * 设置会议参数
  *
+ * 此API只支持单个议题
+ *
  */
 int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 		char* client_name,char* subj)
 {
+	frame_type data_info;
 
-	frame_type data_type;
+	/*
+	 * 测试 发送
+	 */
+	data_info.con_data.id = 1;
+	data_info.con_data.seat = 2;
+	unsigned char* name = "湖山电器有限责任公司-电声分公司\0";
+	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm\0";
+	memcpy(data_info.con_data.name,name,strlen(name));
+	memcpy(data_info.con_data.subj,sub,strlen(sub));
 
 	/*
 	 * 将参数保存
 	 */
-	data_type.fd = fd_value;
-	data_type.con_data.id = client_id;
-	data_type.con_data.seat = client_seat;
-	memcpy(data_type.con_data.name,client_name,strlen(client_name));
-	memcpy(data_type.con_data.subj,client_name,strlen(subj));
+	data_info.fd = fd_value;
+//	data_type.con_data.id = client_id;
+//	data_type.con_data.seat = client_seat;
+//	memcpy(data_type.con_data.name,client_name,strlen(client_name));
+//	memcpy(data_type.con_data.subj,subj,strlen(subj));
 
-	data_type.msg_type = Write_msg;
-	data_type.data_type = CONFERENCE_DATA;
-	data_type.dev_type = HOST_CTRL;
+	data_info.msg_type = WRITE_MSG;
+	data_info.data_type = CONFERENCE_DATA;
+	data_info.dev_type = HOST_CTRL;
 
-	ctrl_module_edit_info(&data_type);
+	tcp_ctrl_module_edit_info(&data_info);
 
 	return SUCCESS;
 
@@ -127,25 +271,91 @@ int get_the_conference_parameters(int fd_value,int* client_id,char* client_seat,
 		char* client_name,char* subj)
 {
 
-	frame_type data_type;
+	frame_type data_info;
 
 	/*
 	 * 将参数保存
 	 */
-	data_type.fd = fd_value;
+	data_info.fd = fd_value;
 
-	data_type.msg_type = Read_msg;
-	data_type.data_type = CONFERENCE_DATA;
-	data_type.dev_type = HOST_CTRL;
+	data_info.msg_type = READ_MSG;
+	data_info.data_type = CONFERENCE_DATA;
+	data_info.dev_type = HOST_CTRL;
 
-	ctrl_module_edit_info(&data_type);
+	tcp_ctrl_module_edit_info(&data_info);
 
-
-	data_type.con_data.id = client_id;
-	data_type.con_data.seat = client_seat;
-	memcpy(data_type.con_data.name,client_name,strlen(client_name));
-	memcpy(data_type.con_data.subj,client_name,strlen(subj));
 
 	return SUCCESS;
 
 }
+
+
+/********************************************
+ *
+ * 事件型数据设置和查询
+ *
+ *
+ *******************************************/
+
+
+
+/*
+ * 配置info信息
+ */
+static int config_event_frame_info(Pframe_type type){
+
+	type->msg_type = WRITE_MSG;
+	type->data_type = EVENT_DATA;
+	type->dev_type = HOST_CTRL;
+
+	return 0;
+}
+/*
+ * 电源开关
+ */
+int set_the_event_parameter_power(int fd_value,int client_id,int value)
+{
+	frame_type data_info;
+
+	/*
+	 * 测试 发送
+	 */
+	data_info.con_data.id = 1;
+
+	/*
+	 * 将参数保存
+	 */
+	data_info.fd = fd_value;
+
+	config_event_frame_info(&data_info);
+
+	tcp_ctrl_module_edit_info(&data_info);
+
+	return SUCCESS;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

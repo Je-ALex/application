@@ -8,10 +8,10 @@
 #ifndef HEADER_TCP_CTRL_MODULE_API_H_
 #define HEADER_TCP_CTRL_MODULE_API_H_
 
-#include "ctrl-tcp.h"
-
-int edit_client_info(Pframe_type type);
+#include "tcp_ctrl_server.h"
 
 
+int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
+		char* client_name,char* subj);
 
 #endif /* HEADER_TCP_CTRL_MODULE_API_H_ */

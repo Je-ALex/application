@@ -34,7 +34,7 @@
 #include <fcntl.h>
 
 
-#include "../../header/ctrl-tcp.h"
+#include "../../header/tcp_ctrl_server.h"
 
 int port = 8080;
 pthread_t s_id;

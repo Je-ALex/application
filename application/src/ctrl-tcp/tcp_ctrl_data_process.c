@@ -23,7 +23,7 @@ frame_type last_uint_data = {0};
 /*
  * 数据包解析函数，将有效数据提出到handlbuf中
  */
-char* tc_frame_analysis(int* fd,const char* buf,int* len,Pframe_type frame_type)
+char* tc_frame_analysis(int* fd,const unsigned char* buf,int* len,Pframe_type frame_type)
 {
 
 	int i;
@@ -243,13 +243,19 @@ int tc_frame_compose(Pframe_type type,char* params,unsigned char* result_buf)
 }
 
 
+
+
 /*
- * 处理应答类消息
- * 应答分为：
- * 事件型数据、会议型数，根据type值确定
+ * 处理应答类会议消息
+ *
+ * 应答类消息内容：
+ * 终端状态应答，分为错误码和正常码
+ *
+ *
  */
-int tc_unit_reply(const char* msg,Pframe_type frame_type)
+int tc_unit_reply_conference(const char* msg,Pframe_type frame_type)
 {
+
 
 	int tc_index = 0;
 	int num = 0;
@@ -264,8 +270,6 @@ int tc_unit_reply(const char* msg,Pframe_type frame_type)
 
 	new_uint_data.fd = frame_type->fd;
 
-	if(frame_type->data_type == CONFERENCE_DATA)
-	{
 //		 if(msg[tc_index++] == WIFI_MEETING_CON_ID)
 //		 {
 //			 	frame_type->name_type[num] = msg[tc_index-1];
@@ -354,17 +358,86 @@ int tc_unit_reply(const char* msg,Pframe_type frame_type)
 
 		 }
 
-	}else if(frame_type->data_type == EVENT_DATA)
-	{
 
-
-
-
-	}
 
 	return 0;
 
 }
+/*
+ * 处理单元机数据
+ * 在此函数下，将消息分为请求类和应答类
+ *
+ */
+int tc_from_unit(const char* handlbuf,Pframe_type frame_type)
+{
+	int i;
+	int tc_index = 0;
+
+	printf("handlbuf: ");
+	for(i=0;i<sizeof(handlbuf);i++)
+	{
+		printf("0x%02x ",handlbuf[i]);
+	}
+	printf("\n");
 
 
+	/*
+	 * 消息类型分类
+	 * 具体细分为控制类应答和查询类应答
+	 */
+	switch(frame_type->msg_type)
+	{
+		case REQUEST_MSG:
+			if(frame_type->data_type == CONFERENCE_DATA)
+			{
+			}
+			else{
 
+			}
+			break;
+			/*
+			 * 此类应答消息只包含终端应答的错误消息
+			 */
+		case REPLY_MSG:
+
+			if(frame_type->data_type == CONFERENCE_DATA)
+			{
+				tc_unit_reply_conference(handlbuf,frame_type);
+			}
+			else{
+//				tc_unit_reply_event(handlbuf,frame_type);
+			}
+			break;
+
+	}
+
+	return 0;
+}
+/*
+ * 处理上位机数据
+ */
+int tc_from_pc(const char* handlbuf,Pframe_type frame_type)
+{
+	int i;
+	int tc_index = 0;
+
+	printf("handlbuf: ");
+	for(i=0;i<sizeof(handlbuf);i++)
+	{
+		printf("0x%02x ",handlbuf[i]);
+	}
+	printf("\n");
+
+
+	switch(frame_type->msg_type)
+	{
+		case WRITE_MSG:
+			break;
+		case READ_MSG:
+			break;
+		case REQUEST_MSG:
+			break;
+
+	}
+	return 0;
+}

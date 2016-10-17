@@ -31,8 +31,6 @@ int scanf_client()
 	int ret;
 	file = fopen("info.txt","w+");
 
-
-
 	tmp = list_head->next;
 
 	while(tmp != NULL)

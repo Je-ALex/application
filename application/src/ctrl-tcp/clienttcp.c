@@ -46,14 +46,17 @@ static void* control_tcp_cli(void* p)
      perror("call connect");
      exit(1);
   }
-	 char str[] ={"DS "};
-	 char s2[4];
+  char str[19] ={0x44,0x53,0x44, 0x53, 0x67, 0x00, 0x13, 00, 00, 00, 00, 0x0C,
+		  00, 00, 00, 00, 00,00,0xB4};
+//  char* str2 = "44 53 44 53 65 00 13 00 00 00 00 0C 00 00 00 00 00 00 B2";
   //NULL != fgets(str,MAXLINE, stdin)
 
   while(1)
   {
 
-	  n=recv(sock_fd, buf, sizeof(buf), 0);
+	write(sock_fd, str, 19);
+
+	n=recv(sock_fd, buf, sizeof(buf), 0);
     if (n == 0)
     {
         printf("the othere side has been closed.\n");
@@ -75,7 +78,7 @@ static void* control_tcp_cli(void* p)
     }
     printf("\n");
 
-    write(sock_fd, buf, n);
+    sleep(1);
 
   }
   close(sock_fd);

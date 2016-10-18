@@ -14,6 +14,8 @@
 #include "../../header/tcp_ctrl_list.h"
 #include "../../header/tcp_ctrl_server.h"
 
+
+
 /*
  * 将新结点加入链表中
  */
@@ -27,7 +29,7 @@ pclient_node list_add(pclient_node head,void* data)
 	newnode->data = data;
 	newnode->next = NULL;
 
-	Pclient_info pinfo;
+
 
 	tail = head;
 
@@ -42,20 +44,21 @@ pclient_node list_add(pclient_node head,void* data)
 	tail->next = newnode;
 	head->size++;
 
-	pclient_node tmep;
-	tmep = head->next;
+//	Pclient_info pinfo;
+//	pclient_node tmep;
+//	tmep = head->next;
 
 	printf("instert node success\n");
 
-	while(tmep != NULL)
-	{
-		pinfo = tmep->data;
-		printf("client_fd--%d ,client_id--%d ,"
-				"client_mac--%s ,cli_addr--%s ,size--%d",pinfo->client_fd,pinfo->client_id,
-				pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr),head->size);
-		tmep = tmep->next;
-		printf("\n");
-	}
+//	while(tmep != NULL)
+//	{
+//		pinfo = tmep->data;
+//		printf("client_fd--%d ,client_id--%d ,"
+//				"client_mac--%s ,cli_addr--%s ,size--%d",pinfo->client_fd,pinfo->client_id,
+//				pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr),head->size);
+//		tmep = tmep->next;
+//		printf("\n");
+//	}
 
 	return 0;
 
@@ -71,37 +74,32 @@ pclient_node list_add(pclient_node head,void* data)
  * 删除可能是顺序，乱序，倒序
  * 所以
  */
-pclient_node list_delete(pclient_node head,int fd)
+int list_delete(pclient_node head,int pos,pclient_node* del)
 {
 	pclient_node tmp,tmp2,tmp3;
 	Pclient_info pinfo;
 	int num = 0;
 	char state = -1;
 
+
+	if (pos < 0 || pos >= head->size)
+	    return ERROR;
+
 	tmp3 = head;
-	tmp=tmp3->next;
 
-	printf("delete fd = %d\n",fd);
+	tmp=head->next;
 
-	if(head == NULL){
-		return NULL;
-	}
-	else{
-
-		while(tmp != NULL)
-		{
-			pinfo = tmp->data;
-			tmp2 =tmp;
+	while(tmp != NULL)
+	{
 
 			/*
 			 * 删除结点位于头部
 			 */
-			if(pinfo->client_fd == fd && num == 0){
+			if(pos == 0){
 
-				state ++;
+				*del = tmp;
+				tmp3->next = tmp->next;
 				printf("data in the first\n");
-				tmp3->next = tmp2->next;
-				free(tmp2);
 				head->size--;
 				break;
 
@@ -113,30 +111,73 @@ pclient_node list_delete(pclient_node head,int fd)
 			else{
 
 				printf("delete data last...\n");
-				tmp2 = tmp2->next;
-
-				if(tmp2 != NULL)
-					pinfo = tmp2->data;
-
-				if(pinfo->client_fd == fd)
+				if(pos == num)
 				{
-					state++;
-					printf("data in the last\n");
-					tmp->next = tmp2->next;
-					free(tmp2);
+					*del = tmp;
+					tmp2->next = tmp->next;
 					head->size--;
 					break;
-
 				}
 			}
-
+			tmp2=tmp;
 			tmp=tmp->next;
 			num++;
 		}
 
-	}
-	if(state < 0)
-		printf("there is no data in the list\n");
+//	if(head == NULL){
+//		return NULL;
+//	}
+//	else{
+//
+//		while(tmp != NULL)
+//		{
+//			pinfo = tmp->data;
+//			tmp2 =tmp;
+//
+//			/*
+//			 * 删除结点位于头部
+//			 */
+//			if(pinfo->client_fd == fd && num == 0){
+//
+//				state ++;
+//				printf("data in the first\n");
+//				tmp3->next = tmp2->next;
+//				free(tmp2);
+//				head->size--;
+//				break;
+//
+//			}
+//			/*
+//			 * 删除结点在中尾部
+//			 * 顺序，倒序删除均可
+//			 */
+//			else{
+//
+//				printf("delete data last...\n");
+//				tmp2 = tmp2->next;
+//
+//				if(tmp2 != NULL)
+//					pinfo = tmp2->data;
+//
+//				if(pinfo->client_fd == fd)
+//				{
+//					state++;
+//					printf("data in the last\n");
+//					tmp->next = tmp2->next;
+//					free(tmp2);
+//					head->size--;
+//					break;
+//
+//				}
+//			}
+//
+//			tmp=tmp->next;
+//			num++;
+//		}
+//
+//	}
+//	if(state < 0)
+//		printf("there is no data in the list\n");
 
 	return 0;
 

@@ -18,6 +18,10 @@
 #include <fcntl.h>
 
 
+#define MSG_TYPE 0xF0
+#define DATA_TYPE 0x0C
+#define MACHINE_TYPE 0x03
+
 typedef enum{
 
 	SOCKERRO = -3,
@@ -60,6 +64,7 @@ typedef enum{
 	REQUEST_MSG,
 	W_REPLY_MSG,
 	R_REPLY_MSG,
+	ONLINE_REQ,
 
 }Message_Type;
 /*
@@ -163,10 +168,9 @@ typedef enum {
  */
 typedef struct {
 
-	unsigned char unit_power;
-	unsigned char unit_mic;
-	unsigned char unit_speak;
-	unsigned char unit_vote;
+	unsigned char value;
+	unsigned char ssid[32];
+	unsigned char password[64];
 
 }event_data;
 
@@ -198,8 +202,8 @@ typedef struct {
 	unsigned char dev_type;
 
 	//查询是需要给此赋值
-	unsigned char name_type[128];
-	unsigned char code_type[128];
+	unsigned char name_type[2];
+	unsigned char code_type[2];
 
 	int fd;
 	int data_len;
@@ -210,19 +214,24 @@ typedef struct {
 
 }frame_type,*Pframe_type;
 
+typedef struct {
 
+	event_data evt_data;
+	conference_data con_data;
+
+}client_status_info;
 /*
  * 主机TCP控制模块保存的终端信息参数
  *
  * 不区分上位机还是单元机，统一使用这个结构体，保存
- * @client_from 描述终端设备类型，单元机（0x02）还是上位机(0x01)
+ *
  */
 typedef struct{
 
 	/*终端sock_fd属性*/
 	int 	client_fd;
-	/*终端id属性,若是pc则为空*/
-	int 	client_id;
+	/*终端id属性,默认为0，若是pc则为1，主机机则为2，单元机则为3*/
+	unsigned char 	client_name;
 	/*终端mac属性*/
 	char 	client_mac[24];
 	/*终端ip属性信息*/
@@ -232,6 +241,8 @@ typedef struct{
 
 } client_info,*Pclient_info;
 
+
+int tcp_ctrl_refresh_client_list(Pframe_type frame_type);
 
 
 #endif /* HEADER_TCP_CTRL_SERVER_H_ */

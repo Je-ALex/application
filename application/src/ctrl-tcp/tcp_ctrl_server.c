@@ -33,13 +33,14 @@ pthread_mutex_t mutex;
 pclient_node list_head;
 
 /*
+ * tc_local_addr_init.c
  * 服务端socket初始化
  *
  * 返回值
  * 错误码和成功后的端口号
  *
  */
-static int tc_local_addr_init()
+static int tcp_ctrl_local_addr_init()
 {
 	struct sockaddr_in sin;
 	int sock_fd;
@@ -79,9 +80,10 @@ static int tc_local_addr_init()
 
 
 /*
+ * tc_set_noblock.c
  * 设置socket_fd为非阻塞模式
  */
-static void tc_set_noblock(int fd)
+static void tcp_ctrl_set_noblock(int fd)
 {
     int fl=fcntl(fd,F_GETFL);
     if(fl<0)
@@ -98,6 +100,210 @@ static void tc_set_noblock(int fd)
 
 
 /*
+ * tcp_ctrl_add_client.c
+ * 终端信息录入函数
+ *
+ * 将客户端信息增加本地链表，然后将数据信息录入文本文件，供QT使用
+ *
+ *
+ */
+static int tcp_ctrl_add_client(void* value)
+{
+	pclient_node tmp = NULL;
+	Pclient_info pinfo;
+	FILE* file;
+	int ret;
+
+
+	/*
+	 * 增加到链表中
+	 */
+	list_add(list_head,value);
+
+	/*
+	 * 存入到文本文件
+	 */
+	file = fopen("info.txt","w+");
+	tmp = list_head->next;
+	while(tmp != NULL)
+	{
+		pinfo = tmp->data;
+		if(pinfo->client_fd > 0)
+		{
+			printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
+
+			ret = fwrite(pinfo,sizeof(client_info),1,file);
+			perror("fwrite");
+			if(ret != 1)
+				return ERROR;
+
+		}
+		tmp = tmp->next;
+		usleep(10000);
+	}
+	fclose(file);
+
+	return SUCCESS;
+}
+
+
+/*
+ * tcp_ctrl_delete_client.c
+ * 客户端 删除函数
+ *
+ * 通过fd来判别链表中需要移除的客户端
+ * 更新文本文件
+ */
+static int tcp_ctrl_delete_client(int fd)
+{
+	pclient_node tmp = NULL;
+
+	Pclient_info pinfo;
+	FILE* file;
+	int ret;
+	int status = 0;
+	int pos = 0;
+
+	tmp = list_head->next;
+	while(tmp != NULL)
+	{
+		pinfo = tmp->data;
+		if(pinfo->client_fd == fd)
+		{
+			status++;
+			break;
+		}
+		pos++;
+		tmp = tmp->next;
+	}
+
+	if(status > 0)
+	{
+		pclient_node del = NULL;
+
+		list_delete(list_head,pos,&del);
+		pinfo = del->data;
+		printf("close socket and remove ctrl ip %s , errno = %d\r\n",
+				inet_ntoa(pinfo->cli_addr.sin_addr),errno);
+		free(pinfo);
+		free(del);
+	}
+
+
+
+//	file = fopen("info.txt","w+");
+
+
+
+//	while(tmp != NULL)
+//	{
+//		pinfo = tmp->data;
+//		if(pinfo->client_fd > 0)
+//		{
+//			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+//
+//			ret = fwrite(pinfo,sizeof(client_info),1,file);
+//			perror("fwrite");
+//			if(ret != 1)
+//				return ERROR;
+//
+//		}
+//		tmp = tmp->next;
+//		usleep(10000);
+//	}
+//	fclose(file);
+
+	return SUCCESS;
+}
+
+
+/*
+ * tcp_ctrl_refresh_client_list.c
+ * 控制模块客户端连接管理
+ *
+ * 通过msg_type来判断是否是宣告在线消息
+ * 再通过fd判断连接存储情况，如果是新的客户端则存入
+ */
+int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
+{
+	/*
+	 * 终端信息录入结构体
+	 */
+	Pclient_info info;
+	Pclient_info pinfo;
+
+	struct sockaddr_in cli_addr;
+	int clilen = sizeof(cli_addr);
+	pclient_node tmp = NULL;
+
+	int state = 0;
+
+	printf("%s\n",__func__);
+	/*
+	 * 宣告上线消息类型
+	 */
+	if(frame_type->msg_type == ONLINE_REQ)
+	{
+		/*
+		 *
+		 *将新连接终端信息录入结构体中
+		 *这里可以将fd和IP信息存入到本地链表和文件中
+		 */
+		info = (Pclient_info)malloc(sizeof(client_info));
+		memset(info,0,sizeof(client_info));
+		info->client_fd = frame_type->fd;
+		getpeername(info->client_fd,(struct sockaddr*)&cli_addr,
+									&clilen);
+		info->cli_addr = cli_addr;
+		info->clilen = clilen;
+
+		if(frame_type->dev_type == PC_CTRL){
+			info->client_name = PC_CTRL;
+		}else{
+			info->client_name = UNIT_CTRL;
+		}
+
+		tmp = list_head->next;
+
+		/*
+		 * 检查该客户端是否已经存在
+		 *
+		 * 链表如果为空，则不需要进行检查，直接存储
+		 * 链表不为空，则通过读取再比对，进行存储
+		 *
+		 */
+		do
+		{
+			if(tmp == NULL)
+			{
+				state++;
+//				tcp_ctrl_add_client(info);
+				list_add(list_head,info);
+				break;
+			}else{
+				pinfo = tmp->data;
+				if(pinfo->client_fd == info->client_fd)
+				{
+					state++;
+					printf("the client is exist\n");
+				}
+			}
+			tmp = tmp->next;
+			usleep(10000);
+		}while(tmp != NULL);
+
+
+		if(state == 0)
+		{
+			list_add(list_head,info);
+//			tcp_ctrl_add_client(info);
+		}
+
+	}
+
+	return 0;
+}
+/*
  * 接收消息的初步处理
  * 分类：
  * 上位机通讯部分
@@ -109,7 +315,7 @@ static void tc_set_noblock(int fd)
  *
  *
  */
-static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned const char* value, int* length)
+static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* length)
 {
 
 	/*
@@ -127,7 +333,10 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned const char* value, in
 
 	handlbuf = tcp_ctrl_frame_analysis(cli_fd,value,length,type);
 
-	printf("type->dev_type = %d\n",type->dev_type);
+	printf("type->dev_type = %d\n"
+			"type->msg_type = %d\n"
+			"type->data_type = %d\n",type->dev_type,type->msg_type,type->data_type);
+
 	/*
 	 * 设备类型分类
 	 */
@@ -138,7 +347,7 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned const char* value, in
 			tcp_ctrl_from_pc(handlbuf,type);
 			break;
 
-		case HOST_CTRL:
+		case UNIT_CTRL:
 			printf("process the unit data\n");
 			tcp_ctrl_from_unit(handlbuf,type);
 			break;
@@ -149,6 +358,9 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned const char* value, in
 	free(handlbuf);
 
 }
+
+
+
 /*
  * TCP控制模块线程
  * 主要是初始化TCP端子，设置服务端模式，采用epoll进行多终端管理
@@ -179,8 +391,8 @@ static void* tcp_control_module(void* p)
     /*
      *socket init
      */
-    sockfd = tc_local_addr_init();
-    tc_set_noblock(sockfd);
+    sockfd = tcp_ctrl_local_addr_init();
+    tcp_ctrl_set_noblock(sockfd);
 
 
     /*
@@ -212,7 +424,7 @@ static void* tcp_control_module(void* p)
 	/*
 	 * 终端信息录入结构体
 	 */
-	Pclient_info info;
+//	Pclient_info info;
 
 	list_head = list_head_init();
 
@@ -243,7 +455,7 @@ static void* tcp_control_module(void* p)
 				else
 				{
 
-					tc_set_noblock(newfd);
+					tcp_ctrl_set_noblock(newfd);
 					// 打印客户端的 ip 和端口
 					printf("%d----------------------------------------------\n",newfd);
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
@@ -273,15 +485,15 @@ static void* tcp_control_module(void* p)
 
 					/*
 					 *将新连接终端信息录入结构体中
-					 *这里可以将fd和IP信息存入
+					 *这里可以将fd和IP信息存入到本地链表和文件中
 					 */
-					info = (Pclient_info)malloc(sizeof(client_info));
-					memset(info,0,sizeof(client_info));
-					info->client_fd = newfd;
-					info->cli_addr = cli_addr;
-					info->clilen = clilen;
-
-					list_add(list_head,info);
+//					info = (Pclient_info)malloc(sizeof(client_info));
+//					memset(info,0,sizeof(client_info));
+//					info->client_fd = newfd;
+//					info->cli_addr = cli_addr;
+//					info->clilen = clilen;
+//
+//					tcp_ctrl_add_client(info);
 
 					pthread_mutex_unlock(&mutex);
 				}
@@ -308,17 +520,18 @@ static void* tcp_control_module(void* p)
 					close(wait_event[n].data.fd);
 
 					/*
-					 * 删除链表中节点信息
+					 * 删除链表中节点信息与文本中的信息
 					 * fd参数
 					 */
-					list_delete(list_head,wait_event[n].data.fd);
+					tcp_ctrl_delete_client(wait_event[n].data.fd);
 
 				}
 				else if(len == 0)//客户端关闭连接
 				{
 					printf("client %d offline\n",wait_event[n].data.fd);
 
-					list_delete(list_head,wait_event[n].data.fd);
+					tcp_ctrl_delete_client(wait_event[n].data.fd);
+
 					close(wait_event[n].data.fd);
 
 					printf("size--%d\n",list_head->size);
@@ -353,70 +566,48 @@ static void* tcp_control_module(void* p)
 }
 
 
-
-
-
-
-void delete_client(int num)
-{
-
-	list_delete(list_head,num);
-
-}
-void view_client_info()
-{
-
-	pclient_node tmp = NULL;
-
-	Pclient_info pinfo;
-
-	tmp = list_head->next;
-
-	printf("print the info\n");
-
-	while(tmp != NULL)
-	{
-		pinfo = tmp->data;
-
-		printf("client_fd--%d ,client_id--%d ,"
-		"client_mac--%s ,cli_addr--%s port--%d",pinfo->client_fd,pinfo->client_id,
-		pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr),ntohs(pinfo->cli_addr.sin_port));
-		tmp = tmp->next;
-		printf("\n");
-	}
-
-}
-
-
-
 void read_file(){
 
 	Pclient_info pinfo;
 	int i;
+	int ret;
 	FILE* file;
 
 	pinfo = malloc(sizeof(client_info));
 
-	file = fopen("info.txt","r");
+	file = fopen("info.conf","r");
 
 	for(i=0;i<list_head->size;i++){
 
-		fread(pinfo,sizeof(client_info),1,file);
+		ret = fread(pinfo,sizeof(client_info),1,file);
 		perror("fread");
-
-		printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+		if(ret ==0)
+			return;
+		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
+				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
 
 		usleep(100000);
 	}
 
-
-
 	fclose(file);
 }
 
+void tcp_strlen()
+{
+	char* str1="01234567890";
+
+	int i;
+
+	i=strlen(str1);
+	printf("i---%d\n",i);
+
+
+
+}
 static void* control_tcp_send(void* p)
 {
 
+	int ret;
 	/*
 	 * 设备连接后，发送一个获取mac的数据单包
 	 * 控制类，事件型，主机发送数据
@@ -425,7 +616,8 @@ static void* control_tcp_send(void* p)
 	int c_seat = 0;
 	char c_name[32] = {0};
 	char c_subj[32] = {0};
-	int s,fd;
+	int s,fd,value;
+
 
 	frame_type data_type;
 	memset(&data_type,0,sizeof(data_type));
@@ -439,64 +631,28 @@ static void* control_tcp_send(void* p)
 		 * ‘X’席别
 		 *
 		 */
-		printf("-----------------\n");
-		printf("1 means scanf\n");
-		printf("2 means set id,seat,name,subj\n");
-		printf("4 means set seat\n");
-		printf("5 means set name\n");
-		printf("6 means set subject\n");
+		printf("------------------------------------\n");
+		printf("1 get_the_client_connect_info\n");
+		printf("2 read_file\n");
+		printf("3 set_the_conference_parameters\n");
+		printf("4 get_the_conference_parameters\n");
+		printf("5 set_the_conference_vote_result\n");
 
 		scanf("%d",&s);
 
-		if(s == 1)
+		if(s == 3 || s == 4 )
 		{
-
-		}
-		if(s == 2)
-		{
+			printf("s=%d,input the fd\n",s);
 			scanf("%d",&fd);
-//			scanf("%d",&data_type.msg_type);
-//			//查询
-//			if(data_type.msg_type == 2)
-//			{
-//				scanf("%d",&data_type.data_type);
-//				scanf("%d",&data_type.name_type[0]);
-//			}
 
 		}
-//		data_type.fd = fd;
-//		data_type.dev_type = HOST_CTRL;
-//
-//		printf("s=%d,fd=%d,msg=%d,dt=%d,na=%d\n",s,data_type.fd,data_type.msg_type,
-//				data_type.data_type,data_type.name_type[0]);
+		if(s >5 )
+		{
+			printf("s=%d,input the fd and value\n",s);
+			scanf("%d",&fd);
+			scanf("%d",&value);
 
-//		if(data_type.msg_type == Write_msg)
-//		{
-//			printf("please input the ID:\n");
-//			scanf("%d",&id_num);
-//			printf("get input ID:%x\n",id_num);
-//
-//			printf("please input the seat:\n");
-//			scanf("%d",&c_seat);
-//			printf("get input seat:%x\n",c_seat);
-//
-//			printf("please input the name:\n");
-//			scanf("%s",c_name);
-//			printf("get input name:%s\n",c_name);
-//
-//			printf("please input the subject:\n");
-//			scanf("%s",c_subj);
-//			printf("get input subject:%s\n",c_subj);
-//
-//			/*
-//			 * 确定此API的帧信息
-//			 * 会议类参数
-//			 */
-//			data_type.con_data.id = id_num;
-//			data_type.con_data.seat = c_seat;
-//			memcpy(&data_type.con_data.name,c_name,strlen(c_name));
-//			memcpy(&data_type.con_data.subj,c_subj,strlen(c_subj));
-//		}
+		}
 		/*
 		 * 主要分为事件类和会议类
 		 * 再其次是写信息，读信息，查询，请求信息
@@ -514,21 +670,49 @@ static void* control_tcp_send(void* p)
 		switch(s)
 		{
 			case 1:
-				scanf_client();
-
+				ret=get_the_client_connect_info();
+				printf("scanf_client size--%d\n",ret);
 				break;
 			case 2:
-				set_the_conference_parameters(fd,0,0,0,0);
-				break;
-			case 3:
-				get_the_conference_parameters(fd);
-				break;
-			case 4:
-				set_the_conference_vote_result();
-				break;
-			case 5:
 				read_file();
 				break;
+			case 3:
+				set_the_conference_parameters(fd,0,0,0,0);
+				break;
+			case 4:
+				get_the_conference_parameters(fd);
+				break;
+			case 5:
+				set_the_conference_vote_result();
+				break;
+			case 6:
+				set_the_event_parameter_power(fd,value);
+				break;
+			case 7:
+				get_the_event_parameter_power(fd);
+				break;
+			case 8:
+
+				break;
+			case 9:
+
+				break;
+			case 0x0a:
+
+				break;
+			case 0x0b:
+
+				break;
+			case 0x0c:
+
+				break;
+			case 0x0d:
+
+				break;
+			case 0x0e:
+
+				break;
+
 			default:
 				break;
 		}

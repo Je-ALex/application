@@ -20,16 +20,18 @@ extern pclient_node list_head;
  *
  * 扫描主要是开机上电有终端连接后，将终端信息的ip返回给应用
  *
+ * 返回终端连接个数
+ *
  *
  */
-int scanf_client()
+int get_the_client_connect_info()
 {
 
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
 	FILE* file;
 	int ret;
-	file = fopen("info.txt","w+");
+	file = fopen("info.conf","w+");
 
 	tmp = list_head->next;
 
@@ -42,12 +44,16 @@ int scanf_client()
 
 			ret = fwrite(pinfo,sizeof(client_info),1,file);
 			perror("fwrite");
+			if(ret != 1)
+				return ERROR;
+
 		}
 		tmp = tmp->next;
-
+		usleep(10000);
 	}
 	fclose(file);
-	return 0;
+
+	return list_head->size;
 
 }
 
@@ -62,6 +68,17 @@ int scanf_client()
 
 
 /*
+ * 配置info信息
+ */
+static int config_conference_frame_info(Pframe_type type){
+
+	type->msg_type = WRITE_MSG;
+	type->data_type = CONFERENCE_DATA;
+	type->dev_type = HOST_CTRL;
+
+	return 0;
+}
+/*
  * 设置会议参数
  * in:@socket_fd,@client_id,@client_seat,@client_name,@subj
  *
@@ -70,7 +87,10 @@ int scanf_client()
 int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 		char* client_name,char* subj)
 {
+
 	frame_type data_info;
+	pclient_node tmp = NULL;
+	Pclient_info pinfo;
 
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -83,6 +103,21 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm\0";
 	memcpy(data_info.con_data.name,name,strlen(name));
 	memcpy(data_info.con_data.subj,sub,strlen(sub));
+
+	/*
+	 * 将会议类信息保存
+	 */
+	tmp = list_head->next;
+	while(tmp != NULL)
+	{
+		pinfo = tmp->data;
+		if(pinfo->client_fd == fd_value)
+		{
+
+			break;
+		}
+		tmp = tmp->next;
+	}
 
 	/*
 	 * 将参数保存
@@ -118,9 +153,8 @@ int get_the_conference_parameters(int fd_value)
 	 */
 	data_info.fd = fd_value;
 
+	config_conference_frame_info(&data_info);
 	data_info.msg_type = READ_MSG;
-	data_info.data_type = CONFERENCE_DATA;
-	data_info.dev_type = HOST_CTRL;
 
 	tcp_ctrl_module_edit_info(&data_info);
 
@@ -167,9 +201,15 @@ int set_the_conference_vote_result()
 /*
  * 配置info信息
  */
-static int config_event_frame_info(Pframe_type type){
+static int config_event_frame_info(Pframe_type type,unsigned char* value){
 
-	type->msg_type = WRITE_MSG;
+	if(value != NULL)
+	{
+		type->msg_type = WRITE_MSG;
+	}else{
+		type->msg_type = READ_MSG;
+	}
+
 	type->data_type = EVENT_DATA;
 	type->dev_type = HOST_CTRL;
 
@@ -178,21 +218,20 @@ static int config_event_frame_info(Pframe_type type){
 /*
  * 电源开关
  */
-int set_the_event_parameter_power(int fd_value,int client_id,int value)
+int set_the_event_parameter_power(int fd_value,unsigned char value)
 {
 	frame_type data_info;
-
-	/*
-	 * 测试 发送
-	 */
-	data_info.con_data.id = 1;
+	memset(&data_info,0,sizeof(frame_type));
 
 	/*
 	 * 将参数保存
 	 */
 	data_info.fd = fd_value;
+	data_info.evt_data.value = value;
+	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
+	data_info.code_type[0] = WIFI_MEETING_CHAR;
 
-	config_event_frame_info(&data_info);
+	config_event_frame_info(&data_info,&value);
 
 	tcp_ctrl_module_edit_info(&data_info);
 
@@ -200,6 +239,46 @@ int set_the_event_parameter_power(int fd_value,int client_id,int value)
 
 }
 
+int get_the_event_parameter_power(int fd_value)
+{
 
+	frame_type data_info;
+	memset(&data_info,0,sizeof(frame_type));
 
+	/*
+	 * 将参数保存
+	 */
+	data_info.fd = fd_value;
+	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
+	data_info.code_type[0] = WIFI_MEETING_CHAR;
+
+	config_event_frame_info(&data_info,NULL);
+
+	tcp_ctrl_module_edit_info(&data_info);
+
+	return SUCCESS;
+
+}
+
+int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
+{
+	frame_type data_info;
+	memset(&data_info,0,sizeof(frame_type));
+
+	data_info.fd = fd_value;
+	data_info.name_type[0] = WIFI_MEETING_EVT_SSID;
+	data_info.code_type[0] = WIFI_MEETING_STRING;
+	data_info.name_type[1] = WIFI_MEETING_EVT_KEY;
+	data_info.code_type[1] = WIFI_MEETING_STRING;
+
+	memcpy(&data_info.evt_data.ssid,ssid,strlen(ssid));
+	memcpy(&data_info.evt_data.password,pwd,strlen(pwd));
+
+	config_event_frame_info(&data_info,ssid);
+
+	tcp_ctrl_module_edit_info(&data_info);
+
+	return SUCCESS;
+
+}
 

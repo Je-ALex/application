@@ -63,17 +63,17 @@ int tcp_ctrl_frame_compose(Pframe_type type,char* params,unsigned char* result_b
 	 */
 	msg = type->msg_type;
 	printf("msg = %x\n",msg);
-	msg = (msg << 5) & 0xe0;
+	msg = (msg << 4) & MSG_TYPE;
 	printf("msg = %x\n",msg);
 
 	data = type->data_type;
 	printf("data = %x\n",data);
-	data = (data << 2) & 0x1c;
+	data = (data << 2) & DATA_TYPE;
 	printf("data = %x\n",data);
 
 	machine = type->dev_type;
 	printf("machine = %x\n",machine);
-	machine = machine & 0x03;
+	machine = machine & MACHINE_TYPE;
 	printf("machine = %x\n",machine);
 
 	info = msg+data+machine;
@@ -135,7 +135,11 @@ int tcp_ctrl_frame_compose(Pframe_type type,char* params,unsigned char* result_b
 	return 0;
 }
 
-
+/*
+ * tcp_ctrl_data_shift.c
+ * 移位函数
+ * 将高位移至低字节，低位移至高字节
+ */
 int tcp_ctrl_data_shift(int value,char* r_value)
 {
 
@@ -294,7 +298,58 @@ static void tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf
 
 }
 
+/*
+ * tcp_ctrl_edit_event_content.c
+ * 事件类数据
+ *
+ * 在此之前的API函数已经将信息进行细分，这里不用细分type
+ * 只需将结构体中的值取出即可
+ *
+ * in:@Pframe_type
+ * out: buf
+ */
+void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
+{
+	int i;
+	int tc_index = 0;
 
+
+	if(type->name_type[0] == WIFI_MEETING_EVT_SSID
+			&& type->name_type[1] == WIFI_MEETING_EVT_KEY )
+	{
+		buf[tc_index++] = type->name_type[0];
+		buf[tc_index++] = type->code_type[0];
+		buf[tc_index++] = strlen(type->evt_data.ssid);
+		memcpy(&buf[tc_index],type->evt_data.ssid,strlen(type->evt_data.ssid));
+		tc_index = tc_index+strlen(type->evt_data.ssid);
+
+		buf[tc_index++] = type->name_type[1];
+		buf[tc_index++] = type->code_type[1];
+		buf[tc_index++] = strlen(type->evt_data.password);
+		memcpy(&buf[tc_index],type->evt_data.password,strlen(type->evt_data.password));
+		tc_index = tc_index+strlen(type->evt_data.ssid);
+
+		tc_index = tc_index+strlen(type->evt_data.password);
+
+	}else{
+
+		buf[tc_index++] = type->name_type[0];
+		buf[tc_index++] = type->code_type[0];
+		buf[tc_index++] = type->evt_data.value;
+
+	}
+
+	type->data_len = tc_index;
+
+	perror("%s ");
+	for(i=0;i<tc_index;i++)
+	{
+		printf("%x ",buf[i]);
+
+	}
+	printf("\n");
+
+}
 /*
  * 下发数据编码
  *
@@ -358,7 +413,10 @@ int tcp_ctrl_module_edit_info(Pframe_type type)
 				type->fd = pinfo->client_fd;
 				tcp_ctrl_frame_compose(type,buf,s_buf);
 
-				if(pinfo->client_fd > 0)
+				/*
+				 * 投票结果下发给所有单元机
+				 */
+				if(pinfo->client_fd > 0 && pinfo->client_name != PC_CTRL)
 				{
 					pthread_mutex_lock(&mutex);
 					write(pinfo->client_fd, s_buf, type->frame_len);
@@ -389,10 +447,13 @@ int tcp_ctrl_module_edit_info(Pframe_type type)
 				printf("please input the right fd..\n");
 				return ERROR;
 			}
+			//end
 
 			/*
-			 * 会议类数据再次处理
+			 *
 			 * 根据type参数，确定数据的内容和格式
+			 *
+			 * 判断是会议类还是事件类
 			 */
 			switch(type->data_type)
 			{
@@ -401,7 +462,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type)
 					break;
 
 				case EVENT_DATA:
-
+					tcp_ctrl_edit_event_content(type,buf);
 					break;
 
 			}
@@ -426,7 +487,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type)
 					break;
 				}
 				tmp = tmp->next;
-
+				usleep(50000);
 			}
 
 

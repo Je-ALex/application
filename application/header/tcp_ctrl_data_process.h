@@ -12,7 +12,7 @@
 
 
 
-char* tcp_ctrl_frame_analysis(int* fd,unsigned const char* buf,int* len,Pframe_type frame_type);
+char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type frame_type);
 
 
 

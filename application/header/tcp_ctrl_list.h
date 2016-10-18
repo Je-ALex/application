@@ -19,7 +19,7 @@ typedef struct node{
 } client_node, *pclient_node;
 
 pclient_node list_add(pclient_node head,void* data);
-pclient_node list_delete(pclient_node head,int fd);
+int list_delete(pclient_node head,int pos,pclient_node* del);
 
 pclient_node list_head_init();
 

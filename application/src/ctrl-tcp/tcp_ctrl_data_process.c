@@ -7,7 +7,7 @@
 
 
 #include "../../header/tcp_ctrl_data_process.h"
-
+#include "../../header/tcp_ctrl_queue.h"
 
 /*
  * 定义两个结构体
@@ -18,12 +18,14 @@
 frame_type new_uint_data;
 frame_type last_uint_data;
 
-
+extern Plinkqueue status_queue;
+extern sem_t bin_sem;
 
 /*
  * 数据包解析函数，将有效数据提出到handlbuf中
  */
-char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type frame_type)
+int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type frame_type,
+		unsigned char** ret_msg)
 {
 
 	int i;
@@ -53,7 +55,7 @@ char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fr
 			|| buf[2] != 'D' || buf[3] != 'S') {
 
 		printf( "%s not legal headers\n", __FUNCTION__);
-		return NULL;
+		return ERROR;
 	}
 	/*
 	 * 计算帧总长度buf[5]-buf[6]
@@ -72,7 +74,7 @@ char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fr
 	{
 		printf( "%s not legal length\n", __FUNCTION__);
 
-		return NULL;
+		return ERROR;
 	}
 	/*
 	 * 校验和的验证
@@ -85,7 +87,7 @@ char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fr
 	{
 		printf( "%s not legal checksum\n", __FUNCTION__);
 
-		return NULL;
+		return ERROR;
 	}
 	/*
 	 * buf[4]
@@ -123,15 +125,56 @@ char* tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fr
 	}
 	printf("\n");
 
-	return buffer;
+	*ret_msg = buffer;
+
+	return SUCCESS;
 }
 
 
-
-int tcp_ctrl_uevent_request_spk(const unsigned char* msg,Pframe_type frame_type)
+/*
+ * tcp_ctrl_uevent_request_spk.c
+ * 发言请求函数
+ *
+ * 主机将数据请求下发给主席单元
+ */
+int tcp_ctrl_uevent_request_spk(Pframe_type frame_type)
 {
 
-	tcp_ctrl_module_edit_info(frame_type);
+	pclient_node tmp = NULL;
+	Pframe_type tmp_type;
+	Pqueue_event event_tmp;
+	int pos = 0;
+
+	tmp=confer_head->next;
+	while(tmp!=NULL)
+	{
+		tmp_type = tmp->data;
+		if(tmp_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+		{
+			printf("find the chariman\n");
+			frame_type->fd=tmp_type->fd;
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+	if(pos>0){
+		tcp_ctrl_module_edit_info(frame_type);
+	}
+
+	/*
+	 * 将事件信息发送至消息队列
+	 */
+
+	event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
+	memset(event_tmp,0,sizeof(queue_event));
+
+	event_tmp->socket_fd = 0x12345678;//frame_type->fd;
+	event_tmp->value = 87;//frame_type->evt_data.value;
+
+	printf("enter the queue..\n");
+	enter_queue(status_queue,event_tmp);
+	sem_post(&bin_sem);
 
 	return 0;
 
@@ -150,7 +193,6 @@ int tcp_ctrl_uevent_request_spk(const unsigned char* msg,Pframe_type frame_type)
  */
 int tcp_ctrl_unit_event_request(const unsigned char* msg,Pframe_type frame_type)
 {
-
 	int tc_index = 0;
 	int num = 0;
 	int i;
@@ -174,7 +216,7 @@ int tcp_ctrl_unit_event_request(const unsigned char* msg,Pframe_type frame_type)
 		 * 发言请求，主机收到后需要显示，还要将此信息发送给主席单元
 		 */
 		case WIFI_MEETING_EVT_SPK:
-			tcp_ctrl_module_edit_info(frame_type);
+			tcp_ctrl_uevent_request_spk(frame_type);
 			break;
 		case WIFI_MEETING_EVT_VOT:
 
@@ -323,7 +365,7 @@ int tcp_ctrl_from_unit( const unsigned char* handlbuf,Pframe_type frame_type)
 	int tc_index = 0;
 
 	printf("handlbuf: ");
-	for(i=0;i<sizeof(handlbuf);i++)
+	for(i=0;i<sizeof(handlbuf)-1;i++)
 	{
 		printf("0x%02x ",handlbuf[i]);
 	}

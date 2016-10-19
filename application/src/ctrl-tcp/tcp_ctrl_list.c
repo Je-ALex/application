@@ -29,8 +29,6 @@ pclient_node list_add(pclient_node head,void* data)
 	newnode->data = data;
 	newnode->next = NULL;
 
-
-
 	tail = head;
 
 	if(head == NULL)
@@ -44,21 +42,7 @@ pclient_node list_add(pclient_node head,void* data)
 	tail->next = newnode;
 	head->size++;
 
-//	Pclient_info pinfo;
-//	pclient_node tmep;
-//	tmep = head->next;
-
 	printf("instert node success\n");
-
-//	while(tmep != NULL)
-//	{
-//		pinfo = tmep->data;
-//		printf("client_fd--%d ,client_id--%d ,"
-//				"client_mac--%s ,cli_addr--%s ,size--%d",pinfo->client_fd,pinfo->client_id,
-//				pinfo->client_mac,inet_ntoa(pinfo->cli_addr.sin_addr),head->size);
-//		tmep = tmep->next;
-//		printf("\n");
-//	}
 
 	return 0;
 
@@ -84,6 +68,10 @@ int list_delete(pclient_node head,int pos,pclient_node* del)
 
 	if (pos < 0 || pos >= head->size)
 	    return ERROR;
+
+	if(head == NULL){
+		return ERROR;
+	}
 
 	tmp3 = head;
 
@@ -122,7 +110,7 @@ int list_delete(pclient_node head,int pos,pclient_node* del)
 			tmp2=tmp;
 			tmp=tmp->next;
 			num++;
-		}
+	}
 
 //	if(head == NULL){
 //		return NULL;

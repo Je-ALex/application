@@ -22,15 +22,27 @@
 #include "../../header/tcp_ctrl_data_compose.h"
 #include "../../header/tcp_ctrl_data_process.h"
 #include "../../header/tcp_ctrl_list.h"
-
+#include "../../header/tcp_ctrl_queue.h"
 
 int port = 8080;
 
 pthread_t s_id;
 pthread_mutex_t mutex;
+sem_t bin_sem;
 
-
+/*
+ * 1、连接信息链表
+ * 2、会议参数链表
+ * 3、终端会议状态链表
+ */
 pclient_node list_head;
+
+pclient_node confer_head;
+
+Plinkqueue status_queue;
+
+
+
 
 /*
  * tc_local_addr_init.c
@@ -123,7 +135,7 @@ static int tcp_ctrl_add_client(void* value)
 	/*
 	 * 存入到文本文件
 	 */
-	file = fopen("info.txt","w+");
+	file = fopen("connect_info.txt","w+");
 	tmp = list_head->next;
 	while(tmp != NULL)
 	{
@@ -157,13 +169,21 @@ static int tcp_ctrl_add_client(void* value)
 static int tcp_ctrl_delete_client(int fd)
 {
 	pclient_node tmp = NULL;
+	pclient_node tmp2 = NULL;
 
 	Pclient_info pinfo;
+	Pframe_type tmp_type;
+
+	pclient_node del = NULL;
+
 	FILE* file;
 	int ret;
 	int status = 0;
 	int pos = 0;
 
+	/*
+	 * 删除会议信息链表中的数据
+	 */
 	tmp = list_head->next;
 	while(tmp != NULL)
 	{
@@ -179,22 +199,48 @@ static int tcp_ctrl_delete_client(int fd)
 
 	if(status > 0)
 	{
-		pclient_node del = NULL;
-
 		list_delete(list_head,pos,&del);
 		pinfo = del->data;
-		printf("close socket and remove ctrl ip %s , errno = %d\r\n",
-				inet_ntoa(pinfo->cli_addr.sin_addr),errno);
+		printf("close socket and remove ctrl ip %s\n",
+				inet_ntoa(pinfo->cli_addr.sin_addr));
 		free(pinfo);
 		free(del);
+	}else{
+
+		printf("there is no data in the list\n");
 	}
 
+	status = 0;
+	pos = 0;
+	/*
+	 * 删除会议信息链表中的数据
+	 */
+	tmp2 = confer_head->next;
+	while(tmp2 != NULL)
+	{
+		tmp_type = tmp2->data;
+		if(tmp_type->fd == fd)
+		{
+			status++;
+			break;
+		}
+		pos++;
+		tmp2 = tmp2->next;
+	}
+	if(status > 0)
+	{
+		list_delete(confer_head,pos,&del);
+		tmp_type = del->data;
+		printf("close socket %d \n",
+				tmp_type->fd);
+		free(tmp_type);
+		free(del);
+	}else{
 
+		printf("there is no data in the list\n");
+	}
 
 //	file = fopen("info.txt","w+");
-
-
-
 //	while(tmp != NULL)
 //	{
 //		pinfo = tmp->data;
@@ -226,6 +272,7 @@ static int tcp_ctrl_delete_client(int fd)
  */
 int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
 {
+
 	/*
 	 * 终端信息录入结构体
 	 */
@@ -277,8 +324,8 @@ int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
 			if(tmp == NULL)
 			{
 				state++;
-//				tcp_ctrl_add_client(info);
-				list_add(list_head,info);
+				tcp_ctrl_add_client(info);
+//				list_add(list_head,info);
 				break;
 			}else{
 				pinfo = tmp->data;
@@ -295,8 +342,8 @@ int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
 
 		if(state == 0)
 		{
-			list_add(list_head,info);
-//			tcp_ctrl_add_client(info);
+//			list_add(list_head,info);
+			tcp_ctrl_add_client(info);
 		}
 
 	}
@@ -326,16 +373,47 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* len
 	 */
 	Pframe_type type;
 	int i;
-	char* handlbuf = NULL;
+	int status = 0;
+	unsigned char* handlbuf = NULL;
+
+	pclient_node tmp = NULL;
+	Pclient_info tmp_type;
+
+
 
 	type = (Pframe_type)malloc(sizeof(frame_type));
 	memset(type,0,sizeof(frame_type));
 
-	handlbuf = tcp_ctrl_frame_analysis(cli_fd,value,length,type);
+	tcp_ctrl_frame_analysis(cli_fd,value,length,type,&handlbuf);
 
 	printf("type->dev_type = %d\n"
 			"type->msg_type = %d\n"
 			"type->data_type = %d\n",type->dev_type,type->msg_type,type->data_type);
+
+	/*
+	 * 在连接信息链表中检查端口合法性
+	 */
+	tmp=list_head->next;
+	if(type->msg_type != ONLINE_REQ)
+	{
+		while(tmp!=NULL)
+		{
+			tmp_type = tmp->data;
+
+			if(tmp_type->client_fd == *cli_fd)
+			{
+				status++;
+				break;
+			}
+			tmp=tmp->next;
+		}
+
+		if(status < 1)
+		{
+			printf("client is not legal connect\n");
+			return;
+		}
+	}
 
 	/*
 	 * 设备类型分类
@@ -422,11 +500,17 @@ static void* tcp_control_module(void* p)
 
 
 	/*
-	 * 终端信息录入结构体
+	 * 终端连接信息链表
 	 */
-//	Pclient_info info;
-
 	list_head = list_head_init();
+	/*
+	 * 会议数据链表
+	 */
+	confer_head = list_head_init();
+	/*
+	 * 创建消息队列
+	 */
+	status_queue = queue_init();
 
 	while(1)
 	{
@@ -482,18 +566,6 @@ static void* tcp_control_module(void* p)
 						pthread_exit(0);
 					}
 					maxi++;
-
-					/*
-					 *将新连接终端信息录入结构体中
-					 *这里可以将fd和IP信息存入到本地链表和文件中
-					 */
-//					info = (Pclient_info)malloc(sizeof(client_info));
-//					memset(info,0,sizeof(client_info));
-//					info->client_fd = newfd;
-//					info->cli_addr = cli_addr;
-//					info->clilen = clilen;
-//
-//					tcp_ctrl_add_client(info);
 
 					pthread_mutex_unlock(&mutex);
 				}
@@ -575,7 +647,7 @@ void read_file(){
 
 	pinfo = malloc(sizeof(client_info));
 
-	file = fopen("info.conf","r");
+	file = fopen("connect_info.conf","r");
 
 	for(i=0;i<list_head->size;i++){
 
@@ -612,11 +684,8 @@ static void* control_tcp_send(void* p)
 	 * 设备连接后，发送一个获取mac的数据单包
 	 * 控制类，事件型，主机发送数据
 	 */
-	unsigned int id_num = 0;
-	int c_seat = 0;
-	char c_name[32] = {0};
-	char c_subj[32] = {0};
-	int s,fd,value;
+
+	int s,fd,id,seat,value;
 
 
 	frame_type data_type;
@@ -642,8 +711,10 @@ static void* control_tcp_send(void* p)
 
 		if(s == 3 || s == 4 )
 		{
-			printf("s=%d,input the fd\n",s);
+			printf("s=%d,input the fd,id,seat\n",s);
 			scanf("%d",&fd);
+			scanf("%d",&id);
+			scanf("%d",&seat);
 
 		}
 		if(s >5 )
@@ -677,7 +748,7 @@ static void* control_tcp_send(void* p)
 				read_file();
 				break;
 			case 3:
-				set_the_conference_parameters(fd,0,0,0,0);
+				set_the_conference_parameters(fd,id,seat,0,0);
 				break;
 			case 4:
 				get_the_conference_parameters(fd);
@@ -721,18 +792,47 @@ static void* control_tcp_send(void* p)
 
 
 }
+static void* control_tcp_queue(void* p)
+{
 
+	int ret;
+	Pqueue_event event_tmp;
+
+	while(1)
+	{
+
+		sem_wait(&bin_sem);
+		printf("get the value from queue\n");
+		event_tmp = out_queue(status_queue);
+//		if(ret == 0)
+//		{
+			printf("%s--%d\n",__func__,event_tmp->socket_fd);
+//	//		refresh_the_status();
+//			free(event_tmp);
+//		}
+
+		sleep(1);
+	}
+
+}
 int control_tcp_module()
 {
 
 	void*status;
+	int res;
 	pthread_mutex_init(&mutex, NULL);
 
+	res = sem_init(&bin_sem, 0, 0);
+	if (res != 0)
+	{
+	 perror("Semaphore initialization failed");
+	}
 
 	pthread_create(&s_id,NULL,tcp_control_module,NULL);
 
-
 	pthread_create(&s_id,NULL,control_tcp_send,NULL);
+
+	pthread_create(&s_id,NULL,control_tcp_queue,NULL);
 
 	pthread_join(s_id,&status);
 

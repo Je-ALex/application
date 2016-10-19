@@ -16,6 +16,10 @@
 #include <errno.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <sys/msg.h>
+#include <semaphore.h>
+
+
 
 
 #define MSG_TYPE 0xF0
@@ -32,6 +36,10 @@ typedef enum{
 
 }error;
 
+typedef struct{
+
+
+}msg_queue;
 
 /*
  * 应答类消息的错误码
@@ -161,8 +169,16 @@ typedef enum {
 
 }event_name_type;
 
+/*
+ * 席别
+ */
+typedef enum {
 
+	WIFI_MEETING_CON_SE_CHARIMAN = 1,
+	WIFI_MEETING_CON_SE_GUEST,
+	WIFI_MEETING_CON_SE_ATTEND,
 
+}conference_seat;
 /*
  * event data
  */
@@ -241,6 +257,14 @@ typedef struct{
 
 } client_info,*Pclient_info;
 
+typedef struct{
+
+	int socket_fd;
+	int id;
+	unsigned char seat;
+	unsigned char value;
+
+}queue_event,*Pqueue_event;
 
 int tcp_ctrl_refresh_client_list(Pframe_type frame_type);
 

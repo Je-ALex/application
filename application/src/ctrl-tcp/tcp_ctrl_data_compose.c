@@ -282,7 +282,7 @@ static void tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf
 		case READ_MSG:
 		{
 
-			type->data_len = 0;
+			type->data_len = num;
 		}
 			break;
 		default:
@@ -341,7 +341,7 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 
 	type->data_len = tc_index;
 
-	perror("%s ");
+	perror("tcp_ctrl_edit_event_content");
 	for(i=0;i<tc_index;i++)
 	{
 		printf("%x ",buf[i]);
@@ -489,8 +489,6 @@ int tcp_ctrl_module_edit_info(Pframe_type type)
 				tmp = tmp->next;
 				usleep(50000);
 			}
-
-
 	}
 
 	return SUCCESS;

@@ -56,7 +56,13 @@ static void* control_tcp_cli(void* p)
 
 	write(sock_fd, str, 19);
 
+	memset(buf,0,sizeof(buf));
+	memset(buf_name,0,sizeof(buf_name));
+	memset(buf_sub,0,sizeof(buf_sub));
+
+
 	n=recv(sock_fd, buf, sizeof(buf), 0);
+
     if (n == 0)
     {
         printf("the othere side has been closed.\n");

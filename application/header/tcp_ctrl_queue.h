@@ -13,7 +13,7 @@
 typedef struct queue_node{
 
 	void* data;
-    struct queue_node* next;
+    struct queue_node *next;
 }linknode,*Plinknode;
 
 typedef struct
@@ -24,20 +24,10 @@ typedef struct
 
 
 
-//typedef struct
-//{
-//	void** data;
-//	int head;
-//	int tail;
-//	int size;
-//}linkqueue,*Plinkqueue;
-
-
-
 Plinkqueue queue_init();
 int enter_queue(Plinkqueue queue, void* element);
-void* out_queue(Plinkqueue queue);
-
+int out_queue(Plinkqueue queue,Plinknode* ret);
+int clear_queue(Plinkqueue queue);
 
 
 

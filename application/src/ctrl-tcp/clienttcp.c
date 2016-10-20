@@ -18,7 +18,7 @@
 int port = 8080;
 pthread_t s_id;
 
-//#define IP "192.168.10.56"
+//#define IP "192.168.10.61"
 #define IP "127.0.0.1"
 
 

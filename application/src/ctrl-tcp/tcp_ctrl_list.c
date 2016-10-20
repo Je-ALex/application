@@ -180,6 +180,7 @@ pclient_node list_head_init()
 	pclient_node head;
 
 	head = (pclient_node)malloc(sizeof(client_node));
+
 	if(head == NULL)
 		return NULL;
 
@@ -190,6 +191,5 @@ pclient_node list_head_init()
 	return head;
 
 }
-
 
 

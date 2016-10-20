@@ -12,7 +12,7 @@
 
 extern pclient_node confer_head;
 extern pclient_node list_head;
-
+extern sem_t status_sem;
 
 /*
  * 单元机扫描功能
@@ -102,8 +102,6 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 
 	Pframe_type data_info;
 
-	Pclient_info pinfo;
-
 	data_info = (Pframe_type)malloc(sizeof(frame_type));
 
 	memset(data_info,0,sizeof(frame_type));
@@ -118,7 +116,7 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	unsigned char* name = "湖山电器有限责任公司-电声分公司\0";
 	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm\0";
 	memcpy(data_info->con_data.name,name,strlen(name));
-	memcpy(data_info->con_data.subj,sub,strlen(sub));
+	memcpy(data_info->con_data.subj[0],sub,strlen(sub));
 
 
 	/*
@@ -139,7 +137,7 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	data_info->data_type = CONFERENCE_DATA;
 	data_info->dev_type = HOST_CTRL;
 
-	tcp_ctrl_module_edit_info(data_info);
+	tcp_ctrl_module_edit_info(data_info,NULL);
 
 	return SUCCESS;
 
@@ -163,7 +161,7 @@ int get_the_conference_parameters(int fd_value)
 	config_conference_frame_info(&data_info);
 	data_info.msg_type = READ_MSG;
 
-	tcp_ctrl_module_edit_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 
 	return SUCCESS;
@@ -191,7 +189,7 @@ int set_the_conference_vote_result()
 	data_info.data_type = CONFERENCE_DATA;
 	data_info.dev_type = HOST_CTRL;
 
-	tcp_ctrl_module_edit_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 
 	return SUCCESS;
@@ -240,7 +238,7 @@ int set_the_event_parameter_power(int fd_value,unsigned char value)
 
 	config_event_frame_info(&data_info,&value);
 
-	tcp_ctrl_module_edit_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
 
@@ -261,7 +259,7 @@ int get_the_event_parameter_power(int fd_value)
 
 	config_event_frame_info(&data_info,NULL);
 
-	tcp_ctrl_module_edit_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
 
@@ -283,9 +281,67 @@ int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
 
 	config_event_frame_info(&data_info,ssid);
 
-	tcp_ctrl_module_edit_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
 
 }
+
+
+int fd = 0;
+int number = 0;
+
+int set_device_status(int socket_fd,int value)
+{
+
+	fd = socket_fd;
+	number = value;
+	sem_post(&status_sem);
+	return SUCCESS;
+
+}
+int get_device_status(int* socket_fd,int* value)
+{
+
+	sem_wait(&status_sem);
+
+	*socket_fd = fd;
+	*value = number;
+	printf("%s %d,%d\n",__func__,*socket_fd,*value);
+	return SUCCESS;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

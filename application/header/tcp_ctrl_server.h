@@ -166,8 +166,50 @@ typedef enum {
 	WIFI_MEETING_EVT_SSID,
 	WIFI_MEETING_EVT_KEY,
 	WIFI_MEETING_EVT_MAC,
+	WIFI_MEETING_EVT_CHECKIN,
 
 }event_name_type;
+
+typedef enum {
+	WIFI_MEETING_EVT_PWR_ON = 1,
+	WIFI_MEETING_EVT_PWR_OFF,
+}event_power;
+typedef enum {
+	WIFI_MEETING_EVT_MIC_FIFO = 1,
+	WIFI_MEETING_EVT_MIC_STAD,
+	WIFI_MEETING_EVT_MIC_FREE,
+}event_mic;
+typedef enum {
+	WIFI_MEETING_EVT_SPK_ALLOW = 1,
+	WIFI_MEETING_EVT_SPK_VETO,
+	WIFI_MEETING_EVT_SPK_ALOW_SND,
+	WIFI_MEETING_EVT_SPK_VETO_SND,
+	WIFI_MEETING_EVT_SPK_REQ_SPK,
+}event_speak;
+
+typedef enum {
+	WIFI_MEETING_EVT_VOT_START = 1,
+	WIFI_MEETING_EVT_VOT_END,
+	WIFI_MEETING_EVT_VOT_ASSENT,
+	WIFI_MEETING_EVT_VOT_NAY,
+	WIFI_MEETING_EVT_VOT_WAIVER,
+	WIFI_MEETING_EVT_VOT_TOUT,
+}event_vote;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*
  * 席别
@@ -206,7 +248,7 @@ typedef struct {
 	int id;
 	unsigned char seat;
 	unsigned char name[128];
-	unsigned char subj[128];
+	unsigned char subj[10][128];
 	vote_result v_result;
 
 }conference_data;
@@ -257,12 +299,17 @@ typedef struct{
 
 } client_info,*Pclient_info;
 
+/*
+ * 队列消息
+ * 在消息中需要告知哪个机器(socket_fd)状态改变
+ * 哪个类型(data_type),哪个内容(name_type),改变内容(value)
+ */
 typedef struct{
 
 	int socket_fd;
-	int id;
-	unsigned char seat;
-	unsigned char value;
+	unsigned char type;
+	unsigned char name;
+	unsigned short value;
 
 }queue_event,*Pqueue_event;
 

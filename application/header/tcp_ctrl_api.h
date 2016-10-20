@@ -32,10 +32,10 @@ int get_the_event_parameter_power(int fd_value);
 int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd);
 
 
+int set_device_status(int socket_fd,int value);
 
 
-
-
+int get_device_status(int* socket_fd,int* value);
 
 
 

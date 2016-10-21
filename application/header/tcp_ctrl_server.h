@@ -20,7 +20,7 @@
 #include <semaphore.h>
 
 
-
+#define CTRL_PORT 8080
 
 #define MSG_TYPE 0xF0
 #define DATA_TYPE 0x0C
@@ -31,6 +31,7 @@ typedef enum{
 	SOCKERRO = -3,
 	BINDERRO,
 	LISNERRO,
+
 	SUCCESS = 0,
 	ERROR = -1,
 
@@ -259,7 +260,7 @@ typedef struct {
 	unsigned char data_type;
 	unsigned char dev_type;
 
-	//查询是需要给此赋值
+	//查询是需要给此赋值,考虑现在有SSID和密码同时进行下发的情况，所以为数组
 	unsigned char name_type[2];
 	unsigned char code_type[2];
 
@@ -296,24 +297,27 @@ typedef struct{
 	struct sockaddr_in cli_addr;
 	int 	clilen;
 
+	//网关，掩码等等
 
 } client_info,*Pclient_info;
 
 /*
- * 队列消息
- * 在消息中需要告知哪个机器(socket_fd)状态改变
- * 哪个类型(data_type),哪个内容(name_type),改变内容(value)
+ * 会议动态全局变量
  */
-typedef struct{
+typedef struct {
 
-	int socket_fd;
-	unsigned char type;
-	unsigned char name;
-	unsigned short value;
+	int fd;
+	char pc_status;
 
-}queue_event,*Pqueue_event;
+	unsigned char ssid[32];
+	unsigned char password[64];
 
-int tcp_ctrl_refresh_client_list(Pframe_type frame_type);
+	unsigned char subj[10][128];
+	vote_result v_result;
 
+}conference_status,*Pconference_status;
 
+int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type frame_type);
+
+int tcp_ctrl_refresh_data_in_list(Pframe_type data_info);
 #endif /* HEADER_TCP_CTRL_SERVER_H_ */

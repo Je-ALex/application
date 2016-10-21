@@ -25,27 +25,31 @@
 #include "../../header/tcp_ctrl_queue.h"
 #include "../../header/tcp_ctrl_device_status.h"
 
-int port = 8080;
+#include "../../header/device_ctrl_module_udp.h"
+
 
 pthread_t s_id;
 pthread_mutex_t mutex;
-
+pthread_mutex_t queue_mutex;
 
 sem_t queue_sem;
-sem_t status_sem;
+
 /*
- * 1、连接信息链表
- * 2、会议参数链表
- * 3、终端会议状态链表
+ * 1、连接信息链表，这个链表主要是生成相关的文件后，QT层可以读取该文件，进行相关操作
+ * 2、终端会议状态链表，这个链表主要是主机自己用，不对外(QT)共享
  */
 pclient_node list_head;
-
 pclient_node confer_head;
-
+/*
+ * 实时状态上报队列
+ */
 Plinkqueue report_queue;
+/*
+ * 会议实时状态
+ */
+Pconference_status con_status;
 
 
-frame_type new_uint_data;
 
 /*
  * tc_local_addr_init.c
@@ -55,7 +59,7 @@ frame_type new_uint_data;
  * 错误码和成功后的端口号
  *
  */
-static int tcp_ctrl_local_addr_init()
+static int tcp_ctrl_local_addr_init(int port)
 {
 	struct sockaddr_in sin;
 	int sock_fd;
@@ -115,37 +119,39 @@ static void tcp_ctrl_set_noblock(int fd)
 
 
 /*
- * tcp_ctrl_add_client.c
+ * tcp_ctrl_add_client
  * 终端信息录入函数
  *
  * 将客户端信息增加本地链表，然后将数据信息录入文本文件，供QT使用
- *
  *
  */
 static int tcp_ctrl_add_client(void* value)
 {
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
+
 	FILE* file;
 	int ret;
 
 
 	/*
-	 * 增加到链表中
+	 * 连接信息存入链表
 	 */
 	list_add(list_head,value);
 
 	/*
 	 * 存入到文本文件
+	 * 更新文本信息
 	 */
-	file = fopen("connect_info.txt","w+");
+	file = fopen("connect_info.conf","w+");
 	tmp = list_head->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
 		if(pinfo->client_fd > 0)
 		{
-			printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
+			printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
+					inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
 
 			ret = fwrite(pinfo,sizeof(client_info),1,file);
 			perror("fwrite");
@@ -163,23 +169,22 @@ static int tcp_ctrl_add_client(void* value)
 
 
 /*
- * tcp_ctrl_delete_client.c
+ * tcp_ctrl_delete_client
  * 客户端 删除函数
+ * 删除链表中的连接信息
+ * 先通过查找链表，定位离线客户端的位置，在调用链表删除函数，删除链表中的设备
  *
- * 通过fd来判别链表中需要移除的客户端
  * 更新文本文件
  */
 static int tcp_ctrl_delete_client(int fd)
 {
 	pclient_node tmp = NULL;
 	pclient_node tmp2 = NULL;
-
 	Pclient_info pinfo;
 	Pframe_type tmp_type;
-
 	pclient_node del = NULL;
-
 	FILE* file;
+
 	int ret;
 	int status = 0;
 	int pos = 0;
@@ -193,6 +198,14 @@ static int tcp_ctrl_delete_client(int fd)
 		pinfo = tmp->data;
 		if(pinfo->client_fd == fd)
 		{
+			/*
+			 * 上位机下线
+			 */
+			if(pinfo->client_name == PC_CTRL)
+			{
+				con_status->pc_status = ERROR;
+
+			}
 			status++;
 			break;
 		}
@@ -210,9 +223,12 @@ static int tcp_ctrl_delete_client(int fd)
 		free(del);
 	}else{
 
-		printf("there is no data in the list\n");
+		printf("there is no client in the list\n");
 	}
 
+	/*
+	 * 会议设备链表
+	 */
 	status = 0;
 	pos = 0;
 	/*
@@ -271,53 +287,80 @@ static int tcp_ctrl_delete_client(int fd)
 
 
 /*
- * tcp_ctrl_refresh_client_list.c
+ * tcp_ctrl_refresh_client_list
  * 控制模块客户端连接管理
  *
  * 通过msg_type来判断是否是宣告在线消息
  * 再通过fd判断连接存储情况，如果是新的客户端则存入
  */
-int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
+int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 {
 
 	/*
 	 * 终端信息录入结构体
 	 */
+	pclient_node tmp = NULL;
 	Pclient_info info;
 	Pclient_info pinfo;
+	Pframe_type new_data_info;
 
 	struct sockaddr_in cli_addr;
 	int clilen = sizeof(cli_addr);
-	pclient_node tmp = NULL;
-
 	int state = 0;
 
 	printf("%s\n",__func__);
+
+
+
 	/*
 	 * 宣告上线消息类型
 	 */
-	if(frame_type->msg_type == ONLINE_REQ)
+	if(type->msg_type == ONLINE_REQ)
 	{
 		/*
+		 * 解析msg，共5个字节，席别和ID
+		 * 在上线请求时，会携带单元机的ID信息，没有就默认为0
 		 *
-		 *将新连接终端信息录入结构体中
-		 *这里可以将fd和IP信息存入到本地链表和文件中
+		 */
+		int id = 0;
+		unsigned char id_msg[4] = {0};
+		memcpy(id_msg,&msg[1],sizeof(int));
+		tcp_ctrl_data_char_to_int(&id,id_msg);
+		if(id > 0)
+		{
+			new_data_info = (Pframe_type)malloc(sizeof(frame_type));
+			memset(new_data_info,0,sizeof(frame_type));
+			new_data_info->fd = type->fd;
+			new_data_info->con_data.id = id;
+			new_data_info->con_data.seat = msg[0];
+			tcp_ctrl_refresh_data_in_list(new_data_info);
+		}else{
+
+			//暂时不知道怎么处理
+		}
+
+		/*
+		 * 将新连接终端信息录入结构体中
+		 * 这里可以将fd和IP信息存入到本地链表和文件中
+		 *
+		 * 区分上线的设备类型，单元机还是主机
+		 *
 		 */
 		info = (Pclient_info)malloc(sizeof(client_info));
 		memset(info,0,sizeof(client_info));
-		info->client_fd = frame_type->fd;
-		getpeername(info->client_fd,(struct sockaddr*)&cli_addr,
-									&clilen);
+
+		info->client_fd = type->fd;
+		getpeername(info->client_fd,(struct sockaddr*)&cli_addr,&clilen);
 		info->cli_addr = cli_addr;
 		info->clilen = clilen;
 
-		if(frame_type->dev_type == PC_CTRL){
+		if(type->dev_type == PC_CTRL){
 			info->client_name = PC_CTRL;
+			con_status->pc_status = PC_CTRL;
+
 		}else{
 			info->client_name = UNIT_CTRL;
 		}
-
-		tmp = list_head->next;
 
 		/*
 		 * 检查该客户端是否已经存在
@@ -326,13 +369,13 @@ int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
 		 * 链表不为空，则通过读取再比对，进行存储
 		 *
 		 */
+		tmp = list_head->next;
 		do
 		{
 			if(tmp == NULL)
 			{
 				state++;
 				tcp_ctrl_add_client(info);
-//				list_add(list_head,info);
 				break;
 			}else{
 				pinfo = tmp->data;
@@ -343,19 +386,17 @@ int tcp_ctrl_refresh_client_list(Pframe_type frame_type)
 				}
 			}
 			tmp = tmp->next;
-			usleep(10000);
 		}while(tmp != NULL);
 
 
 		if(state == 0)
 		{
-//			list_add(list_head,info);
 			tcp_ctrl_add_client(info);
 		}
 
 	}
 
-	return 0;
+	return SUCCESS;
 }
 /*
  * 接收消息的初步处理
@@ -465,16 +506,13 @@ static void* tcp_control_module(void* p)
     int ctrl_ret,wait_ret;
 	int maxi = 0;
 
-    /*
-     *
-     */
 	int len = 0;
 	unsigned char buf[1024] = {0};
 
     /*
      *socket init
      */
-    sockfd = tcp_ctrl_local_addr_init();
+    sockfd = tcp_ctrl_local_addr_init(CTRL_PORT);
     tcp_ctrl_set_noblock(sockfd);
 
 
@@ -503,12 +541,10 @@ static void* tcp_control_module(void* p)
 
 	wait_event = calloc(1000,sizeof(struct epoll_event));
 
-
 	/*
 	 * 终端连接信息链表
 	 */
 	list_head = list_head_init();
-
 	/*
 	 * 会议数据链表
 	 */
@@ -517,6 +553,12 @@ static void* tcp_control_module(void* p)
 	 * 创建消息队列
 	 */
 	report_queue = queue_init();
+	/*
+	 * 相关参数初始化
+	 */
+	con_status = (Pconference_status)malloc(sizeof(conference_status));
+	memset(con_status,0,sizeof(conference_status));
+
 
 	while(1)
 	{
@@ -551,19 +593,6 @@ static void* tcp_control_module(void* p)
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
-
-					/*
-					 * 设备上线，发送一个信息获取
-					 */
-//					send(newfd, send_buf, send_len, 0);
-//					/*
-//					 * print the data
-//					 */
-//					for(i =0;i<send_len;i++)
-//					{
-//						printf("%02x ",send_buf[i]);
-//					}
-//					printf("\n");
 					event.events = EPOLLIN | EPOLLET;
 					event.data.fd = newfd;
 					if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, newfd, &event) < 0) {
@@ -625,8 +654,6 @@ static void* tcp_control_module(void* p)
 
 					tcp_ctrl_process_rev_msg(&wait_event[n].data.fd,buf,&len);
 
-					//将测试数据返回发送
-					//send(wait_event[n].data.fd, buf, len, 0);
 				}
 			}//end if
 
@@ -636,6 +663,9 @@ static void* tcp_control_module(void* p)
 
 	free(wait_event);
     close(sockfd);
+    free(con_status);
+
+
     pthread_exit(0);
 
     return;
@@ -655,33 +685,37 @@ void read_file(){
 
 	file = fopen("connect_info.conf","r");
 
-	for(i=0;i<list_head->size;i++){
+//	for(i=0;i<list_head->size;i++){
+//
+//		ret = fread(pinfo,sizeof(client_info),1,file);
+//		perror("fread");
+//		if(ret ==0)
+//			return;
+//		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
+//				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
+//
+//		usleep(100000);
+//	}
 
+	while(1)
+	{
 		ret = fread(pinfo,sizeof(client_info),1,file);
 		perror("fread");
 		if(ret ==0)
 			return;
+		if(pinfo == NULL)
+			break;
+
 		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
 				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
 
 		usleep(100000);
 	}
-
+	free(pinfo);
 	fclose(file);
 }
 
-void tcp_strlen()
-{
-	char* str1="01234567890";
 
-	int i;
-
-	i=strlen(str1);
-	printf("i---%d\n",i);
-
-
-
-}
 
 int print_con_list()
 {
@@ -709,14 +743,21 @@ int print_con_list()
 
 	return 0;
 }
-int refresh_data_in_list(Pframe_type data_info)
+
+/*
+ * 设备会议信息更新
+ *
+ */
+int tcp_ctrl_refresh_data_in_list(Pframe_type data_info)
 {
 	pclient_node tmp = NULL;
+	pclient_node tmp2 = NULL;
+
 	Pframe_type info;
-	int pos = 0;
-	int status = 0;
 	pclient_node del = NULL;
 
+	int pos = 0;
+	int status = 0;
 
 	/*
 	 * 删除会议信息链表中的数据
@@ -749,8 +790,15 @@ int refresh_data_in_list(Pframe_type data_info)
 
 		printf("there is no data in the list\n");
 	}
-
+	//end
+	/*
+	 * 增加到链表中
+	 */
 	list_add(confer_head,data_info);
+
+	//完成链表更新
+
+
 
 	return 0;
 }
@@ -817,11 +865,12 @@ static void* control_tcp_send(void* p)
 		switch(s)
 		{
 			case 1:
-				ret=get_the_client_connect_info();
+				ret=get_unit_connected_info();
 				printf("scanf_client size--%d\n",ret);
 				break;
 			case 2:
 				printf("%s\n",__func__);
+				read_file();
 				print_con_list();
 				break;
 			case 3:
@@ -844,8 +893,8 @@ static void* control_tcp_send(void* p)
 				event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
 				memset(event_tmp,0,sizeof(queue_event));
 				event_tmp->socket_fd = 7;
-				event_tmp->type = EVENT_DATA;
-				event_tmp->name = WIFI_MEETING_EVT_SPK;
+				event_tmp->id = i;
+				event_tmp->seat = 1;
 				event_tmp->value = WIFI_MEETING_EVT_SPK_REQ_SPK;
 				enter_queue(report_queue,event_tmp);
 				sem_post(&queue_sem);
@@ -863,7 +912,7 @@ static void* control_tcp_send(void* p)
 				unsigned char* sub = "WIFI无线会议系统zhegehaonan";
 				memcpy(data_info->con_data.name,name,strlen(name));
 				memcpy(data_info->con_data.subj[0],sub,strlen(sub));
-				refresh_data_in_list(data_info);
+				tcp_ctrl_refresh_data_in_list(data_info);
 				break;
 			}
 
@@ -882,39 +931,32 @@ static void* control_tcp_send(void* p)
 
 
 }
+
 static void* control_tcp_queue(void* p)
 {
 
 	int ret;
+
 	Pqueue_event event_tmp;
 
+	event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
 
-	int fd,value;
 
 	while(1)
 	{
+		get_uint_running_status(event_tmp);
+		printf("fd--%d,id--%d,seat--%d,value--%d,queue_size--%d\n",
+				event_tmp->socket_fd,event_tmp->id,event_tmp->seat,
+				event_tmp->value,report_queue->size);
 
-		tcp_ctrl_out_queue(event_tmp);
-		free(event_tmp);
-//		sleep(1);
-	}
+		sleep(1);
+		ret++;
 
-}
-static void* control_tcp_status(void* p)
-{
-
-	int fd,value;
-
-	while(1)
-	{
-		get_device_status(&fd,&value);
-
-		printf("fd--%d,value--%d\n",fd,value);
 
 	}
-
-
+	free(event_tmp);
 }
+
 
 int control_tcp_module()
 {
@@ -922,19 +964,16 @@ int control_tcp_module()
 	void*status;
 	int res;
 	pthread_mutex_init(&mutex, NULL);
+	pthread_mutex_init(&queue_mutex, NULL);
 
 	res = sem_init(&queue_sem, 0, 0);
 	if (res != 0)
 	{
 	 perror("Semaphore initialization failed");
 	}
-	res = sem_init(&status_sem, 0, 0);
-	if (res != 0)
-	{
-	 perror("Semaphore initialization failed");
-	}
 
-	memset(&new_uint_data,0,sizeof(new_uint_data));
+
+//	pthread_create(&s_id,NULL,udp_server,NULL);
 
 	pthread_create(&s_id,NULL,tcp_control_module,NULL);
 
@@ -942,7 +981,6 @@ int control_tcp_module()
 
 	pthread_create(&s_id,NULL,control_tcp_queue,NULL);
 
-	pthread_create(&s_id,NULL,control_tcp_status,NULL);
 
 	pthread_join(s_id,&status);
 

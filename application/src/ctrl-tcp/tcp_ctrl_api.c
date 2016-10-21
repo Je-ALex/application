@@ -6,13 +6,12 @@
  */
 
 #include "../../header/tcp_ctrl_data_compose.h"
-
 #include "../../header/tcp_ctrl_list.h"
-
+#include "../../header/tcp_ctrl_device_status.h"
 
 extern pclient_node confer_head;
 extern pclient_node list_head;
-extern sem_t status_sem;
+extern Pconference_status con_status;
 
 /*
  * 单元机扫描功能
@@ -24,7 +23,7 @@ extern sem_t status_sem;
  *
  *
  */
-int get_the_client_connect_info()
+int get_unit_connected_info()
 {
 
 	pclient_node tmp = NULL;
@@ -65,6 +64,35 @@ int get_the_client_connect_info()
 }
 
 
+/*
+ * get_uint_running_status
+ * 单元机实时状态检测函数,用户只需检测设备号和具体返回信息
+ *
+ * in/out:
+ *
+ * @Pqueue_event详见头文件定义的结构体，返回参数
+ *
+ * return：
+ * @error
+ * @success
+ */
+int get_uint_running_status(Pqueue_event event_tmp)
+{
+
+	int ret;
+	ret = tcp_ctrl_out_queue(&event_tmp);
+	printf("fd--%d,id--%d,seat--%d,value--%d\n",
+			event_tmp->socket_fd,event_tmp->id,event_tmp->seat,
+			event_tmp->value);
+
+	if(ret)
+		return ERROR;
+
+	return SUCCESS;
+}
+
+
+
 
 /********************************************
  *
@@ -85,16 +113,22 @@ static int config_conference_frame_info(Pframe_type type){
 
 	return 0;
 }
+
 /*
- * set_the_conference_parameters.c
- * 设置会议参数,单主机的情况，主机只需进行ID和席位的编码
+ * set_the_conference_parameters
+ * 设置会议参数,单主机的情况，主机只需进行ID和席位的编码，其他设置为NULL即可，现在保留后续参数
  *
+
+ * in:
+ * @socket_fd
+ * @client_id
+ * @client_seat
+ * @client_name（保留）
+ * @subj（保留）
  *
- *
- *
- * in:@socket_fd,@client_id,@client_seat,@client_name,@subj
- *
- * return:success or error
+ * return:
+ * @error
+ * @success
  */
 int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 		char* client_name,char* subj)
@@ -122,8 +156,8 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	/*
 	 * 增加到链表中
 	 */
-	list_add(confer_head,data_info);
 
+	tcp_ctrl_refresh_data_in_list(data_info);
 	/*
 	 * 将参数保存
 	 */
@@ -143,10 +177,16 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 
 }
 /*
- * 查询会议参数
- * in:
- * @fd_value套接字号
+ * get_the_conference_parameters
+ * 获取单元机会议类参数
  *
+
+ * in:
+ * @socket_fd 获取某一个单元机的会议参数信息，如果为空（NULL），则默认为获取全部的参会单元会议信息
+ *
+ * return:
+ * @error
+ * @success
  */
 int get_the_conference_parameters(int fd_value)
 {
@@ -167,11 +207,17 @@ int get_the_conference_parameters(int fd_value)
 	return SUCCESS;
 
 }
-/* set_the_conference_vote_result.c
- * 下发投票结果函数
+/*
+ * set_the_conference_vote_result
+ * 下发投票结果，单主机的情况下，此接口基本用不上，投票结果由上位机统计，通过主机下发给单元机
+ * 默认下发给所有参会单元机
  *
- * 将全局变量中的投票结果下发给全部终端
+ * in/out:
+ * @NULL
  *
+ * return:
+ * @error
+ * @success
  */
 int set_the_conference_vote_result()
 {
@@ -185,9 +231,13 @@ int set_the_conference_vote_result()
 	data_info.name_type[0] = WIFI_MEETING_CON_VOTE;
 	data_info.code_type[0] = WIFI_MEETING_STRING;
 
-	data_info.msg_type = WRITE_MSG;
-	data_info.data_type = CONFERENCE_DATA;
-	data_info.dev_type = HOST_CTRL;
+	data_info.con_data.v_result.assent = con_status->v_result.assent;
+	data_info.con_data.v_result.nay = con_status->v_result.nay;
+	data_info.con_data.v_result.waiver = con_status->v_result.waiver;
+	data_info.con_data.v_result.timeout = con_status->v_result.timeout;
+
+
+	config_conference_frame_info(&data_info);
 
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
@@ -220,8 +270,23 @@ static int config_event_frame_info(Pframe_type type,unsigned char* value){
 
 	return 0;
 }
+
+
 /*
- * 电源开关
+ * set_the_event_parameter_power
+ * 设置单元机电源开关
+ * 设置某个单元机的电源开关
+ *
+ * in:
+ * @fd_value设备号
+ * @value值
+ *
+ * out:
+ * @NULL
+ *
+ * return:
+ * @error
+ * @success
  */
 int set_the_event_parameter_power(int fd_value,unsigned char value)
 {
@@ -244,6 +309,17 @@ int set_the_event_parameter_power(int fd_value,unsigned char value)
 
 }
 
+/*
+ * get_the_event_parameter_power
+ * 获取单元机电源状态
+ *
+ * in:
+ * @fd_value设备号
+ *
+ * return:
+ * @error
+ * @success
+ */
 int get_the_event_parameter_power(int fd_value)
 {
 
@@ -286,31 +362,6 @@ int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
 	return SUCCESS;
 
 }
-
-
-int fd = 0;
-int number = 0;
-
-int set_device_status(int socket_fd,int value)
-{
-
-	fd = socket_fd;
-	number = value;
-	sem_post(&status_sem);
-	return SUCCESS;
-
-}
-int get_device_status(int* socket_fd,int* value)
-{
-
-	sem_wait(&status_sem);
-
-	*socket_fd = fd;
-	*value = number;
-	printf("%s %d,%d\n",__func__,*socket_fd,*value);
-	return SUCCESS;
-}
-
 
 
 

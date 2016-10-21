@@ -12,9 +12,7 @@
 #include <arpa/inet.h>
 #include<errno.h>
 
-unsigned int DEF_PORT = 50001;
-
-pthread_t s_id;
+#include"../../header/device_ctrl_module_udp.h"
 
 
 /*message format
@@ -108,7 +106,7 @@ void udp_data_frame(void* str)
  * 主要是服务端的控制
  * 用全局结构体来共享数据信息，加锁
  */
-static void* udp_server(void* p)
+void* udp_server(void* p)
 {
 	int sock;
 	const int opt = 1;
@@ -188,15 +186,16 @@ static void* udp_server(void* p)
  * 2、广播数据包，等待客户端响应，返回结果
  *
  */
-int main(int port)
+int device_ctrl_module_udp(int port)
 {
-	void*status;
 
-	if(!port)
-	{
-		port = DEF_PORT;
-	}
-	pthread_create(&s_id,NULL,udp_server,(void*)port);
+
+
+	void*status;
+	pthread_t s_id;
+
+
+	pthread_create(&s_id,NULL,udp_server,NULL);
 
 	pthread_join(s_id,&status);
 

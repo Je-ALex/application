@@ -426,10 +426,6 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 	 */
 	if(type->name_type[0] == WIFI_MEETING_CON_VOTE)
 	{
-		type->con_data.v_result.assent = 0x3039;
-		type->con_data.v_result.nay = 0x3039;
-		type->con_data.v_result.waiver = 0x3039;
-		type->con_data.v_result.timeout = 0x3039;
 
 		tcp_ctrl_edit_conference_content(type,buf);
 

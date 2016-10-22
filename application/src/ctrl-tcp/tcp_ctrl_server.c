@@ -31,19 +31,25 @@
 pthread_t s_id;
 pthread_mutex_t mutex;
 pthread_mutex_t queue_mutex;
+pthread_mutex_t pc_queue_mutex;
 
 sem_t queue_sem;
+sem_t pc_queue_sem;
 
 /*
  * 1、连接信息链表，这个链表主要是生成相关的文件后，QT层可以读取该文件，进行相关操作
  * 2、终端会议状态链表，这个链表主要是主机自己用，不对外(QT)共享
  */
 pclient_node list_head;
-pclient_node confer_head;
+pclient_node conference_head;
 /*
  * 实时状态上报队列
  */
 Plinkqueue report_queue;
+/*
+ * 实时状态上报pc队列
+ */
+Plinkqueue report_pc_queue;
 /*
  * 会议实时状态
  */
@@ -143,7 +149,7 @@ static int tcp_ctrl_add_client(void* value)
 	 * 存入到文本文件
 	 * 更新文本信息
 	 */
-	file = fopen("connect_info.conf","w+");
+	file = fopen("connection.info","w+");
 	tmp = list_head->next;
 	while(tmp != NULL)
 	{
@@ -180,9 +186,11 @@ static int tcp_ctrl_delete_client(int fd)
 {
 	pclient_node tmp = NULL;
 	pclient_node tmp2 = NULL;
+	pclient_node del = NULL;
+
 	Pclient_info pinfo;
 	Pframe_type tmp_type;
-	pclient_node del = NULL;
+
 	FILE* file;
 
 	int ret;
@@ -190,7 +198,7 @@ static int tcp_ctrl_delete_client(int fd)
 	int pos = 0;
 
 	/*
-	 * 删除会议信息链表中的数据
+	 * 删除链接信息链表中的客户端
 	 */
 	tmp = list_head->next;
 	while(tmp != NULL)
@@ -227,18 +235,15 @@ static int tcp_ctrl_delete_client(int fd)
 	}
 
 	/*
-	 * 会议设备链表
+	 * 会议信息链表
 	 */
+
 	status = 0;
 	pos = 0;
 	/*
 	 * 删除会议信息链表中的数据
 	 */
-	tmp2 = confer_head->next;
-	if(tmp2 == NULL)
-		printf("tmp2 is null\n");
-	else
-		printf("tmp2 is not null\n");
+	tmp2 = conference_head->next;
 	while(tmp2 != NULL)
 	{
 		tmp_type = tmp2->data;
@@ -252,7 +257,7 @@ static int tcp_ctrl_delete_client(int fd)
 	}
 	if(status > 0)
 	{
-		list_delete(confer_head,pos,&del);
+		list_delete(conference_head,pos,&del);
 		tmp_type = del->data;
 		printf("close socket %d \n",
 				tmp_type->fd);
@@ -263,24 +268,28 @@ static int tcp_ctrl_delete_client(int fd)
 		printf("there is no data in the list\n");
 	}
 
-//	file = fopen("info.txt","w+");
-//	while(tmp != NULL)
-//	{
-//		pinfo = tmp->data;
-//		if(pinfo->client_fd > 0)
-//		{
-//			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
-//
-//			ret = fwrite(pinfo,sizeof(client_info),1,file);
-//			perror("fwrite");
-//			if(ret != 1)
-//				return ERROR;
-//
-//		}
-//		tmp = tmp->next;
-//		usleep(10000);
-//	}
-//	fclose(file);
+	/*
+	 * 删除链接信息文本中的信息
+	 */
+	file = fopen("connection.info","w+");
+	tmp = list_head->next;
+	while(tmp != NULL)
+	{
+		pinfo = tmp->data;
+		if(pinfo->client_fd > 0)
+		{
+			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+
+			ret = fwrite(pinfo,sizeof(client_info),1,file);
+			perror("fwrite");
+			if(ret != 1)
+				return ERROR;
+
+		}
+		tmp = tmp->next;
+		usleep(10000);
+	}
+	fclose(file);
 
 	return SUCCESS;
 }
@@ -302,7 +311,7 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 	pclient_node tmp = NULL;
 	Pclient_info info;
 	Pclient_info pinfo;
-	Pframe_type new_data_info;
+	Pconference_info new_data_info;
 
 	struct sockaddr_in cli_addr;
 	int clilen = sizeof(cli_addr);
@@ -310,34 +319,11 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 
 	printf("%s\n",__func__);
 
-
-
 	/*
 	 * 宣告上线消息类型
 	 */
 	if(type->msg_type == ONLINE_REQ)
 	{
-		/*
-		 * 解析msg，共5个字节，席别和ID
-		 * 在上线请求时，会携带单元机的ID信息，没有就默认为0
-		 *
-		 */
-		int id = 0;
-		unsigned char id_msg[4] = {0};
-		memcpy(id_msg,&msg[1],sizeof(int));
-		tcp_ctrl_data_char_to_int(&id,id_msg);
-		if(id > 0)
-		{
-			new_data_info = (Pframe_type)malloc(sizeof(frame_type));
-			memset(new_data_info,0,sizeof(frame_type));
-			new_data_info->fd = type->fd;
-			new_data_info->con_data.id = id;
-			new_data_info->con_data.seat = msg[0];
-			tcp_ctrl_refresh_data_in_list(new_data_info);
-		}else{
-
-			//暂时不知道怎么处理
-		}
 
 		/*
 		 * 将新连接终端信息录入结构体中
@@ -388,10 +374,27 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 			tmp = tmp->next;
 		}while(tmp != NULL);
 
-
 		if(state == 0)
 		{
 			tcp_ctrl_add_client(info);
+		}
+		/*
+		 * 解析msg，共5个字节，席别和ID
+		 * 在上线请求时，会携带单元机的ID信息，没有就默认为0
+		 * 如果接收到的上线请求消息有id，则将该设备更新至会议信息链表中
+		 *
+		 */
+		if(type->s_id > 0)
+		{
+			new_data_info = (Pconference_info)malloc(sizeof(conference_info));
+			memset(new_data_info,0,sizeof(conference_info));
+			new_data_info->fd = type->fd;
+			new_data_info->con_data.id = type->s_id;
+			new_data_info->con_data.seat = msg[0];
+			tcp_ctrl_refresh_conference_list(new_data_info);
+		}else{
+
+			//暂时不知道怎么处理
 		}
 
 	}
@@ -424,17 +427,23 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* len
 	Pclient_info tmp_type;
 
 	int i;
+	int ret = 0;
 	int status = 0;
 	unsigned char* handlbuf = NULL;
 
 	type = (Pframe_type)malloc(sizeof(frame_type));
 	memset(type,0,sizeof(frame_type));
 
-	tcp_ctrl_frame_analysis(cli_fd,value,length,type,&handlbuf);
+	ret = tcp_ctrl_frame_analysis(cli_fd,value,length,type,&handlbuf);
 
-	printf("type->dev_type = %d\n"
-			"type->msg_type = %d\n"
-			"type->data_type = %d\n",type->dev_type,type->msg_type,type->data_type);
+	printf("type->msg_type = %d\n"
+			"type->data_type = %d\n"
+			"type->dev_type = %d\n",type->msg_type,type->data_type,type->dev_type);
+	if(ret)
+	{
+		printf("%s failed\n",__func__);
+		return;
+	}
 
 	/*
 	 * 在连接信息链表中检查端口合法性
@@ -548,11 +557,16 @@ static void* tcp_control_module(void* p)
 	/*
 	 * 会议数据链表
 	 */
-	confer_head = list_head_init();
+	conference_head = list_head_init();
 	/*
 	 * 创建消息队列
 	 */
 	report_queue = queue_init();
+	/*
+	 * 创建pc消息队列
+	 */
+	report_pc_queue = queue_init();
+
 	/*
 	 * 相关参数初始化
 	 */
@@ -683,19 +697,7 @@ void read_file(){
 
 	pinfo = malloc(sizeof(client_info));
 
-	file = fopen("connect_info.conf","r");
-
-//	for(i=0;i<list_head->size;i++){
-//
-//		ret = fread(pinfo,sizeof(client_info),1,file);
-//		perror("fread");
-//		if(ret ==0)
-//			return;
-//		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
-//				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
-//
-//		usleep(100000);
-//	}
+	file = fopen("connection.info","r");
 
 	while(1)
 	{
@@ -720,15 +722,14 @@ void read_file(){
 int print_con_list()
 {
 	pclient_node tmp = NULL;
-	Pframe_type info;
+	Pconference_info info;
 
-	tmp = confer_head->next;
+	tmp = conference_head->next;
 
 	printf("%s\n",__func__);
 
 	while(tmp != NULL)
 	{
-		printf("%s--2\n",__func__);
 		info = tmp->data;
 
 		if(info->fd > 0)
@@ -736,45 +737,59 @@ int print_con_list()
 			printf("fd--%d,id--%d,seat--%d,name--%s  subject-%s\n",info->fd,
 					info->con_data.id,info->con_data.seat,info->con_data.name,info->con_data.subj[0]);
 		}
-
-
 		tmp = tmp->next;
 	}
 
-	return 0;
+	return SUCCESS;
 }
 
 /*
  * 设备会议信息更新
  *
  */
-int tcp_ctrl_refresh_data_in_list(Pframe_type data_info)
+int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 {
 	pclient_node tmp = NULL;
-	pclient_node tmp2 = NULL;
-
-	Pframe_type info;
 	pclient_node del = NULL;
+	Pclient_info cinfo;
+	Pconference_info info;
+
 
 	int pos = 0;
 	int status = 0;
 
+	tmp = list_head->next;
+	while(tmp!=NULL)
+	{
+		cinfo = tmp->data;
+		if(cinfo->client_fd == data_info->fd)
+		{
+			status++;
+			break;
+		}
+		tmp = tmp->next;
+	}
+
+	if(status > 0)
+	{
+		status = 0;
+	}else{
+		printf("there is no client in the connection list\n");
+		return ERROR;
+	}
 	/*
 	 * 删除会议信息链表中的数据
 	 */
-	tmp = confer_head->next;
+	tmp = conference_head->next;
 	while(tmp != NULL)
 	{
 		info = tmp->data;
-
 		if(info->fd == data_info->fd)
 		{
 			printf("find the fd\n");
 			status++;
 			break;
 		}
-
-
 		pos++;
 		tmp = tmp->next;
 	}
@@ -782,25 +797,18 @@ int tcp_ctrl_refresh_data_in_list(Pframe_type data_info)
 	printf("pos--%d\n",pos);
 	if(status > 0)
 	{
-		list_delete(confer_head,pos,&del);
+		list_delete(conference_head,pos,&del);
 		info = del->data;
+		status = 0;
 		free(info);
 		free(del);
 	}else{
 
-		printf("there is no data in the list\n");
+		printf("there is no data in the conference list\n");
 	}
-	//end
-	/*
-	 * 增加到链表中
-	 */
-	list_add(confer_head,data_info);
+	list_add(conference_head,data_info);
 
-	//完成链表更新
-
-
-
-	return 0;
+	return SUCCESS;
 }
 
 
@@ -819,7 +827,7 @@ static void* control_tcp_send(void* p)
 
 	Pqueue_event event_tmp;
 
-	Pframe_type data_info;
+	Pconference_info confer_info;
 
 	while(1)
 	{
@@ -902,17 +910,19 @@ static void* control_tcp_send(void* p)
 				break;
 			case 9:
 			{
-				data_info = (Pframe_type)malloc(sizeof(frame_type));
+				confer_info = (Pconference_info)malloc(sizeof(conference_info));
 
-				memset(data_info,0,sizeof(frame_type));
-				data_info->fd = fd;
-				data_info->con_data.id = id;
-				data_info->con_data.seat = seat;
+				memset(confer_info,0,sizeof(frame_type));
+
 				unsigned char* name = "湖山电器有限责任公司";
 				unsigned char* sub = "WIFI无线会议系统zhegehaonan";
-				memcpy(data_info->con_data.name,name,strlen(name));
-				memcpy(data_info->con_data.subj[0],sub,strlen(sub));
-				tcp_ctrl_refresh_data_in_list(data_info);
+				confer_info->fd = fd;
+				confer_info->con_data.id = id;
+				confer_info->con_data.seat = seat;
+				memcpy(confer_info->con_data.name,name,strlen(name));
+				memcpy(confer_info->con_data.subj[0],sub,strlen(sub));
+
+				tcp_ctrl_refresh_conference_list(confer_info);
 				break;
 			}
 
@@ -937,14 +947,14 @@ static void* control_tcp_queue(void* p)
 
 	int ret;
 
-	Pqueue_event event_tmp;
+	Ptest_event event_tmp;
 
-	event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
+	event_tmp = (Ptest_event)malloc(sizeof(test_event));
 
 
 	while(1)
 	{
-		get_uint_running_status(event_tmp);
+		get_unit_running_status(&event_tmp);
 		printf("fd--%d,id--%d,seat--%d,value--%d,queue_size--%d\n",
 				event_tmp->socket_fd,event_tmp->id,event_tmp->seat,
 				event_tmp->value,report_queue->size);
@@ -965,15 +975,21 @@ int control_tcp_module()
 	int res;
 	pthread_mutex_init(&mutex, NULL);
 	pthread_mutex_init(&queue_mutex, NULL);
+	pthread_mutex_init(&pc_queue_mutex, NULL);
 
 	res = sem_init(&queue_sem, 0, 0);
 	if (res != 0)
 	{
 	 perror("Semaphore initialization failed");
 	}
+	res = sem_init(&	pc_queue_sem, 0, 0);
+	if (res != 0)
+	{
+	 perror("Semaphore initialization failed");
+	}
 
 
-//	pthread_create(&s_id,NULL,udp_server,NULL);
+	pthread_create(&s_id,NULL,udp_server,NULL);
 
 	pthread_create(&s_id,NULL,tcp_control_module,NULL);
 

@@ -13,7 +13,7 @@
 #include<errno.h>
 
 #include"../../header/device_ctrl_module_udp.h"
-
+#include "../../header/tcp_ctrl_server.h"
 
 /*message format
  *
@@ -24,6 +24,8 @@
  *
  */
 
+
+
 /*
  * 数据头为两个字节
  * 一个字节消息类型
@@ -33,10 +35,10 @@
  * 校验和
  *
  */
-void udp_data_frame(void* str)
+void udp_data_frame(unsigned char* str,int* len)
 {
 
-	char* data = str;
+	unsigned char* data = str;
 	int i;
 	unsigned char sum = 0;
 	/*
@@ -64,8 +66,8 @@ void udp_data_frame(void* str)
 	 * data content is variable
 	 * at here is tcp port
 	 */
-	data[5] = 0x80;
-	data[6] = 0x80;
+	data[5] = (unsigned char)((CTRL_PORT >> 8) & 0xff);
+	data[6] = (unsigned char)(CTRL_PORT & 0xff);
 
 	/*
 	 * checksum
@@ -93,12 +95,7 @@ void udp_data_frame(void* str)
 	 * checksum
 	 */
 	data[i] = sum + data[3];
-
-//	for(i=0;i<8;i++)
-//	{
-//		printf("%X ",data[i]);
-//	}
-
+	*len = data[3];
 }
 
 /*
@@ -149,9 +146,9 @@ void* udp_server(void* p)
         pthread_exit(0);
     }
 
-    int i;
-    char msg[100] = {0};
-    udp_data_frame(msg);
+    int i,len;
+    unsigned char msg[100] = {0};
+    udp_data_frame(msg,&len);
 
     /*
      * UDP broadcast data
@@ -159,7 +156,7 @@ void* udp_server(void* p)
 	while(1){
 
 		ret = 0;
-		ret = sendto(sock,msg,strlen(msg),0,
+		ret = sendto(sock,msg,len,0,
 				(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 
 		if(ret < 0){
@@ -167,11 +164,11 @@ void* udp_server(void* p)
 			close(sock);
 			pthread_exit(0);
 		}else{
-			for(i=0;i<8;i++)
-			{
-				printf("%02X ",msg[i]);
-			}
-			printf("send ok\n");
+//			for(i=0;i<8;i++)
+//			{
+//				printf("%02X ",msg[i]);
+//			}
+//			printf("send ok\n");
 		}
 		sleep(1);
 

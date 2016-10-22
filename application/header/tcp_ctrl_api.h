@@ -30,11 +30,19 @@ int get_unit_connected_info();
  *
  * @Pqueue_event详见头文件定义的结构体，返回参数
  *
+ * typedef struct{
+	int socket_fd;
+	int id;
+	unsigned char seat;
+	unsigned short value;
+
+	}queue_event,*Pqueue_event;
+
  * return：
  * @error
  * @success
  */
-int get_uint_running_status(Pqueue_event event_tmp);
+int get_unit_running_status(void** event_tmp);
 
 
 

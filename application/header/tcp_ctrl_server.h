@@ -144,6 +144,7 @@ typedef enum {
 	WIFI_MEETING_CON_ID  = 1,
 	WIFI_MEETING_CON_SEAT,
 	WIFI_MEETING_CON_NAME ,
+	WIFI_MEETING_CON_CNAME ,
 	WIFI_MEETING_CON_SUBJ ,
 	WIFI_MEETING_CON_VOTE ,
 
@@ -163,7 +164,7 @@ typedef enum {
 	WIFI_MEETING_EVT_SUB,
 	WIFI_MEETING_EVT_SEFC,
 	WIFI_MEETING_EVT_SER,
-	WIFI_MEETING_EVT_STAT,
+	WIFI_MEETING_EVT_ALL_STATUS,
 	WIFI_MEETING_EVT_SSID,
 	WIFI_MEETING_EVT_KEY,
 	WIFI_MEETING_EVT_MAC,
@@ -246,6 +247,9 @@ typedef struct{
  */
 typedef struct {
 
+	/*
+	 * 主机ID为0x0000，上位机ID为0xFFFF
+	 */
 	int id;
 	unsigned char seat;
 	unsigned char name[128];
@@ -267,18 +271,26 @@ typedef struct {
 	int fd;
 	int data_len;
 	int frame_len;
+	int s_id;
+	int d_id;
 
 	event_data evt_data;
 	conference_data con_data;
 
 }frame_type,*Pframe_type;
 
+/*
+ * 会议信息链表
+ * 主要有fd和事件类、会议类内容
+ */
 typedef struct {
 
+	int fd;
 	event_data evt_data;
 	conference_data con_data;
 
-}client_status_info;
+}conference_info,*Pconference_info;
+
 /*
  * 主机TCP控制模块保存的终端信息参数
  *
@@ -308,10 +320,8 @@ typedef struct {
 
 	int fd;
 	char pc_status;
-
 	unsigned char ssid[32];
 	unsigned char password[64];
-
 	unsigned char subj[10][128];
 	vote_result v_result;
 
@@ -319,5 +329,5 @@ typedef struct {
 
 int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type frame_type);
 
-int tcp_ctrl_refresh_data_in_list(Pframe_type data_info);
+int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
 #endif /* HEADER_TCP_CTRL_SERVER_H_ */

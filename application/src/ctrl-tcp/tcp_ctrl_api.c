@@ -33,11 +33,8 @@ int get_unit_connected_info()
 	/*
 	 * 终端连接信息
 	 */
-	connect_info = fopen("connect_info.conf","w+");
-	/*
-	 * 会议参数信息
-	 */
-//	conference_code = fopen("conference_code.conf","w+");
+	connect_info = fopen("connection.info","w+");
+
 
 	tmp = list_head->next;
 
@@ -76,14 +73,12 @@ int get_unit_connected_info()
  * @error
  * @success
  */
-int get_uint_running_status(Pqueue_event event_tmp)
+int get_unit_running_status(Pqueue_event* event_tmp)
 {
 
 	int ret;
-	ret = tcp_ctrl_out_queue(&event_tmp);
-	printf("fd--%d,id--%d,seat--%d,value--%d\n",
-			event_tmp->socket_fd,event_tmp->id,event_tmp->seat,
-			event_tmp->value);
+	ret = tcp_ctrl_out_queue(event_tmp);
+
 
 	if(ret)
 		return ERROR;
@@ -134,51 +129,55 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 		char* client_name,char* subj)
 {
 
-	Pframe_type data_info;
+	frame_type data_info;
+	Pconference_info confer_info;
 
-	data_info = (Pframe_type)malloc(sizeof(frame_type));
+	int ret = 0;
+	unsigned char* name = "湖山电器有限责任公司-电声分公司";
+	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm";
 
-	memset(data_info,0,sizeof(frame_type));
+	memset(&data_info,0,sizeof(frame_type));
 
 
 	/*
 	 * 测试 发送
 	 */
-	data_info->fd = fd_value;
-	data_info->con_data.id = client_id;
-	data_info->con_data.seat = client_seat;
-	unsigned char* name = "湖山电器有限责任公司-电声分公司\0";
-	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm\0";
-	memcpy(data_info->con_data.name,name,strlen(name));
-	memcpy(data_info->con_data.subj[0],sub,strlen(sub));
+	data_info.fd = fd_value;
+	data_info.con_data.id = client_id;
+	data_info.con_data.seat = client_seat;
+	memcpy(data_info.con_data.name,name,strlen(name));
+	memcpy(data_info.con_data.subj[0],sub,strlen(sub));
 
 
 	/*
-	 * 增加到链表中
+	 * 会议信息链表
 	 */
-
-	tcp_ctrl_refresh_data_in_list(data_info);
+	confer_info = (Pconference_info)malloc(sizeof(conference_info));
+	memset(confer_info,0,sizeof(conference_info));
+	confer_info->fd = fd_value;
+	confer_info->con_data.id = client_id;
+	confer_info->con_data.seat = client_seat;
+	memcpy(confer_info->con_data.name,name,strlen(name));
+	memcpy(confer_info->con_data.subj[0],sub,strlen(sub));
 	/*
-	 * 将参数保存
+	 * 增加到会议信息链表中
 	 */
-//	data_info.fd = fd_value;
-//	data_type.con_data.id = client_id;
-//	data_type.con_data.seat = client_seat;
-//	memcpy(data_type.con_data.name,client_name,strlen(client_name));
-//	memcpy(data_type.con_data.subj,subj,strlen(subj));
 
-	data_info->msg_type = WRITE_MSG;
-	data_info->data_type = CONFERENCE_DATA;
-	data_info->dev_type = HOST_CTRL;
-
-	tcp_ctrl_module_edit_info(data_info,NULL);
+	ret = tcp_ctrl_refresh_conference_list(confer_info);
+	if(ret)
+		return ERROR;
+	/*
+	 * 组包下发
+	 */
+	config_conference_frame_info(&data_info);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
 
 }
 /*
  * get_the_conference_parameters
- * 获取单元机会议类参数
+ * 查询单元机会议类参数
  *
 
  * in:

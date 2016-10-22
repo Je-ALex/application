@@ -61,6 +61,8 @@ int tcp_ctrl_out_queue(Pqueue_event* event_tmp)
 
 		free(tmp);
 		free(node);
+	}else{
+		return ERROR;
 	}
 
 	return SUCCESS;
@@ -69,7 +71,29 @@ int tcp_ctrl_out_queue(Pqueue_event* event_tmp)
 
 
 
+int tcp_ctrl_enter_pc_queue(Pframe_type frame_type,int value)
+{
 
+	Pclient_info tmp_info;
+
+	tmp_info = (Pclient_info)malloc(sizeof(client_info));
+	memset(tmp_info,0,sizeof(client_info));
+
+	/*
+	 * 单元机固有属性
+	 */
+	tmp_info->client_fd = frame_type->fd;
+
+	printf("enter the queue..\n");
+
+	pthread_mutex_lock(&queue_mutex);
+	enter_queue(report_queue,tmp_info);
+	pthread_mutex_unlock(&queue_mutex);
+
+	sem_post(&queue_sem);
+
+	return SUCCESS;
+}
 
 
 

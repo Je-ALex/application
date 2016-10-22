@@ -17,26 +17,31 @@ extern sem_t queue_sem;
 
 typedef enum{
 
+	//电源开、关
 	WIFI_MEETING_EVENT_POWER_ON = 1,
 	WIFI_MEETING_EVENT_POWER_OFF,
 
+	//FIFO、标准、自由
 	WIFI_MEETING_EVENT_MIC_FIFO,
 	WIFI_MEETING_EVENT_MIC_STAD,
 	WIFI_MEETING_EVENT_MIC_FREE,
 
+	//发言允许、拒绝，音频下发、拒绝，请求发言
 	WIFI_MEETING_EVENT_SPK_ALLOW,
 	WIFI_MEETING_EVENT_SPK_VETO,
 	WIFI_MEETING_EVENT_SPK_ALOW_SND,
 	WIFI_MEETING_EVENT_SPK_VETO_SND,
 	WIFI_MEETING_EVENT_SPK_REQ_SPK,
 
-
+	//签到
 	WIFI_MEETING_EVENT_CHECKIN,
 
+	//会议参数设置成功、失败，查询应答
 	WIFI_MEETING_CONF_WREP_SUCCESS,
 	WIFI_MEETING_CONF_WREP_ERR,
 	WIFI_MEETING_CONF_RREP,
 
+	//赞成、反对、弃权、超时
 	WIFI_MEETING_CONF_REQ_VOTE_ASSENT,
 	WIFI_MEETING_CONF_REQ_VOTE_NAY,
 	WIFI_MEETING_CONF_REQ_VOTE_WAIVER,
@@ -58,10 +63,8 @@ typedef struct{
 	 * 单元机识别
 	 */
 	int socket_fd;
-
 	int id;
 	unsigned char seat;
-
 	/*
 	 * 具体改变值
 	 */
@@ -70,7 +73,21 @@ typedef struct{
 }queue_event,*Pqueue_event;
 
 
+typedef struct{
 
+	/*
+	 * 单元机识别
+	 */
+	int socket_fd;
+	int id;
+	unsigned char seat;
+
+	/*
+	 * 具体改变值
+	 */
+	unsigned short value;
+
+}test_event,*Ptest_event;
 
 
 

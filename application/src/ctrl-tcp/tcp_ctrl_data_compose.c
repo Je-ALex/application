@@ -15,7 +15,24 @@ extern pclient_node list_head;
 extern pthread_mutex_t mutex;
 
 
+/*
+ * tcp_ctrl_data_shift
+ * 移位函数
+ * 将高位移至低字节，低位移至高字节
+ */
+int tcp_ctrl_data_int_to_char(int value,char* r_value)
+{
 
+	r_value[0] =(unsigned char) (( value >> 24 ) & 0xff);
+
+	r_value[1] =(unsigned char) (( value >> 16 ) & 0xff);
+
+	r_value[2] =(unsigned char) (( value >> 8 ) & 0xff);
+
+	r_value[3] =(unsigned char) (( value >> 0 ) & 0xff);
+
+	return 0;
+}
 /*
  * 主机发送数据组包函数
  *
@@ -87,22 +104,25 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	/*
 	 * LENGTH
 	 * 数据长度加上固定长度
-	 * 固定长度为4个头字节+1个消息类+2个长度+4个目标地址+1个校验和，共12个固定字节
+	 * 固定长度为4个头字节+1个消息类+2个长度+4个源地址+4个目标地址+1个校验和，共16个固定字节
 	 */
-	length = type->data_len + 12;
+	length = type->data_len + 0x10;
 	result_buf[tc_index++] = (length >> 8) & 0xff;
 	result_buf[tc_index++] = length & 0xff;
 
 	/*
 	 * Destination address
-	 * 下发数据的目标终端IP地址
+	 * 分为源地址和目标地址，用ID号
 	 */
-	getpeername(type->fd,(struct sockaddr*)&cli_addr,
-								&clilen);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 0 ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 8 ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 16  ) & 0xff);
-	result_buf[tc_index++] = (unsigned char) (( cli_addr.sin_addr.s_addr >> 24  ) & 0xff);
+
+	unsigned char id_msg[4] = {0};
+	tcp_ctrl_data_int_to_char(type->d_id,id_msg);
+	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
+	tc_index = tc_index+sizeof(int);
+
+	tcp_ctrl_data_int_to_char(type->s_id,id_msg);
+	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
+	tc_index = tc_index+sizeof(int);
 
 	/*
 	 * 具体数据内容
@@ -125,6 +145,7 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 
 	type->frame_len = tc_index+1;
 
+
 	printf("result data: ");
 	for(i=0;i<tc_index+1;i++)
 	{
@@ -135,24 +156,7 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	return 0;
 }
 
-/*
- * tcp_ctrl_data_shift
- * 移位函数
- * 将高位移至低字节，低位移至高字节
- */
-int tcp_ctrl_data_int_to_char(int value,char* r_value)
-{
 
-	r_value[0] =(unsigned char) (( value >> 24 ) & 0xff);
-
-	r_value[1] =(unsigned char) (( value >> 16 ) & 0xff);
-
-	r_value[2] =(unsigned char) (( value >> 8 ) & 0xff);
-
-	r_value[3] =(unsigned char) (( value >> 0 ) & 0xff);
-
-	return 0;
-}
 
 /*
  * tcp_ctrl_edit_conference_info
@@ -402,6 +406,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 
 	tmp = list_head->next;
 	/*
+	 * 在连接信息链表中
 	 * 判断是否有此客户端
 	 */
 	while(tmp != NULL)

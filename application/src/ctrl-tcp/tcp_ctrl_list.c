@@ -186,7 +186,7 @@ pclient_node list_head_init()
 
 	memset((void*)head,0,sizeof(client_node));
 
-	printf("head init success\n");
+//	printf("head init success\n");
 
 	return head;
 

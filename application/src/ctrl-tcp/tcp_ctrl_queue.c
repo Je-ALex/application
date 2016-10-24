@@ -28,7 +28,7 @@ Plinkqueue queue_init(){
 
 	head->front->next = NULL;
 
-	printf("queue init success\n");
+//	printf("queue init success\n");
 
 	return head;
 }

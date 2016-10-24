@@ -24,9 +24,9 @@ int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type frame_type);
 int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type);
 
 
+int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type);
 
-
-
+int tcp_ctrl_delete_client(int fd);
 
 
 

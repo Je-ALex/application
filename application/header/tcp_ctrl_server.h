@@ -176,16 +176,19 @@ typedef enum {
 	WIFI_MEETING_EVT_PWR_ON = 1,
 	WIFI_MEETING_EVT_PWR_OFF,
 }event_power;
+
 typedef enum {
 	WIFI_MEETING_EVT_MIC_FIFO = 1,
 	WIFI_MEETING_EVT_MIC_STAD,
 	WIFI_MEETING_EVT_MIC_FREE,
 }event_mic;
+
 typedef enum {
 	WIFI_MEETING_EVT_SPK_ALLOW = 1,
 	WIFI_MEETING_EVT_SPK_VETO,
 	WIFI_MEETING_EVT_SPK_ALOW_SND,
 	WIFI_MEETING_EVT_SPK_VETO_SND,
+	WIFI_MEETING_EVT_SPK_REQ_SND,
 	WIFI_MEETING_EVT_SPK_REQ_SPK,
 }event_speak;
 
@@ -199,8 +202,13 @@ typedef enum {
 }event_vote;
 
 
+typedef enum {
 
+	WIFI_MEETING_EVT_SER_WATER = 1,
+	WIFI_MEETING_EVT_SER_PEN,
+	WIFI_MEETING_EVT_SER_PAPER,
 
+}event_service;
 
 
 
@@ -311,7 +319,14 @@ typedef struct{
 
 	//网关，掩码等等
 
+	//参数
+	int id;
+	unsigned char seat;
+
+
 } client_info,*Pclient_info;
+
+
 
 /*
  * 会议动态全局变量
@@ -327,7 +342,14 @@ typedef struct {
 
 }conference_status,*Pconference_status;
 
-int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type frame_type);
-
 int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
+
+
+
+
+
+
+
+
+
 #endif /* HEADER_TCP_CTRL_SERVER_H_ */

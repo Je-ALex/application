@@ -9,7 +9,68 @@
 #include "../../header/tcp_ctrl_device_status.h"
 
 extern Plinkqueue report_queue;
+extern Plinkqueue tcp_send_queue;
+
 extern pthread_mutex_t queue_mutex;
+extern pthread_mutex_t tpsend_queue_mutex;
+
+
+extern sem_t queue_sem;
+extern sem_t tpsend_queue_sem;
+
+int tcp_ctrl_tcp_send_enqueue(Pframe_type frame_type,unsigned char* msg)
+{
+
+	Ptcp_send tmp;
+
+	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
+	memset(tmp,0,sizeof(tcp_send));
+
+
+	printf("%s--enter the queue..\n",__func__);
+	/*
+	 * 单元机固有属性
+	 */
+	tmp->socket_fd = frame_type->fd;
+	tmp->len = frame_type->frame_len;
+	tmp->msg = msg;
+
+	pthread_mutex_lock(&tpsend_queue_mutex);
+	enter_queue(tcp_send_queue,tmp);
+	pthread_mutex_unlock(&tpsend_queue_mutex);
+
+	sem_post(&tpsend_queue_sem);
+
+	return SUCCESS;
+}
+int tcp_ctrl_tpsend_outqueue(Ptcp_send* event_tmp)
+{
+
+	int ret;
+	int value;
+	Plinknode node;
+	Ptcp_send tmp;
+
+	sem_wait(&tpsend_queue_sem);
+	printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
+
+	pthread_mutex_lock(&tpsend_queue_mutex);
+	ret = out_queue(tcp_send_queue,&node);
+	pthread_mutex_unlock(&tpsend_queue_mutex);
+
+	if(ret == 0)
+	{
+		tmp = node->data;
+		memcpy(*event_tmp,tmp,sizeof(tcp_send));
+
+		free(tmp);
+		free(node);
+	}else{
+		return ERROR;
+	}
+
+	return SUCCESS;
+}
 
 
 int tcp_ctrl_enter_queue(Pframe_type frame_type,int value)

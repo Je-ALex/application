@@ -9,7 +9,7 @@
 
 #include "../../header/tcp_ctrl_list.h"
 #include "../../header/tcp_ctrl_data_process.h"
-
+#include "../../header/tcp_ctrl_device_status.h"
 
 extern pclient_node list_head;
 extern pthread_mutex_t mutex;
@@ -79,17 +79,17 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	 *
 	 */
 	msg = type->msg_type;
-	printf("msg = %x\n",msg);
+//	printf("msg = %x\n",msg);
 	msg = (msg << 4) & MSG_TYPE;
 	printf("msg = %x\n",msg);
 
 	data = type->data_type;
-	printf("data = %x\n",data);
+//	printf("data = %x\n",data);
 	data = (data << 2) & DATA_TYPE;
 	printf("data = %x\n",data);
 
 	machine = type->dev_type;
-	printf("machine = %x\n",machine);
+//	printf("machine = %x\n",machine);
 	machine = machine & MACHINE_TYPE;
 	printf("machine = %x\n",machine);
 
@@ -116,11 +116,11 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	 */
 
 	unsigned char id_msg[4] = {0};
-	tcp_ctrl_data_int_to_char(type->d_id,id_msg);
+	tcp_ctrl_data_int_to_char(type->s_id,id_msg);
 	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
 	tc_index = tc_index+sizeof(int);
 
-	tcp_ctrl_data_int_to_char(type->s_id,id_msg);
+	tcp_ctrl_data_int_to_char(type->d_id,id_msg);
 	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
 	tc_index = tc_index+sizeof(int);
 
@@ -343,12 +343,6 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 		buf[tc_index++] = type->evt_data.value;
 
 	}
-	/*
-	 * 事件数据值后，统一增加当前设备的ID号
-	 */
-	tcp_ctrl_data_int_to_char(type->con_data.id,data);
-	memcpy(&buf[tc_index],data,sizeof(int));
-	tc_index = tc_index + sizeof(int);
 
 	type->data_len = tc_index;
 
@@ -476,8 +470,6 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 						break;
 
 				}
-				printf("name %s\n",type->con_data.name);
-				printf("subj %s\n",type->con_data.subj[0]);
 				/*
 				 * 发送消息组包
 				 * 对数据内容进行封装，增数据头等信息
@@ -491,20 +483,26 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 			tcp_ctrl_frame_compose(type,msg,s_buf);
 		}
 
-		tmp = list_head->next;
-		while(tmp != NULL)
-		{
-			pinfo = tmp->data;
-			if(pinfo->client_fd == type->fd)
-			{
-				pthread_mutex_lock(&mutex);
-				write(pinfo->client_fd, s_buf, type->frame_len);
-				pthread_mutex_unlock(&mutex);
-				break;
-			}
-			tmp = tmp->next;
-			usleep(50000);
-		}
+		tcp_ctrl_tcp_send_enqueue(type,s_buf);
+		/*
+		 * tcp send 队列
+		 * 需要告诉队列type（fd,len）,内容
+		 */
+
+//		tmp = list_head->next;
+//		while(tmp != NULL)
+//		{
+//			pinfo = tmp->data;
+//			if(pinfo->client_fd == type->fd)
+//			{
+//				pthread_mutex_lock(&mutex);
+//				write(pinfo->client_fd, s_buf, type->frame_len);
+//				pthread_mutex_unlock(&mutex);
+//				break;
+//			}
+//			tmp = tmp->next;
+//			usleep(50000);
+//		}
 
 	}
 

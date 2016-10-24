@@ -8,11 +8,48 @@
 #include "../../header/tcp_ctrl_data_compose.h"
 #include "../../header/tcp_ctrl_list.h"
 #include "../../header/tcp_ctrl_device_status.h"
+#include "../../header/tcp_ctrl_data_process.h"
 
 extern pclient_node confer_head;
 extern pclient_node list_head;
 extern Pconference_status con_status;
 
+
+
+/*
+ * 恢复出厂设置
+ * 清除连接信息
+ */
+int reset_factory_mode()
+{
+	pclient_node tmp = NULL;
+	Pclient_info pinfo;
+
+
+	tmp = list_head->next;
+	while(tmp != NULL)
+	{
+		pinfo = tmp->data;
+		if(pinfo->client_fd > 0)
+		{
+			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+			tcp_ctrl_delete_client(pinfo->client_fd);
+
+		}
+		tmp = tmp->next;
+		usleep(10000);
+	}
+
+	return SUCCESS;
+}
+/*
+ * 获取主机的网路状态
+ */
+int get_the_network_info()
+{
+
+	return SUCCESS;
+}
 /*
  * 单元机扫描功能
  * 扫描结果通过结构体返回给应用
@@ -26,35 +63,37 @@ extern Pconference_status con_status;
 int get_unit_connected_info()
 {
 
-	pclient_node tmp = NULL;
-	Pclient_info pinfo;
-	FILE *connect_info,*conference_code;
-	int ret;
-	/*
-	 * 终端连接信息
-	 */
-	connect_info = fopen("connection.info","w+");
-
-
-	tmp = list_head->next;
-
-	while(tmp != NULL)
-	{
-		pinfo = tmp->data;
-		if(pinfo->client_fd > 0)
-		{
-			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
-
-			ret = fwrite(pinfo,sizeof(client_info),1,connect_info);
-			perror("fwrite");
-			if(ret != 1)
-				return ERROR;
-
-		}
-		tmp = tmp->next;
-		usleep(10000);
-	}
-	fclose(connect_info);
+//	pclient_node tmp = NULL;
+//	Pclient_info pinfo;
+//	FILE *connect_info,*conference_info;
+//	int ret;
+//
+//	char* connection_name = "connection.info";
+//	/*
+//	 * 终端连接信息
+//	 */
+//	connect_info = fopen("connection.info","w+");
+//
+//	tmp = list_head->next;
+//	while(tmp != NULL)
+//	{
+//		pinfo = tmp->data;
+//		if(pinfo->client_fd > 0)
+//		{
+//			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+//
+//			ret = fwrite(pinfo,sizeof(client_info),1,connect_info);
+//			perror("fwrite");
+//			if(ret != 1)
+//				return ERROR;
+//
+//		}
+//		tmp = tmp->next;
+//		usleep(10000);
+//	}
+//	fclose(connect_info);
+//
+//	return list_head->size;
 
 	return list_head->size;
 
@@ -106,6 +145,7 @@ static int config_conference_frame_info(Pframe_type type){
 	type->data_type = CONFERENCE_DATA;
 	type->dev_type = HOST_CTRL;
 
+	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	return 0;
 }
 
@@ -133,8 +173,8 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	Pconference_info confer_info;
 
 	int ret = 0;
-	unsigned char* name = "湖山电器有限责任公司-电声分公司";
-	unsigned char* sub = "WIFI无线会议系统，项目进展情况,shenm";
+	unsigned char name[128] = "湖山电器有限责任公司-电声分公司";
+	unsigned char sub[128] = "WIFI无线会议系统，项目进展情况,shenm";
 
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -162,7 +202,6 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	/*
 	 * 增加到会议信息链表中
 	 */
-
 	ret = tcp_ctrl_refresh_conference_list(confer_info);
 	if(ret)
 		return ERROR;
@@ -267,6 +306,8 @@ static int config_event_frame_info(Pframe_type type,unsigned char* value){
 	type->data_type = EVENT_DATA;
 	type->dev_type = HOST_CTRL;
 
+	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+
 	return 0;
 }
 
@@ -289,6 +330,8 @@ static int config_event_frame_info(Pframe_type type,unsigned char* value){
  */
 int set_the_event_parameter_power(int fd_value,unsigned char value)
 {
+
+
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -296,6 +339,7 @@ int set_the_event_parameter_power(int fd_value,unsigned char value)
 	 * 将参数保存
 	 */
 	data_info.fd = fd_value;
+
 	data_info.evt_data.value = value;
 	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
 	data_info.code_type[0] = WIFI_MEETING_CHAR;

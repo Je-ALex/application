@@ -6,9 +6,10 @@
  */
 
 
-#include "../../header/tcp_ctrl_data_process.h"
-#include "../../header/tcp_ctrl_queue.h"
-#include "../../header/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_data_process.h"
+
+#include "../../inc/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_queue.h"
 /*
  * 定义两个结构体
  * 存取前状态，存储当前状态
@@ -38,6 +39,7 @@ int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 		if(info->fd == d_fd)
 		{
 			i++;
+
 			type->d_id = info->con_data.id;
 		}
 		if(info->fd == s_fd)
@@ -49,9 +51,31 @@ int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 			break;
 		tmp = tmp->next;
 	}
+	tmp = list_head->next;
+	while(tmp!=NULL)
+	{
+		cinfo = tmp->data;
+		if(cinfo->client_fd == d_fd
+				&& cinfo->client_name == PC_CTRL)
+		{
+			i++;
+			type->d_id = 0xFFFF;
+		}
+		if(cinfo->client_fd == s_fd
+				&& cinfo->client_name == PC_CTRL)
+		{
+			j++;
+			type->s_id = 0xFFFF;
+		}
+		if(i>0 || j>0)
+			break;
+		tmp = tmp->next;
+	}
 
 	return SUCCESS;
 }
+
+
 int tcp_ctrl_data_char_to_int(int* value,char* buf)
 {
 
@@ -134,7 +158,7 @@ int tcp_ctrl_delete_client(int fd)
 	pclient_node del = NULL;
 
 	Pclient_info pinfo;
-	Pframe_type tmp_type;
+	Pconference_info cinfo;
 
 	FILE* file;
 
@@ -202,6 +226,27 @@ int tcp_ctrl_delete_client(int fd)
 		usleep(10000);
 	}
 	fclose(file);
+	/*
+	 * 下线消息告知主机或上位机
+	 */
+	//上报上位机部分
+	frame_type tmp_type;
+	memset(&tmp_type,0,sizeof(frame_type));
+	if(con_status->pc_status)
+	{
+		tmp_type.fd = con_status->pc_status;
+		tmp_type.msg_type = OFFLINE_REQ;
+		tmp_type.data_type = EVENT_DATA;
+		tmp_type.dev_type = HOST_CTRL;
+		tmp_type.s_id = fd;
+		tmp_type.d_id = con_status->pc_status;
+		tcp_ctrl_source_dest_setting(fd,tmp_type.fd,&tmp_type);
+		tcp_ctrl_module_edit_info(&tmp_type,NULL);
+	}
+
+	//告知主机部分
+	tmp_type.fd = fd;
+	tcp_ctrl_msg_send_to(&tmp_type,NULL,WIFI_MEETING_EVENT_OFFLINE_REQ);
 
 	/*
 	 * 会议信息链表
@@ -214,8 +259,8 @@ int tcp_ctrl_delete_client(int fd)
 	tmp2 = conference_head->next;
 	while(tmp2 != NULL)
 	{
-		tmp_type = tmp2->data;
-		if(tmp_type->fd == fd)
+		cinfo = tmp2->data;
+		if(cinfo->fd == fd)
 		{
 			status++;
 			break;
@@ -226,10 +271,10 @@ int tcp_ctrl_delete_client(int fd)
 	if(status > 0)
 	{
 		list_delete(conference_head,pos,&del);
-		tmp_type = del->data;
+		cinfo = del->data;
 		printf("close socket %d \n",
-				tmp_type->fd);
-		free(tmp_type);
+				cinfo->fd);
+		free(cinfo);
 		free(del);
 	}else{
 
@@ -237,7 +282,7 @@ int tcp_ctrl_delete_client(int fd)
 		return ERROR;
 	}
 
-	tcp_ctrl_msg_send_to(tmp_type,NULL,WIFI_MEETING_EVENT_OFFLINE_REQ);
+
 
 	return SUCCESS;
 }
@@ -290,7 +335,7 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 
 		if(type->dev_type == PC_CTRL){
 			info->client_name = PC_CTRL;
-			con_status->pc_status = PC_CTRL;
+			con_status->pc_status = type->fd;//PC_CTRL;
 
 		}else{
 			info->client_name = UNIT_CTRL;
@@ -383,7 +428,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	unsigned char sum = 0;
 	int length = *len;
 	unsigned char* buffer = NULL;
-
+#if TCP_DBG
 	printf("length: %d\n",length);
 	/*
 	 * print the receive data
@@ -394,7 +439,14 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 		printf("%x ",buf[i]);
 	}
 	printf("\n");
+#endif
 
+	printf("receive from：");
+	for(i=0;i<length;i++)
+	{
+		printf("%x ",buf[i]);
+	}
+	printf("\n");
 	/*
 	 * 验证数据头是否正确buf[0]~buf[3]
 	 */
@@ -424,7 +476,6 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	package_len = package_len << 8;
 	package_len = package_len + buf[tc_index++] & 0xff;
 
-	printf("package_len: %d\n",package_len);
 
 	/* fixme
 	 * 长度最小不小于16(帧信息字节)+1(data字节，最小为一个名称码) = 13
@@ -468,7 +519,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	 *
 	 * data_len = package_len - 15 - 1
 	 */
-	int data_len = package_len - 15 - 1;
+	int data_len = package_len - 0x10;
 	frame_type->data_len = data_len;
 
 	/*
@@ -478,14 +529,14 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	buffer = (unsigned char*)calloc(data_len,sizeof(char));
 
 	memcpy(buffer,buf+tc_index,data_len);
-
+#if TCP_DBG
 	printf("buffer: ");
 	for(i=0;i<data_len;i++)
 	{
 		printf("0x%02x ",buffer[i]);
 	}
 	printf("\n");
-
+#endif
 	*ret_msg = buffer;
 
 	return SUCCESS;
@@ -528,7 +579,7 @@ int tcp_ctrl_msg_send_to(Pframe_type frame_type,const unsigned char* msg,int val
 		/*
 		 * 将信息发送至消息队列
 		 */
-		tcp_ctrl_enter_queue(frame_type,value);
+		tcp_ctrl_report_enqueue(frame_type,value);
 
 	}
 
@@ -601,7 +652,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 		 * 告知应用哪个机器发言
 		 */
 //		frame_type->fd = tmp_fd;
-		tcp_ctrl_enter_queue(frame_type,WIFI_MEETING_EVENT_SPK_ALLOW);
+		tcp_ctrl_report_enqueue(frame_type,WIFI_MEETING_EVENT_SPK_ALLOW);
 		break;
 	case WIFI_MEETING_EVT_SPK_VETO:
 		tmp=conference_head->next;
@@ -626,7 +677,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 		 * 告知应用哪个机器
 		 */
 //		frame_type->fd = tmp_fd;
-		tcp_ctrl_enter_queue(frame_type,WIFI_MEETING_EVENT_SPK_VETO);
+		tcp_ctrl_report_enqueue(frame_type,WIFI_MEETING_EVENT_SPK_VETO);
 		break;
 	case WIFI_MEETING_EVT_SPK_ALOW_SND:
 	case WIFI_MEETING_EVT_SPK_VETO_SND:
@@ -688,7 +739,9 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 	pclient_node tmp = NULL;
 	Pconference_info tmp_type;
 	int value = 0;
+	int tmp_fd = 0;
 
+	tmp_fd = frame_type->fd;
 
 	/*
 	 * 开始投票和结束投票的指令需要下发给所有单元
@@ -707,17 +760,21 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		tmp_type = tmp->data;
 		if(tmp_type->con_data.id)
 		{
+			frame_type->fd = tmp_type->fd;
 			tcp_ctrl_source_dest_setting(-1,tmp_type->fd,frame_type);
 			tcp_ctrl_module_edit_info(frame_type,msg);
 		}
 		tmp=tmp->next;
+		usleep(10000);
 	}
+
 
 	/*
 	 * 请求消息发送给上位机和主机显示
 	 */
-	tcp_ctrl_msg_send_to(frame_type,msg,WIFI_MEETING_EVENT_VOTE_START);
-	break;
+	frame_type->fd = tmp_fd;
+	value = WIFI_MEETING_EVENT_VOTE_START;
+		break;
 	}
 	case WIFI_MEETING_EVT_VOT_END:
 	{
@@ -734,12 +791,14 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 				tcp_ctrl_module_edit_info(frame_type,msg);
 			}
 			tmp=tmp->next;
+			usleep(10000);
 		}
 
 		/*
 		 * 请求消息发送给上位机和主机显示
 		 */
-		tcp_ctrl_msg_send_to(frame_type,msg,WIFI_MEETING_EVENT_VOTE_END);
+		frame_type->fd = tmp_fd;
+		value = WIFI_MEETING_EVENT_VOTE_END;
 		break;
 	}
 	case WIFI_MEETING_EVT_VOT_ASSENT:
@@ -782,6 +841,8 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 	int value = 0;
 	int state = 0;
 
+	int tmp_fd = 0;
+	tmp_fd = frame_type->fd;
 	/*
 	 * 请求消息发给主席单元
 	 */
@@ -794,17 +855,20 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 			if(tmp_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
 			{
 				state++;
-				printf("find the chariman\n");
+				printf("tcp_ctrl_uevent_request_subject find the chariman\n");
 				break;
 			}
 
 		}
 		tmp=tmp->next;
 	}
-
 	if(state > 0)
 	{
+		//偏移量为0x13
 		value = frame_type->evt_data.value;
+	}else{
+		printf("the subject is not chariman send\n");
+		return ERROR;
 	}
 
 	/*
@@ -816,15 +880,54 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 		tmp_type = tmp->data;
 		if(tmp_type->con_data.id)
 		{
+			frame_type->fd = tmp_type->fd;
 			tcp_ctrl_source_dest_setting(-1,tmp_type->fd,frame_type);
 			tcp_ctrl_module_edit_info(frame_type,msg);
 		}
 		tmp=tmp->next;
+		usleep(10000);
 	}
 
 	/*
+	 * 判断议题号
+	 */
+	switch(value)
+	{
+	case 1:
+		value = WIFI_MEETING_EVENT_SUBJECT_ONE;
+		break;
+	case 2:
+		value = WIFI_MEETING_EVENT_SUBJECT_TWO;
+		break;
+	case 3:
+		value = WIFI_MEETING_EVENT_SUBJECT_THREE;
+		break;
+	case 4:
+		value = WIFI_MEETING_EVENT_SUBJECT_FOUR;
+		break;
+	case 5:
+		value = WIFI_MEETING_EVENT_SUBJECT_FIVE;
+		break;
+	case 6:
+		value = WIFI_MEETING_EVENT_SUBJECT_SIX;
+		break;
+	case 7:
+		value = WIFI_MEETING_EVENT_SUBJECT_SEVEN;
+		break;
+	case 8:
+		value = WIFI_MEETING_EVENT_SUBJECT_EIGHT;
+		break;
+	case 9:
+		value = WIFI_MEETING_EVENT_SUBJECT_NINE;
+		break;
+	case 0x0a:
+		value = WIFI_MEETING_EVENT_SUBJECT_TEN;
+		break;
+	}
+	/*
 	 * 请求消息发送给上位机和主机显示
 	 */
+	frame_type->fd = tmp_fd;
 	tcp_ctrl_msg_send_to(frame_type,msg,value);
 
 	return SUCCESS;
@@ -870,10 +973,72 @@ int tcp_ctrl_uevent_request_service(Pframe_type frame_type,const unsigned char* 
  */
 int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* msg)
 {
+	pclient_node tmp = NULL;
+	Pconference_info tmp_type;
+	int value = 0;
+	int tmp_fd = 0;
+
+	tmp_fd = frame_type->fd;
+
+	/*
+	 * 开始签到和结束签到的指令需要下发给所有单元
+	 */
+	switch(frame_type->evt_data.value)
+	{
+	case WIFI_MEETING_EVT_CHECKIN_START:
+		/*
+		 * 请求消息发给所有单元
+		 */
+		tmp=conference_head->next;
+		while(tmp!=NULL)
+		{
+			tmp_type = tmp->data;
+			if(tmp_type->con_data.id)
+			{
+				frame_type->fd = tmp_type->fd;
+				tcp_ctrl_source_dest_setting(-1,tmp_type->fd,frame_type);
+				tcp_ctrl_module_edit_info(frame_type,msg);
+			}
+			tmp=tmp->next;
+			usleep(10000);
+		}
+
+		/*
+		 * 请求消息发送给上位机和主机显示
+		 */
+		frame_type->fd = tmp_fd;
+		value = WIFI_MEETING_EVENT_CHECKIN_START;
+		break;
+	case WIFI_MEETING_EVT_CHECKIN_END:
+		/*
+		 * 请求消息发给所有单元
+		 */
+		tmp=conference_head->next;
+		while(tmp!=NULL)
+		{
+			tmp_type = tmp->data;
+			if(tmp_type->con_data.id)
+			{
+				frame_type->fd = tmp_type->fd;
+				tcp_ctrl_source_dest_setting(-1,tmp_type->fd,frame_type);
+				tcp_ctrl_module_edit_info(frame_type,msg);
+			}
+			tmp=tmp->next;
+			usleep(10000);
+		}
+		/*
+		 * 请求消息发送给上位机和主机显示
+		 */
+		frame_type->fd = tmp_fd;
+		value = WIFI_MEETING_EVENT_CHECKIN_END;
+		break;
+	case WIFI_MEETING_EVT_CHECKIN_SELECT:
+		value = WIFI_MEETING_EVENT_CHECKIN_SELECT;
+		break;
+	}
 
 
-
-	tcp_ctrl_msg_send_to(frame_type,msg,WIFI_MEETING_EVENT_CHECKIN);
+	tcp_ctrl_msg_send_to(frame_type,msg,value);
 
 
 	return SUCCESS;
@@ -1274,12 +1439,16 @@ int tcp_ctrl_from_unit( const unsigned char* handlbuf,Pframe_type frame_type)
 	int i;
 	int tc_index = 0;
 
-//	printf("handlbuf: ");
-//	for(i=0;i<frame_type->data_len;i++)
-//	{
-//		printf("0x%02x ",handlbuf[i]);
-//	}
-//	printf("\n");
+#if TCP_DBG
+	printf("handlbuf: ");
+	for(i=0;i<frame_type->data_len;i++)
+	{
+		printf("0x%02x ",handlbuf[i]);
+	}
+	printf("\n");
+
+#endif
+
 
 
 	/*

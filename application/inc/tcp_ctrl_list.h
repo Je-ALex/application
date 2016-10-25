@@ -5,8 +5,8 @@
  *      Author: leon
  */
 
-#ifndef HEADER_TCP_CTRL_LIST_H_
-#define HEADER_TCP_CTRL_LIST_H_
+#ifndef INC_TCP_CTRL_LIST_H_
+#define INC_TCP_CTRL_LIST_H_
 
 
 
@@ -24,4 +24,4 @@ int list_delete(pclient_node head,int pos,pclient_node* del);
 
 pclient_node list_head_init();
 
-#endif /* HEADER_TCP_CTRL_LIST_H_ */
+#endif /* INC_TCP_CTRL_LIST_H_ */

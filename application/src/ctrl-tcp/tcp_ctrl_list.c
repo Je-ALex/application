@@ -5,14 +5,15 @@
  *      Author: leon
  */
 
+#include "../../inc/tcp_ctrl_list.h"
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <malloc.h>
 
-#include "../../header/tcp_ctrl_list.h"
-#include "../../header/tcp_ctrl_server.h"
+#include "../../inc/tcp_ctrl_server.h"
 
 
 

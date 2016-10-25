@@ -1,6 +1,6 @@
 
-#ifndef HEADER_TCP_CTRL_SERVER_H_
-#define HEADER_TCP_CTRL_SERVER_H_
+#ifndef INC_TCP_CTRL_SERVER_H_
+#define INC_TCP_CTRL_SERVER_H_
 
 
 #include <string.h>
@@ -19,6 +19,7 @@
 #include <sys/msg.h>
 #include <semaphore.h>
 
+#define TCP_DBG 0
 
 #define CTRL_PORT 8080
 
@@ -74,6 +75,7 @@ typedef enum{
 	W_REPLY_MSG,
 	R_REPLY_MSG,
 	ONLINE_REQ,
+	OFFLINE_REQ,
 
 }Message_Type;
 /*
@@ -159,6 +161,7 @@ typedef enum {
 
 	WIFI_MEETING_EVT_PWR = 1,
 	WIFI_MEETING_EVT_MIC,
+	WIFI_MEETING_EVT_CHECKIN,
 	WIFI_MEETING_EVT_SPK,
 	WIFI_MEETING_EVT_VOT,
 	WIFI_MEETING_EVT_SUB,
@@ -168,7 +171,9 @@ typedef enum {
 	WIFI_MEETING_EVT_SSID,
 	WIFI_MEETING_EVT_KEY,
 	WIFI_MEETING_EVT_MAC,
-	WIFI_MEETING_EVT_CHECKIN,
+	WIFI_MEETING_EVT_PC_GET_INFO,
+	WIFI_MEETING_EVT_RP_TO_PC,
+
 
 }event_name_type;
 
@@ -210,6 +215,13 @@ typedef enum {
 
 }event_service;
 
+typedef enum {
+
+	WIFI_MEETING_EVT_CHECKIN_START = 1,
+	WIFI_MEETING_EVT_CHECKIN_END,
+	WIFI_MEETING_EVT_CHECKIN_SELECT,
+
+}event_checkin;
 
 
 
@@ -334,7 +346,7 @@ typedef struct{
 typedef struct {
 
 	int fd;
-	char pc_status;
+	int pc_status;
 	unsigned char ssid[32];
 	unsigned char password[64];
 	unsigned char subj[10][128];
@@ -352,4 +364,4 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
 
 
 
-#endif /* HEADER_TCP_CTRL_SERVER_H_ */
+#endif /* INC_TCP_CTRL_SERVER_H_ */

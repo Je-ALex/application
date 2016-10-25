@@ -7,9 +7,9 @@
 
 
 
-#include "../../header/tcp_ctrl_list.h"
-#include "../../header/tcp_ctrl_data_process.h"
-#include "../../header/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_data_process.h"
+#include "../../inc/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_list.h"
 
 extern pclient_node list_head;
 extern pthread_mutex_t mutex;
@@ -79,23 +79,23 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	 *
 	 */
 	msg = type->msg_type;
-//	printf("msg = %x\n",msg);
 	msg = (msg << 4) & MSG_TYPE;
-	printf("msg = %x\n",msg);
+
 
 	data = type->data_type;
-//	printf("data = %x\n",data);
 	data = (data << 2) & DATA_TYPE;
-	printf("data = %x\n",data);
+
 
 	machine = type->dev_type;
-//	printf("machine = %x\n",machine);
 	machine = machine & MACHINE_TYPE;
-	printf("machine = %x\n",machine);
 
 	info = msg+data+machine;
+#if TCP_DBG
+	printf("msg = %x\n",msg);
+	printf("data = %x\n",data);
+	printf("machine = %x\n",machine);
 	printf("info = %x\n",info);
-
+#endif
 	/*
 	 * 存储第四字节的信息
 	 */
@@ -146,7 +146,7 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	type->frame_len = tc_index+1;
 
 
-	printf("result data: ");
+	printf("tcp_ctrl_frame_compose result data: ");
 	for(i=0;i<tc_index+1;i++)
 	{
 		printf("%x ",result_buf[i]);
@@ -167,7 +167,7 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
  * in:@Pframe_type
  * out: buf
  */
-static void tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
+static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 {
 	int i;
 	int num = 0;
@@ -292,15 +292,18 @@ static void tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf
 			break;
 		default:
 			printf("%s,message type is not legal\n",__func__);
+			return ERROR;
 	}
-
+#if TCP_DBG
+	printf("tcp_ctrl_edit_conference_content buf: ");
 	for(i=0;i<num;i++)
 	{
 		printf("%x ",buf[i]);
 
 	}
 	printf("\n");
-
+#endif
+	return SUCCESS;
 }
 
 /*
@@ -396,7 +399,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 	unsigned char buf[512] = {0};
 	unsigned char s_buf[1024] = {0};
 	int i;
-
+	int ret = 0;
 
 	tmp = list_head->next;
 	/*
@@ -419,14 +422,18 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 		printf("please input the right fd..\n");
 		return ERROR;
 	}
-
+#if 0
 	/*
 	 * 发送的数据如果是会议投票结果则单独处理
 	 */
-	if(type->name_type[0] == WIFI_MEETING_CON_VOTE)
+	if(type->data_type == CONFERENCE_DATA &&
+			type->name_type[0] == WIFI_MEETING_CON_VOTE)
 	{
 
-		tcp_ctrl_edit_conference_content(type,buf);
+		ret = tcp_ctrl_edit_conference_content(type,buf);
+
+		if(ret)
+			return ERROR;
 
 		tmp = list_head->next;
 		while(tmp != NULL)
@@ -450,7 +457,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 		}
 
 	}else{
-
+#endif
 		if(msg == NULL)
 		{
 				/*
@@ -483,29 +490,10 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 			tcp_ctrl_frame_compose(type,msg,s_buf);
 		}
 
-		tcp_ctrl_tcp_send_enqueue(type,s_buf);
-		/*
-		 * tcp send 队列
-		 * 需要告诉队列type（fd,len）,内容
-		 */
-
-//		tmp = list_head->next;
-//		while(tmp != NULL)
-//		{
-//			pinfo = tmp->data;
-//			if(pinfo->client_fd == type->fd)
-//			{
-//				pthread_mutex_lock(&mutex);
-//				write(pinfo->client_fd, s_buf, type->frame_len);
-//				pthread_mutex_unlock(&mutex);
-//				break;
-//			}
-//			tmp = tmp->next;
-//			usleep(50000);
-//		}
-
+		tcp_ctrl_tpsend_enqueue(type,s_buf);
+#if 0
 	}
-
+#endif
 	return SUCCESS;
 }
 

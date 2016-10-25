@@ -5,8 +5,8 @@
  *      Author: leon
  */
 
-#ifndef HEADER_TCP_CTRL_API_H_
-#define HEADER_TCP_CTRL_API_H_
+#ifndef INC_TCP_CTRL_API_H_
+#define INC_TCP_CTRL_API_H_
 
 /*
  * get_unit_connected_info
@@ -152,4 +152,4 @@ int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd);
 
 
 
-#endif /* HEADER_TCP_CTRL_API_H_ */
+#endif /* INC_TCP_CTRL_API_H_ */

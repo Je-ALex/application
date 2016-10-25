@@ -12,8 +12,8 @@
 #include <arpa/inet.h>
 #include<errno.h>
 
-#include"../../header/device_ctrl_module_udp.h"
-#include "../../header/tcp_ctrl_server.h"
+#include "../../inc/device_ctrl_module_udp.h"
+#include "../../inc/tcp_ctrl_server.h"
 
 /*message format
  *

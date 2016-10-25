@@ -5,10 +5,10 @@
  *      Author: leon
  */
 
-#ifndef HEADER_TCP_CTRL_QUEUE_H_
-#define HEADER_TCP_CTRL_QUEUE_H_
+#ifndef INC_TCP_CTRL_QUEUE_H_
+#define INC_TCP_CTRL_QUEUE_H_
 
-#include "tcp_ctrl_server.h"
+#include "../inc/tcp_ctrl_server.h"
 
 typedef struct queue_node{
 
@@ -32,4 +32,4 @@ int clear_queue(Plinkqueue queue);
 
 
 
-#endif /* HEADER_TCP_CTRL_QUEUE_H_ */
+#endif /* INC_TCP_CTRL_QUEUE_H_ */

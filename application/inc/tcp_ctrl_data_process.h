@@ -5,11 +5,11 @@
  *      Author: leon
  */
 
-#ifndef HEADER_TCP_CTRL_DATA_PROCESS_H_
-#define HEADER_TCP_CTRL_DATA_PROCESS_H_
+#ifndef INC_TCP_CTRL_DATA_PROCESS_H_
+#define INC_TCP_CTRL_DATA_PROCESS_H_
 
-#include "tcp_ctrl_server.h"
-#include "tcp_ctrl_list.h"
+#include "../inc/tcp_ctrl_list.h"
+#include "../inc/tcp_ctrl_server.h"
 
 
 
@@ -43,4 +43,4 @@ int tcp_ctrl_delete_client(int fd);
 
 
 
-#endif /* HEADER_TCP_CTRL_DATA_PROCESS_H_ */
+#endif /* INC_TCP_CTRL_DATA_PROCESS_H_ */

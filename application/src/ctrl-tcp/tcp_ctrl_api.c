@@ -5,12 +5,12 @@
  *      Author: leon
  */
 
-#include "../../header/tcp_ctrl_data_compose.h"
-#include "../../header/tcp_ctrl_list.h"
-#include "../../header/tcp_ctrl_device_status.h"
-#include "../../header/tcp_ctrl_data_process.h"
+#include "../../inc/tcp_ctrl_data_compose.h"
+#include "../../inc/tcp_ctrl_data_process.h"
+#include "../../inc/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_list.h"
 
-extern pclient_node confer_head;
+extern pclient_node conference_head;
 extern pclient_node list_head;
 extern Pconference_status con_status;
 
@@ -116,7 +116,7 @@ int get_unit_running_status(Pqueue_event* event_tmp)
 {
 
 	int ret;
-	ret = tcp_ctrl_out_queue(event_tmp);
+	ret = tcp_ctrl_report_dequeue(event_tmp);
 
 
 	if(ret)
@@ -259,6 +259,8 @@ int get_the_conference_parameters(int fd_value)
  */
 int set_the_conference_vote_result()
 {
+	pclient_node tmp = NULL;
+	Pconference_info tmp_type;
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
@@ -275,10 +277,24 @@ int set_the_conference_vote_result()
 	data_info.con_data.v_result.timeout = con_status->v_result.timeout;
 
 
-	config_conference_frame_info(&data_info);
+	/*
+	 * 请求消息发给所有单元
+	 */
+	tmp=conference_head->next;
+	while(tmp!=NULL)
+	{
+		tmp_type = tmp->data;
+		if(tmp_type->con_data.id)
+		{
+			data_info.fd = tmp_type->fd;
 
-	tcp_ctrl_module_edit_info(&data_info,NULL);
+			config_conference_frame_info(&data_info);
 
+			tcp_ctrl_module_edit_info(&data_info,NULL);
+		}
+		tmp=tmp->next;
+		usleep(10000);
+	}
 
 	return SUCCESS;
 

@@ -7,7 +7,7 @@
 
 
 
-#include "../../header/tcp_ctrl_queue.h"
+#include "../../inc/tcp_ctrl_queue.h"
 
 
 /*
@@ -28,7 +28,6 @@ Plinkqueue queue_init(){
 
 	head->front->next = NULL;
 
-//	printf("queue init success\n");
 
 	return head;
 }
@@ -53,7 +52,6 @@ int enter_queue(Plinkqueue queue,void* data)
 
 	queue->size++;
 
-	printf("enter queue success\n");
 	return 0;
 }
 

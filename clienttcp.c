@@ -92,7 +92,7 @@ static void* control_tcp_cli(void* p)
   return 0;
 }
 
-int main(void)
+int test_main(void)
 {
 	void*status;
 	int i;

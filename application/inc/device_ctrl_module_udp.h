@@ -5,8 +5,8 @@
  *      Author: leon
  */
 
-#ifndef HEADER_DEVICE_CTRL_MODULE_UDP_H_
-#define HEADER_DEVICE_CTRL_MODULE_UDP_H_
+#ifndef INC_DEVICE_CTRL_MODULE_UDP_H_
+#define INC_DEVICE_CTRL_MODULE_UDP_H_
 
 #define DEF_PORT 50001
 
@@ -14,4 +14,4 @@ int device_ctrl_module_udp(int port);
 
 void* udp_server(void* p);
 
-#endif /* HEADER_DEVICE_CTRL_MODULE_UDP_H_ */
+#endif /* INC_DEVICE_CTRL_MODULE_UDP_H_ */

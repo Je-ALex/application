@@ -18,14 +18,14 @@
  */
 
 
-#include "../../header/tcp_ctrl_server.h"
-#include "../../header/tcp_ctrl_data_compose.h"
-#include "../../header/tcp_ctrl_data_process.h"
-#include "../../header/tcp_ctrl_list.h"
-#include "../../header/tcp_ctrl_queue.h"
-#include "../../header/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_server.h"
 
-#include "../../header/device_ctrl_module_udp.h"
+#include "../../inc/device_ctrl_module_udp.h"
+#include "../../inc/tcp_ctrl_data_compose.h"
+#include "../../inc/tcp_ctrl_data_process.h"
+#include "../../inc/tcp_ctrl_device_status.h"
+#include "../../inc/tcp_ctrl_list.h"
+#include "../../inc/tcp_ctrl_queue.h"
 
 
 pthread_t s_id;
@@ -165,9 +165,13 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* len
 
 	ret = tcp_ctrl_frame_analysis(cli_fd,value,length,type,&handlbuf);
 
+#if TCP_DBG
+
 	printf("type->msg_type = %d\n"
 			"type->data_type = %d\n"
 			"type->dev_type = %d\n",type->msg_type,type->data_type,type->dev_type);
+#endif
+
 	if(ret)
 	{
 		printf("%s failed\n",__func__);
@@ -205,12 +209,10 @@ static void tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* len
 	switch(type->dev_type)
 	{
 		case PC_CTRL:
-			printf("process the pc data\n");
 			tcp_ctrl_from_pc(handlbuf,type);
 			break;
 
 		case UNIT_CTRL:
-			printf("process the unit data\n");
 			tcp_ctrl_from_unit(handlbuf,type);
 			break;
 
@@ -433,31 +435,48 @@ static void* tcp_control_module(void* p)
 
 void read_file(){
 
-	Pclient_info pinfo;
-	int i;
-	int ret;
-	FILE* file;
+//	Pclient_info pinfo;
+//	int i;
+//	int ret;
+//	FILE* file;
+//
+//	pinfo = malloc(sizeof(client_info));
+//
+//	file = fopen("connection.info","r");
+//
+//	while(1)
+//	{
+//		ret = fread(pinfo,sizeof(client_info),1,file);
+//		perror("fread");
+//		if(ret ==0)
+//			return;
+//		if(pinfo == NULL)
+//			break;
+//
+//		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
+//				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
+//
+//		usleep(100000);
+//	}
+//	free(pinfo);
+//	fclose(file);
 
-	pinfo = malloc(sizeof(client_info));
+	pclient_node tmp = NULL;
+	Pclient_info info;
 
-	file = fopen("connection.info","r");
 
-	while(1)
+	tmp = list_head->next;
+	printf("%s\n",__func__);
+	while(tmp != NULL)
 	{
-		ret = fread(pinfo,sizeof(client_info),1,file);
-		perror("fread");
-		if(ret ==0)
-			return;
-		if(pinfo == NULL)
-			break;
+		info = tmp->data;
 
-		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
-				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
-
-		usleep(100000);
+		if(info->client_fd > 0)
+		{
+			printf("fd--%d\n",info->client_fd);
+		}
+		tmp = tmp->next;
 	}
-	free(pinfo);
-	fclose(file);
 }
 
 
@@ -575,7 +594,7 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 		free(del);
 	}else{
 
-		printf("there is no data in the conference list\n");
+		printf("there is no data in the conference list,add it\n");
 	}
 
 	list_add(conference_head,data_info);
@@ -710,16 +729,10 @@ static void* control_tcp_queue(void* p)
 	Ptest_event event_tmp;
 	event_tmp = (Ptest_event)malloc(sizeof(test_event));
 
-	Ptcp_send tmp;
-	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
 
 	while(1)
 	{
 
-		tcp_ctrl_tpsend_outqueue(&tmp);
-		pthread_mutex_lock(&mutex);
-		write(tmp->socket_fd, tmp->msg, tmp->len);
-		pthread_mutex_unlock(&mutex);
 
 		get_unit_running_status(&event_tmp);
 		printf("fd--%d,id--%d,seat--%d,value--%d,queue_size--%d\n",
@@ -731,6 +744,32 @@ static void* control_tcp_queue(void* p)
 	free(event_tmp);
 }
 
+static void* control_tcp_send_q(void* p)
+{
+
+	int i;
+	Ptcp_send tmp;
+	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
+
+	while(1)
+	{
+
+		tcp_ctrl_tpsend_dequeue(&tmp);
+		printf("queue_size--%d ",tcp_send_queue->size);
+		printf("send to %d msg：",tmp->socket_fd);
+		for(i=0;i<tmp->len;i++)
+		{
+			printf("%x ",tmp->msg[i]);
+		}
+		printf("\n");
+
+		pthread_mutex_lock(&mutex);
+		write(tmp->socket_fd, tmp->msg, tmp->len);
+		pthread_mutex_unlock(&mutex);
+
+	}
+	free(tmp);
+}
 
 int control_tcp_module()
 {
@@ -766,7 +805,7 @@ int control_tcp_module()
 
 	pthread_create(&s_id,NULL,control_tcp_queue,NULL);
 
-
+	pthread_create(&s_id,NULL,control_tcp_send_q,NULL);
 	pthread_join(s_id,&status);
 
 	return 0;

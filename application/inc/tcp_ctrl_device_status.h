@@ -5,10 +5,10 @@
  *      Author: leon
  */
 
-#ifndef HEADER_TCP_CTRL_DEVICE_STATUS_H_
-#define HEADER_TCP_CTRL_DEVICE_STATUS_H_
+#ifndef INC_TCP_CTRL_DEVICE_STATUS_H_
+#define INC_TCP_CTRL_DEVICE_STATUS_H_
 
-#include "tcp_ctrl_queue.h"
+#include "../inc/tcp_ctrl_queue.h"
 
 
 
@@ -66,7 +66,9 @@ typedef enum{
 	//mac地址
 	WIFI_MEETING_EVENT_MAC,
 	//签到
-	WIFI_MEETING_EVENT_CHECKIN,
+	WIFI_MEETING_EVENT_CHECKIN_START,
+	WIFI_MEETING_EVENT_CHECKIN_END,
+	WIFI_MEETING_EVENT_CHECKIN_SELECT,
 	//会议参数设置成功、失败，查询应答
 	WIFI_MEETING_CONF_WREP_SUCCESS,
 	WIFI_MEETING_CONF_WREP_ERR,
@@ -147,12 +149,12 @@ typedef struct{
 
 
 
-int tcp_ctrl_enter_queue(Pframe_type frame_type,int value);
+int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value);
 
-int tcp_ctrl_out_queue(Pqueue_event* event_tmp);
+int tcp_ctrl_report_dequeue(Pqueue_event* event_tmp);
 
-int tcp_ctrl_tcp_send_enqueue(Pframe_type frame_type,unsigned char* msg);
-int tcp_ctrl_tpsend_outqueue(Ptcp_send* event_tmp);
+int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg);
+int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp);
 
 
-#endif /* HEADER_TCP_CTRL_DEVICE_STATUS_H_ */
+#endif /* INC_TCP_CTRL_DEVICE_STATUS_H_ */

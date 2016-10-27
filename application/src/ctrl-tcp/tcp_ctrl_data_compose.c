@@ -12,7 +12,7 @@
 #include "../../inc/tcp_ctrl_list.h"
 
 extern pclient_node list_head;
-extern pthread_mutex_t mutex;
+extern Pmodule_info node_queue;
 
 
 /*
@@ -62,6 +62,7 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	if(result_buf == NULL)
 		return -1;
 
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * HEAD
 	 */
@@ -171,6 +172,7 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 {
 	int i;
 	int num = 0;
+	printf("%s,%d\n",__func__,__LINE__);
 
 	switch (type->msg_type)
 	{
@@ -322,6 +324,7 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 	int tc_index = 0;
 	unsigned char data[4] = {0};
 
+	printf("%s,%d\n",__func__,__LINE__);
 	if(type->name_type[0] == WIFI_MEETING_EVT_SSID
 			&& type->name_type[1] == WIFI_MEETING_EVT_KEY )
 	{
@@ -401,7 +404,8 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 	int i;
 	int ret = 0;
 
-	tmp = list_head->next;
+	printf("%s,%d\n",__func__,__LINE__);
+	tmp = node_queue->list_head->next;
 	/*
 	 * 在连接信息链表中
 	 * 判断是否有此客户端

@@ -1,28 +1,6 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
-#include <pthread.h>
-#include <time.h>
-#include <netdb.h>
-#include <linux/socket.h>
-#include <stdlib.h>
-#include <string.h>
-#include <linux/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include<errno.h>
 
 #include "../../inc/device_ctrl_module_udp.h"
 #include "../../inc/tcp_ctrl_server.h"
-
-/*message format
- *
- * header+type+content+frame length+checksum
- *
- *
- *
- *
- */
 
 
 
@@ -109,6 +87,7 @@ void* udp_server(void* p)
 	const int opt = 1;
 	int ret = 0;
 
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * new a udp socket
 	 */

@@ -26,9 +26,32 @@
 
 #define CTRL_PORT 8080
 
-#define MSG_TYPE 0xF0
-#define DATA_TYPE 0x0C
-#define MACHINE_TYPE 0x03
+#define MSG_TYPE 		0xF0 //消息类型
+#define DATA_TYPE 		0x0C //数据类型
+#define MACHINE_TYPE 	0x03 //设备类型
+
+/*
+ * 系统调度所用到的互斥锁和信号量
+ */
+typedef struct{
+
+	//TCP收发互斥锁
+	pthread_mutex_t tcp_mutex;
+	//本地状态上队列报互斥锁
+	pthread_mutex_t report_queue_mutex;
+	//TCP发送队列互斥锁
+	pthread_mutex_t tpsend_queue_mutex;
+	//上报上位机状态互斥锁
+	pthread_mutex_t pc_queue_mutex;
+
+	//本地状态上报信号量
+	sem_t local_report_sem;
+	//上报上位机数据队列信号量
+	sem_t pc_queue_sem;
+	//tcp数据发送队列信号量
+	sem_t tpsend_queue_sem;
+
+}sys_info;
 
 typedef enum{
 
@@ -314,33 +337,6 @@ typedef struct {
 
 }conference_info,*Pconference_info;
 
-/*
- * 主机TCP控制模块保存的终端信息参数
- *
- * 不区分上位机还是单元机，统一使用这个结构体，保存
- *
- */
-typedef struct{
-
-	/*终端sock_fd属性*/
-	int 	client_fd;
-	/*终端id属性,默认为0，若是pc则为1，主机机则为2，单元机则为3*/
-	unsigned char 	client_name;
-	/*终端mac属性*/
-	char 	client_mac[24];
-	/*终端ip属性信息*/
-	struct sockaddr_in cli_addr;
-	int 	clilen;
-
-	//网关，掩码等等
-
-	//参数
-	int id;
-	unsigned char seat;
-
-
-} client_info,*Pclient_info;
-
 
 
 /*
@@ -360,12 +356,7 @@ typedef struct {
 
 
 
-
-
-
 int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
-
-
 
 
 

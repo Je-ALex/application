@@ -17,7 +17,7 @@ extern pclient_node conference_head;
 extern pclient_node list_head;
 extern Pconference_status con_status;
 
-
+extern Pmodule_info node_queue;
 
 
 /*
@@ -34,8 +34,9 @@ int reset_the_host_factory_mode()
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
 
+	printf("%s,%d\n",__func__,__LINE__);
 
-	tmp = list_head->next;
+	tmp = node_queue->list_head->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
@@ -73,6 +74,8 @@ int get_the_host_network_info(Phost_info list)
 	char* DevName = "eth0";
 	char* version = "v0.0.1";
 	char* model = "DS-WF620M";
+
+	printf("%s,%d\n",__func__,__LINE__);
 
 	strcpy(list->version,version);
 
@@ -174,6 +177,8 @@ int get_the_host_factory_infomation(Phost_info info)
 	int result;
 	FILE* file;
 
+	printf("%s,%d\n",__func__,__LINE__);
+
 	file = fopen("host.info","rt");
 
 	if(file == NULL)
@@ -236,6 +241,8 @@ int get_client_connected_info(char* name)
 //	int ret;
 //
 	char* connection_name = "connection.info";
+
+	printf("%s,%d\n",__func__,__LINE__);
 //	/*
 //	 * 终端连接信息
 //	 */
@@ -263,7 +270,7 @@ int get_client_connected_info(char* name)
 //	return list_head->size;
 	strcpy(name,connection_name);
 
-	return list_head->size;
+	return node_queue->list_head->size;
 
 }
 
@@ -279,7 +286,7 @@ int get_client_connected_info(char* name)
  */
 int set_device_power_off(int mode)
 {
-
+	printf("%s,%d,value = %d\n",__func__,__LINE__,mode);
 
 	return SUCCESS;
 }
@@ -296,10 +303,13 @@ int set_device_power_off(int mode)
  * @error
  * @success
  */
-int get_unit_running_status(Pqueue_event* event_tmp)
+int get_unit_running_status(void* event_tmp)
 {
 
 	int ret;
+
+	printf("%s,%d\n",__func__,__LINE__);
+
 	ret = tcp_ctrl_report_dequeue(event_tmp);
 
 
@@ -325,6 +335,7 @@ int get_unit_running_status(Pqueue_event* event_tmp)
  */
 static int config_conference_frame_info(Pframe_type type){
 
+	printf("%s,%d\n",__func__,__LINE__);
 	type->msg_type = WRITE_MSG;
 	type->data_type = CONFERENCE_DATA;
 	type->dev_type = HOST_CTRL;
@@ -362,7 +373,7 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 
 	memset(&data_info,0,sizeof(frame_type));
 
-
+	printf("%s,%d,fd_value=%d,client_id=%d\n",__func__,__LINE__,fd_value,client_id);
 	/*
 	 * 测试 发送
 	 */
@@ -415,6 +426,7 @@ int get_the_conference_parameters(int fd_value)
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * 将参数保存
 	 */
@@ -448,23 +460,23 @@ int set_the_conference_vote_result()
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * 投票结果
 	 */
 	data_info.name_type[0] = WIFI_MEETING_CON_VOTE;
 	data_info.code_type[0] = WIFI_MEETING_STRING;
 
-	data_info.con_data.v_result.assent = con_status->v_result.assent;
-	data_info.con_data.v_result.nay = con_status->v_result.nay;
-	data_info.con_data.v_result.waiver = con_status->v_result.waiver;
-	data_info.con_data.v_result.timeout = con_status->v_result.timeout;
+	data_info.con_data.v_result.assent = node_queue->con_status->v_result.assent;
+	data_info.con_data.v_result.nay = node_queue->con_status->v_result.nay;
+	data_info.con_data.v_result.waiver = node_queue->con_status->v_result.waiver;
+	data_info.con_data.v_result.timeout = node_queue->con_status->v_result.timeout;
 
 
 	/*
 	 * 请求消息发给所有单元
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -528,17 +540,17 @@ static int config_event_frame_info(Pframe_type type,unsigned char* value){
  * @error
  * @success
  */
-int set_the_event_parameter_power(int fd_value,unsigned char value)
+int set_the_event_parameter_power(int socket_fd,unsigned char value)
 {
 
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * 将参数保存
 	 */
-	data_info.fd = fd_value;
+	data_info.fd = socket_fd;
 
 	data_info.evt_data.value = value;
 	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
@@ -563,16 +575,16 @@ int set_the_event_parameter_power(int fd_value,unsigned char value)
  * @error
  * @success
  */
-int get_the_event_parameter_power(int fd_value)
+int get_the_event_parameter_power(int socket_fd)
 {
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * 将参数保存
 	 */
-	data_info.fd = fd_value;
+	data_info.fd = socket_fd;
 	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
 	data_info.code_type[0] = WIFI_MEETING_CHAR;
 
@@ -584,12 +596,12 @@ int get_the_event_parameter_power(int fd_value)
 
 }
 
-int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
+int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd)
 {
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
-	data_info.fd = fd_value;
+	printf("%s,%d\n",__func__,__LINE__);
+	data_info.fd = socket_fd;
 	data_info.name_type[0] = WIFI_MEETING_EVT_SSID;
 	data_info.code_type[0] = WIFI_MEETING_STRING;
 	data_info.name_type[1] = WIFI_MEETING_EVT_KEY;
@@ -613,10 +625,10 @@ int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
  *
  */
 
-int set_mic_mode()
+int set_mic_mode(int value)
 {
 
-
+	printf("%s,%d value=%d\n",__func__,__LINE__,value);
 
 	return SUCCESS;
 }
@@ -641,11 +653,11 @@ int set_speak_mode()
  *
  */
 
-int set_checkin_mode()
+int set_checkin_mode(int value)
 {
 
 
-
+	printf("%s,%d,value=%d\n",__func__,__LINE__,value);
 	return SUCCESS;
 }
 

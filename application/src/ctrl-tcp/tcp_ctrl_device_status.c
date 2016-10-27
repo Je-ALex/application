@@ -14,13 +14,76 @@ extern pclient_node list_head;
 extern Plinkqueue report_queue;
 extern Plinkqueue tcp_send_queue;
 
-extern pthread_mutex_t queue_mutex;
-extern pthread_mutex_t tpsend_queue_mutex;
+extern sys_info sys_in;
+
+extern Pmodule_info node_queue;
+
+int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
+{
+	pclient_node tmp = NULL;
+	pclient_node del = NULL;
+	Pclient_info cinfo;
+	Pconference_info info;
 
 
-extern sem_t queue_sem;
-extern sem_t tpsend_queue_sem;
+	int pos = 0;
+	int status = 0;
 
+
+	tmp = node_queue->list_head->next;
+	while(tmp!=NULL)
+	{
+		cinfo = tmp->data;
+		if(cinfo->client_fd == data_info->fd)
+		{
+			status++;
+			break;
+		}
+		tmp = tmp->next;
+	}
+
+	if(status > 0)
+	{
+		status = 0;
+	}else{
+		printf("there is no client in the connection list\n");
+		return ERROR;
+	}
+
+	/*
+	 * 删除会议信息链表中的数据
+	 */
+	tmp = node_queue->conference_head->next;
+	while(tmp != NULL)
+	{
+		info = tmp->data;
+		if(info->fd == data_info->fd)
+		{
+			printf("find the fd\n");
+			status++;
+			break;
+		}
+		pos++;
+		tmp = tmp->next;
+	}
+
+	printf("pos--%d\n",pos);
+	if(status > 0)
+	{
+		list_delete(node_queue->conference_head,pos,&del);
+		info = del->data;
+		status = 0;
+		free(info);
+		free(del);
+	}else{
+
+		printf("there is no data in the conference list,add it\n");
+	}
+
+	list_add(node_queue->conference_head,data_info);
+
+	return SUCCESS;
+}
 /*
  * tcp_ctrl_tcp_send_enqueue
  * tcp控制模块的数据发送队列
@@ -47,12 +110,12 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 
 	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
 	memset(tmp,0,sizeof(tcp_send));
-
+	printf("%s,%d\n",__func__,__LINE__);
 #if TCP_DBG
 	printf("tcp_ctrl_tpsend_enqueue the queue..\n");
 #endif
 
-	node_tmp = list_head->next;
+	node_tmp = node_queue->list_head->next;
 	while(node_tmp != NULL)
 	{
 		pinfo = node_tmp->data;
@@ -65,7 +128,7 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 	}
 	if(!status)
 		return ERROR;
-	pthread_mutex_lock(&tpsend_queue_mutex);
+	pthread_mutex_lock(&sys_in.tpsend_queue_mutex);
 	/*
 	 * 单元机固有属性
 	 */
@@ -73,10 +136,10 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 	tmp->len = frame_type->frame_len;
 	tmp->msg = msg;
 
-	enter_queue(tcp_send_queue,tmp);
-	pthread_mutex_unlock(&tpsend_queue_mutex);
+	enter_queue(node_queue->tcp_send_queue,tmp);
+	pthread_mutex_unlock(&sys_in.tpsend_queue_mutex);
 
-	sem_post(&tpsend_queue_sem);
+	sem_post(&sys_in.tpsend_queue_sem);
 
 	return SUCCESS;
 }
@@ -102,14 +165,14 @@ int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp)
 	Plinknode node;
 	Ptcp_send tmp;
 
-	sem_wait(&tpsend_queue_sem);
+	sem_wait(&sys_in.tpsend_queue_sem);
 
 #if TCP_DBG
 	printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
 #endif
-	pthread_mutex_lock(&tpsend_queue_mutex);
-	ret = out_queue(tcp_send_queue,&node);
-	pthread_mutex_unlock(&tpsend_queue_mutex);
+	pthread_mutex_lock(&sys_in.tpsend_queue_mutex);
+	ret = out_queue(node_queue->tcp_send_queue,&node);
+	pthread_mutex_unlock(&sys_in.tpsend_queue_mutex);
 
 	if(ret == 0)
 	{
@@ -144,10 +207,10 @@ int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp)
 int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value)
 {
 
-	Pqueue_event event_tmp;
+	Prun_status event_tmp;
 
-	event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
-	memset(event_tmp,0,sizeof(queue_event));
+	event_tmp = (Prun_status)malloc(sizeof(run_status));
+	memset(event_tmp,0,sizeof(run_status));
 
 	/*
 	 * 单元机固有属性
@@ -159,35 +222,37 @@ int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value)
 #if TCP_DBG
 	printf("enter the tcp_ctrl_report_enqueue..\n");
 #endif
-	pthread_mutex_lock(&queue_mutex);
-	enter_queue(report_queue,event_tmp);
-	pthread_mutex_unlock(&queue_mutex);
+	pthread_mutex_lock(&sys_in.tcp_mutex);
+	enter_queue(node_queue->report_queue,event_tmp);
+	pthread_mutex_unlock(&sys_in.tcp_mutex);
 
-	sem_post(&queue_sem);
+	sem_post(&sys_in.local_report_sem);
 
 	return SUCCESS;
 }
 
-int tcp_ctrl_report_dequeue(Pqueue_event* event_tmp)
+int tcp_ctrl_report_dequeue(Prun_status* event_tmp)
 {
 
 	int ret;
 	int value;
 	Plinknode node;
-	Pqueue_event tmp;
+	Prun_status tmp;
 
-	sem_wait(&queue_sem);
+	printf("%s,%d\n",__func__,__LINE__);
+	sem_wait(&sys_in.local_report_sem);
+	printf("%s,%d\n",__func__,__LINE__);
 #if TCP_DBG
 	printf("get the value from tcp_ctrl_report_dequeue\n");
 #endif
-	pthread_mutex_lock(&queue_mutex);
-	ret = out_queue(report_queue,&node);
-	pthread_mutex_unlock(&queue_mutex);
+	pthread_mutex_lock(&sys_in.tcp_mutex);
+	ret = out_queue(node_queue->report_queue,&node);
+	pthread_mutex_unlock(&sys_in.tcp_mutex);
 
 	if(ret == 0)
 	{
 		tmp = node->data;
-		memcpy(*event_tmp,tmp,sizeof(queue_event));
+		memcpy(*event_tmp,tmp,sizeof(run_status));
 
 		free(tmp);
 		free(node);
@@ -216,11 +281,11 @@ int tcp_ctrl_enter_pc_queue(Pframe_type frame_type,int value)
 
 	printf("enter the queue..\n");
 
-	pthread_mutex_lock(&queue_mutex);
-	enter_queue(report_queue,tmp_info);
-	pthread_mutex_unlock(&queue_mutex);
+	pthread_mutex_lock(&sys_in.tcp_mutex);
+	enter_queue(node_queue->report_queue,tmp_info);
+	pthread_mutex_unlock(&sys_in.tcp_mutex);
 
-	sem_post(&queue_sem);
+	sem_post(&sys_in.local_report_sem);
 
 	return SUCCESS;
 }

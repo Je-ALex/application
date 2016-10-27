@@ -6,16 +6,8 @@
  */
 
 #include "../../inc/tcp_ctrl_list.h"
-
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <malloc.h>
-
 #include "../../inc/tcp_ctrl_server.h"
-
-
+#include "../../inc/tcp_ctrl_api.h"
 
 /*
  * 将新结点加入链表中

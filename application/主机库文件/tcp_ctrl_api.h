@@ -272,7 +272,7 @@ int set_device_power_off(int mode);
  * @ERROR
  * @SUCCESS
  */
-int get_unit_running_status(void* event_tmp);
+int get_unit_running_status(Prun_status* event_tmp);
 
 
 

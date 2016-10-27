@@ -21,8 +21,21 @@
 extern Pconference_status con_status;
 extern pclient_node list_head;
 extern pclient_node conference_head;
-
-
+extern Pmodule_info node_queue;
+/*
+ * tcp_ctrl_source_dest_setting
+ * tcp控制模块数据源地址和目标地址设置
+ *
+ * in：
+ * @s_fd 源套接字号
+ * @d_fd 目标套接字号
+ * out：
+ * @Pframe_type
+ *
+ * return：
+ * @error
+ * @success
+ */
 int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 {
 	pclient_node tmp = NULL;
@@ -34,7 +47,7 @@ int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 
 	type->d_id = type->s_id = 0;
 
-	tmp = conference_head->next;
+	tmp = node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		info = tmp->data;
@@ -53,7 +66,7 @@ int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 			break;
 		tmp = tmp->next;
 	}
-	tmp = list_head->next;
+	tmp = node_queue->list_head->next;
 	while(tmp!=NULL)
 	{
 		cinfo = tmp->data;
@@ -77,7 +90,20 @@ int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type)
 	return SUCCESS;
 }
 
-
+/*
+ * tcp_ctrl_data_char_to_int
+ * tcp控制模块数据源地址和目标地址设置
+ *
+ * in：
+ * @s_fd 源套接字号
+ * @d_fd 目标套接字号
+ * out：
+ * @Pframe_type
+ *
+ * return：
+ * @error
+ * @success
+ */
 int tcp_ctrl_data_char_to_int(int* value,char* buf)
 {
 
@@ -98,7 +124,8 @@ int tcp_ctrl_data_char_to_int(int* value,char* buf)
  * tcp_ctrl_add_client
  * 终端信息录入函数
  *
- * 将客户端信息增加本地链表，然后将数据信息录入文本文件，供QT使用
+ * 生成设备连接信息文本文件，采用结构体方式进行存储
+ * 应用在设置参数时，需要读取文本文件中的fd信息，进行参数设置
  *
  */
 int tcp_ctrl_add_client(void* value)
@@ -113,14 +140,14 @@ int tcp_ctrl_add_client(void* value)
 	/*
 	 * 连接信息存入链表
 	 */
-	list_add(list_head,value);
+	list_add(node_queue->list_head,value);
 
 	/*
 	 * 存入到文本文件
 	 * 更新文本信息
 	 */
 	file = fopen(connection_name,"w+");
-	tmp = list_head->next;
+	tmp = node_queue->list_head->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
@@ -171,7 +198,7 @@ int tcp_ctrl_delete_client(int fd)
 	/*
 	 * 删除链接信息链表中的客户端
 	 */
-	tmp = list_head->next;
+	tmp = node_queue->list_head->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
@@ -182,7 +209,7 @@ int tcp_ctrl_delete_client(int fd)
 			 */
 			if(pinfo->client_name == PC_CTRL)
 			{
-				con_status->pc_status = ERROR;
+				node_queue->con_status->pc_status = ERROR;
 
 			}
 			status++;
@@ -194,7 +221,7 @@ int tcp_ctrl_delete_client(int fd)
 
 	if(status > 0)
 	{
-		list_delete(list_head,pos,&del);
+		list_delete(node_queue->list_head,pos,&del);
 		pinfo = del->data;
 		printf("close socket and remove ctrl ip %s\n",
 				inet_ntoa(pinfo->cli_addr.sin_addr));
@@ -210,7 +237,7 @@ int tcp_ctrl_delete_client(int fd)
 	 * 删除链接信息文本中的信息
 	 */
 	file = fopen("connection.info","w+");
-	tmp = list_head->next;
+	tmp = node_queue->list_head->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
@@ -228,20 +255,21 @@ int tcp_ctrl_delete_client(int fd)
 		usleep(10000);
 	}
 	fclose(file);
+
 	/*
 	 * 下线消息告知主机或上位机
 	 */
 	//上报上位机部分
 	frame_type tmp_type;
 	memset(&tmp_type,0,sizeof(frame_type));
-	if(con_status->pc_status)
+	if(node_queue->con_status->pc_status)
 	{
-		tmp_type.fd = con_status->pc_status;
+		tmp_type.fd = node_queue->con_status->pc_status;
 		tmp_type.msg_type = OFFLINE_REQ;
 		tmp_type.data_type = EVENT_DATA;
 		tmp_type.dev_type = HOST_CTRL;
 		tmp_type.s_id = fd;
-		tmp_type.d_id = con_status->pc_status;
+		tmp_type.d_id = node_queue->con_status->pc_status;
 		tcp_ctrl_source_dest_setting(fd,tmp_type.fd,&tmp_type);
 		tcp_ctrl_module_edit_info(&tmp_type,NULL);
 	}
@@ -258,7 +286,7 @@ int tcp_ctrl_delete_client(int fd)
 	/*
 	 * 删除会议信息链表中的数据
 	 */
-	tmp2 = conference_head->next;
+	tmp2 = node_queue->conference_head->next;
 	while(tmp2 != NULL)
 	{
 		cinfo = tmp2->data;
@@ -272,7 +300,7 @@ int tcp_ctrl_delete_client(int fd)
 	}
 	if(status > 0)
 	{
-		list_delete(conference_head,pos,&del);
+		list_delete(node_queue->conference_head,pos,&del);
 		cinfo = del->data;
 		printf("close socket %d \n",
 				cinfo->fd);
@@ -337,7 +365,7 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 
 		if(type->dev_type == PC_CTRL){
 			info->client_name = PC_CTRL;
-			con_status->pc_status = type->fd;//PC_CTRL;
+			node_queue->con_status->pc_status = type->fd;//PC_CTRL;
 
 		}else{
 			info->client_name = UNIT_CTRL;
@@ -363,7 +391,7 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 		 * 链表不为空，则通过读取再比对，进行存储
 		 *
 		 */
-		tmp = list_head->next;
+		tmp = node_queue->list_head->next;
 		do
 		{
 			if(tmp == NULL)
@@ -559,9 +587,9 @@ int tcp_ctrl_msg_send_to(Pframe_type frame_type,const unsigned char* msg,int val
 	/*
 	 * 查询是否有上位机连接，若有，将投票信息上报给上位机
 	 */
-	if(con_status->pc_status == PC_CTRL && msg != NULL)
+	if(node_queue->con_status->pc_status == PC_CTRL && msg != NULL)
 	{
-		tmp=list_head->next;
+		tmp=node_queue->list_head->next;
 		while(tmp != NULL)
 		{
 			tmp_type = tmp->data;
@@ -612,7 +640,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 	/*
 	 * 赋值id和席别
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -632,7 +660,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 	 * 主机下发允许指令，修改源地址为主机，目标地址不变
 	 */
 	case WIFI_MEETING_EVT_SPK_ALLOW:
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -657,7 +685,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 		tcp_ctrl_report_enqueue(frame_type,WIFI_MEETING_EVENT_SPK_ALLOW);
 		break;
 	case WIFI_MEETING_EVT_SPK_VETO:
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -689,7 +717,7 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 		/*
 		 * 请求消息发给主席单元
 		 */
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -756,7 +784,7 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 	/*
 	 * 请求消息发给所有单元
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -783,7 +811,7 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		/*
 		 * 请求消息发给所有单元
 		 */
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -804,19 +832,19 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		break;
 	}
 	case WIFI_MEETING_EVT_VOT_ASSENT:
-		con_status->v_result.assent++;
+		node_queue->con_status->v_result.assent++;
 		value = WIFI_MEETING_CONF_REQ_VOTE_ASSENT;
 		break;
 	case WIFI_MEETING_EVT_VOT_NAY:
-		con_status->v_result.nay++;
+		node_queue->con_status->v_result.nay++;
 		value = WIFI_MEETING_CONF_REQ_VOTE_NAY;
 		break;
 	case WIFI_MEETING_EVT_VOT_WAIVER:
-		con_status->v_result.waiver++;
+		node_queue->con_status->v_result.waiver++;
 		value = WIFI_MEETING_CONF_REQ_VOTE_WAIVER;
 		break;
 	case WIFI_MEETING_EVT_VOT_TOUT:
-		con_status->v_result.timeout++;
+		node_queue->con_status->v_result.timeout++;
 		value = WIFI_MEETING_CONF_REQ_VOTE_TIMEOUT;
 		break;
 	default:
@@ -848,7 +876,7 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 	/*
 	 * 请求消息发给主席单元
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -876,7 +904,7 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 	/*
 	 * 请求消息发给所有单元
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -991,7 +1019,7 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 		/*
 		 * 请求消息发给所有单元
 		 */
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -1015,7 +1043,7 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 		/*
 		 * 请求消息发给所有单元
 		 */
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -1083,7 +1111,7 @@ int tcp_ctrl_unit_request_msg(const unsigned char* msg,Pframe_type frame_type)
 	/*
 	 * 赋值id和席别
 	 */
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -1202,7 +1230,7 @@ int tcp_ctrl_unit_reply_conference(const unsigned char* msg,Pframe_type frame_ty
 		/*
 		 * 赋值id和席别
 		 */
-		tmp=conference_head->next;
+		tmp=node_queue->conference_head->next;
 		while(tmp!=NULL)
 		{
 			tmp_type = tmp->data;
@@ -1347,7 +1375,7 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 	 * 赋值id和席别
 	 */
 	frame_type->con_data.id = frame_type->s_id;
-	tmp=conference_head->next;
+	tmp=node_queue->conference_head->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;

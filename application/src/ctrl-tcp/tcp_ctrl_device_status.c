@@ -7,8 +7,8 @@
 
 
 #include "../../inc/tcp_ctrl_device_status.h"
-
 #include "../../inc/tcp_ctrl_list.h"
+#include "../../inc/tcp_ctrl_api.h"
 
 extern pclient_node list_head;
 extern Plinkqueue report_queue;

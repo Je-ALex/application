@@ -8,6 +8,6 @@ $(SUBDIRS):ECHO
 	make -C $@
 $(CUR_OBJS):%.o:%.c
 #	$(CC) -c $^ -o $(ROOT_DIR)/$(OBJS_DIR)/$@
-	$(CC) -fPIC -c $^ -o $(ROOT_DIR)/$(OBJS_DIR)/$@
+	$(CC) $(INFLAGS) -fPIC -c $^ -o $(ROOT_DIR)/$(OBJS_DIR)/$@
 ECHO:
 	@echo $(SUBDIRS)

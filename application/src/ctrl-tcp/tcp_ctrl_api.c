@@ -9,6 +9,9 @@
 #include "../../inc/tcp_ctrl_data_process.h"
 #include "../../inc/tcp_ctrl_device_status.h"
 #include "../../inc/tcp_ctrl_list.h"
+#include "../../inc/tcp_ctrl_api.h"
+
+
 
 extern pclient_node conference_head;
 extern pclient_node list_head;
@@ -16,11 +19,17 @@ extern Pconference_status con_status;
 
 
 
+
 /*
+ * reset_factory_mode
  * 恢复出厂设置
- * 清除连接信息
+ * 目前是清除连接信息和清除会议信息相关内容
+ *
+ * return：
+ * @ERROR(-1)
+ * @SUCCESS(0)
  */
-int reset_factory_mode()
+int reset_the_host_factory_mode()
 {
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
@@ -42,25 +51,183 @@ int reset_factory_mode()
 
 	return SUCCESS;
 }
+
 /*
+ * get_the_host_network_info
  * 获取主机的网路状态
+ *
+ * int/out:
+ * @Plocal_status
+ *
+ * return:
+ * @ERROR(-1)
+ * @SUCCESS(0)
  */
-int get_the_network_info()
+int get_the_host_network_info(Phost_info list)
 {
+
+	struct ifreq ifr;
+	unsigned char mac[6];
+	unsigned long nIP, nNetmask, nBroadIP;
+
+	char* DevName = "eth0";
+	char* version = "v0.0.1";
+	char* model = "DS-WF620M";
+
+	strcpy(list->version,version);
+
+	int s = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (s < 0)
+	{
+		fprintf(stderr, "Create socket failed!errno=%d", errno);
+		return ERROR;
+	}
+	printf("%s:\n", DevName);
+
+	strcpy(ifr.ifr_name, DevName);
+
+	//获取本机mac地址
+	if (ioctl(s, SIOCGIFHWADDR, &ifr) < 0)
+	{
+         return ERROR;
+	}
+	memcpy(mac, ifr.ifr_hwaddr.sa_data, sizeof(mac));
+
+
+	sprintf(list->mac,"%02X:%02X:%02X:%02X:%02X:%02X",
+			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+	//获取本机IP地址
+
+	if (ioctl(s, SIOCGIFADDR, &ifr) < 0)
+	{
+		nIP = 0;
+	}
+	else
+	{
+		nIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
+	}
+
+    strcpy(list->local_ip,inet_ntoa(*(struct in_addr*)&nIP));
+	//获取广播地址
+
+	if (ioctl(s, SIOCGIFBRDADDR, &ifr) < 0)
+	{
+		nBroadIP = 0;
+	}
+	else
+	{
+		nBroadIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
+	}
+
+	//获取子网掩码
+	if (ioctl(s, SIOCGIFNETMASK, &ifr) < 0)
+    {
+         nNetmask = 0;
+    }
+	else
+	{
+		nNetmask = *(unsigned long*)&ifr.ifr_netmask.sa_data[2];
+	}
+
+//	printf("\tMAC: %02x-%02x-%02x-%02x-%02x-%02x\n",
+//	 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+//	printf("\tIP: %s\n", inet_ntoa(*(struct in_addr*)&nIP));
+//	printf("\tBroadIP: %s\n", inet_ntoa(*(struct in_addr*)&nBroadIP));
+//    printf("\tNetmask: %s\n", inet_ntoa(*(struct in_addr*)&nNetmask));
+
+    strcpy(list->netmask,inet_ntoa(*(struct in_addr*)&nNetmask));
+
+    close(s);
 
 	return SUCCESS;
 }
+
+
+/*
+ * get_the_host_factory_infomation
+ * 获取主机信息
+ * 主机信息是保存在文本文件中，为只读属性
+ *
+ * out:
+ * @Plocal_status
+ *
+ * return:
+ * @ERROR(-1)
+ * @SUCCESS(0)
+ */
+int get_the_host_factory_infomation(Phost_info info)
+{
+	char hmodel[32];
+	char version[32];
+	char finformation[32];
+
+	char* ver = "vesrsion=";
+	char* model = "model=";
+	char* finfp = "finfo=";
+	char* str;
+
+	char* buffer;
+
+	int size;
+	int result;
+	FILE* file;
+
+	file = fopen("host.info","rt");
+
+	if(file == NULL)
+	{
+		perror("fopen");
+		return ERROR;
+	}
+    /* 获取文件大小 */
+    fseek (file , 0 , SEEK_END);
+    size = ftell (file);
+    rewind (file);
+
+    /* 分配内存存储整个文件 */
+    buffer = (char*) malloc (sizeof(char)*size);
+    if (buffer == NULL)
+    {
+    	return ERROR;
+    }
+
+    /* 将文件拷贝到buffer中 */
+    result = fread (buffer,1,size,file);
+    if (result != size)
+    {
+    	return ERROR;
+    }
+    /* 现在整个文件已经在buffer中，可由标准输出打印内容 */
+//    printf("%s\n", buffer);
+
+    /* 结束演示，关闭文件并释放内存 */
+    fclose (file);
+    free (buffer);
+
+    strcpy(info->version,"v0.0.1");
+    strcpy(info->host_model,"DS-WF620M");
+    strcpy(info->factory_information,"四川湖山电器有限责任公司");
+
+
+	return SUCCESS;
+
+}
+
 /*
  * 单元机扫描功能
  * 扫描结果通过结构体返回给应用
  *
  * 扫描主要是开机上电有终端连接后，将终端信息的ip返回给应用
  *
- * 返回终端连接个数
+ * in/out:
+ * @name
  *
- *
+ * return:
+ * 写入的连接客户端个数
  */
-int get_unit_connected_info()
+int get_client_connected_info(char* name)
 {
 
 //	pclient_node tmp = NULL;
@@ -68,7 +235,7 @@ int get_unit_connected_info()
 //	FILE *connect_info,*conference_info;
 //	int ret;
 //
-//	char* connection_name = "connection.info";
+	char* connection_name = "connection.info";
 //	/*
 //	 * 终端连接信息
 //	 */
@@ -94,11 +261,28 @@ int get_unit_connected_info()
 //	fclose(connect_info);
 //
 //	return list_head->size;
+	strcpy(name,connection_name);
 
 	return list_head->size;
 
 }
 
+/*
+ * 设备电源设置
+ * 关闭本机(1)、重启本机(2)、关闭单元机(3)
+ *
+ * in/out:
+ * @modle(1,2,3)
+ *
+ * return:
+ * 写入的连接客户端个数
+ */
+int set_device_power_off(int mode)
+{
+
+
+	return SUCCESS;
+}
 
 /*
  * get_uint_running_status
@@ -423,13 +607,47 @@ int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd)
 }
 
 
+/*
+ * 设置主机话筒模式
+ * FIFO模式(1)、标准模式(2)、自由模式(3)
+ *
+ */
+
+int set_mic_mode()
+{
 
 
 
+	return SUCCESS;
+}
+
+
+/*
+ * 设置发言模式
+ *
+ *
+ */
+
+int set_speak_mode()
+{
 
 
 
+	return SUCCESS;
+}
+/*
+ * 设置签到模式
+ *
+ *
+ */
 
+int set_checkin_mode()
+{
+
+
+
+	return SUCCESS;
+}
 
 
 

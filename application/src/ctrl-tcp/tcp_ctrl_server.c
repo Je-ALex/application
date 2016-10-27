@@ -26,7 +26,7 @@
 #include "../../inc/tcp_ctrl_device_status.h"
 #include "../../inc/tcp_ctrl_list.h"
 #include "../../inc/tcp_ctrl_queue.h"
-
+#include "../../inc/tcp_ctrl_api.h"
 
 pthread_t s_id;
 pthread_mutex_t mutex;
@@ -619,6 +619,10 @@ static void* control_tcp_send(void* p)
 	Pqueue_event event_tmp;
 
 	Pconference_info confer_info;
+	host_info list;
+	memset(&list,0,sizeof(host_info));
+
+	char file_name[32] = {0};
 
 	while(1)
 	{
@@ -643,8 +647,9 @@ static void* control_tcp_send(void* p)
 		switch(s)
 		{
 			case 1:
-				ret=get_unit_connected_info();
-				printf("scanf_client size--%d\n",ret);
+
+				ret=get_client_connected_info(file_name);
+				printf("file name %s,scanf_client size--%d\n",file_name,ret);
 				break;
 			case 2:
 				read_file();
@@ -708,6 +713,8 @@ static void* control_tcp_send(void* p)
 			}
 
 			case 10:
+				get_the_host_factory_infomation(&list);
+				get_the_host_network_info(&list);
 				break;
 			case 11:
 
@@ -716,6 +723,14 @@ static void* control_tcp_send(void* p)
 			default:
 				break;
 		}
+
+	    printf("\tversion: %s\n",list.version );
+	    printf("\thost_model: %s\n",list.host_model );
+	    printf("\tfactory_information: %s\n",list.factory_information );
+
+	    printf("\tmac: %s\n",list.mac );
+	    printf("\tIP: %s\n", list.local_ip);
+	    printf("\tNetmask: %s\n",list.netmask );
 
 	}
 
@@ -726,8 +741,8 @@ static void* control_tcp_queue(void* p)
 {
 
 
-	Ptest_event event_tmp;
-	event_tmp = (Ptest_event)malloc(sizeof(test_event));
+	Pqueue_event event_tmp;
+	event_tmp = (Pqueue_event)malloc(sizeof(queue_event));
 
 
 	while(1)
@@ -801,15 +816,17 @@ int control_tcp_module()
 
 	pthread_create(&s_id,NULL,tcp_control_module,NULL);
 
-	pthread_create(&s_id,NULL,control_tcp_send,NULL);
+//	pthread_create(&s_id,NULL,control_tcp_send,NULL);
 
-	pthread_create(&s_id,NULL,control_tcp_queue,NULL);
+//	pthread_create(&s_id,NULL,control_tcp_queue,NULL);
 
-	pthread_create(&s_id,NULL,control_tcp_send_q,NULL);
+//	pthread_create(&s_id,NULL,control_tcp_send_q,NULL);
 	pthread_join(s_id,&status);
 
 	return 0;
 }
+
+
 int main(void)
 {
 

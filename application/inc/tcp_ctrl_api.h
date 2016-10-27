@@ -8,23 +8,213 @@
 #ifndef INC_TCP_CTRL_API_H_
 #define INC_TCP_CTRL_API_H_
 
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
+typedef enum{
+
+	//宣告上线
+	WIFI_MEETING_EVENT_ONLINE_REQ = 1,
+	//宣告离线
+	WIFI_MEETING_EVENT_OFFLINE_REQ,
+	//电源开、关
+	WIFI_MEETING_EVENT_POWER_ON,
+	WIFI_MEETING_EVENT_POWER_OFF,
+	//FIFO、标准、自由
+	WIFI_MEETING_EVENT_MIC_FIFO,
+	WIFI_MEETING_EVENT_MIC_STAD,
+	WIFI_MEETING_EVENT_MIC_FREE,
+	//发言允许、拒绝，音频下发、拒绝，请求发言
+	WIFI_MEETING_EVENT_SPK_ALLOW,
+	WIFI_MEETING_EVENT_SPK_VETO,
+	WIFI_MEETING_EVENT_SPK_ALOW_SND,
+	WIFI_MEETING_EVENT_SPK_VETO_SND,
+	WIFI_MEETING_EVENT_SPK_REQ_SND,
+	WIFI_MEETING_EVENT_SPK_REQ_SPK,
+	//投票管理
+	WIFI_MEETING_EVENT_VOTE_START,
+	WIFI_MEETING_EVENT_VOTE_END,
+	WIFI_MEETING_EVENT_VOTE_ASSENT,
+	WIFI_MEETING_EVENT_VOTE_NAY,
+	WIFI_MEETING_EVENT_VOTE_WAIVER,
+	WIFI_MEETING_EVENT_VOTE_TOUT,
+
+	//议题管理
+	WIFI_MEETING_EVENT_SUBJECT_ONE,
+	WIFI_MEETING_EVENT_SUBJECT_TWO,
+	WIFI_MEETING_EVENT_SUBJECT_THREE,
+	WIFI_MEETING_EVENT_SUBJECT_FOUR,
+	WIFI_MEETING_EVENT_SUBJECT_FIVE,
+	WIFI_MEETING_EVENT_SUBJECT_SIX,
+	WIFI_MEETING_EVENT_SUBJECT_SEVEN,
+	WIFI_MEETING_EVENT_SUBJECT_EIGHT,
+	WIFI_MEETING_EVENT_SUBJECT_NINE,
+	WIFI_MEETING_EVENT_SUBJECT_TEN,
+	//音效管理
+	WIFI_MEETING_EVENT_SOUND,
+	//会议服务
+	WIFI_MEETING_EVENT_SERVICE_WATER,
+	WIFI_MEETING_EVENT_SERVICE_PEN,
+	WIFI_MEETING_EVENT_SERVICE_PAPER,
+	//全状态
+	WIFI_MEETING_EVENT_ALL_STATUS,
+	//ssid和密码
+	WIFI_MEETING_EVENT_SSID_KEY,
+	//mac地址
+	WIFI_MEETING_EVENT_MAC,
+	//签到
+	WIFI_MEETING_EVENT_CHECKIN_START,
+	WIFI_MEETING_EVENT_CHECKIN_END,
+	WIFI_MEETING_EVENT_CHECKIN_SELECT,
+	//会议参数设置成功、失败，查询应答
+	WIFI_MEETING_CONF_WREP_SUCCESS,
+	WIFI_MEETING_CONF_WREP_ERR,
+	WIFI_MEETING_CONF_RREP,
+	//赞成、反对、弃权、超时
+	WIFI_MEETING_CONF_REQ_VOTE_ASSENT,
+	WIFI_MEETING_CONF_REQ_VOTE_NAY,
+	WIFI_MEETING_CONF_REQ_VOTE_WAIVER,
+	WIFI_MEETING_CONF_REQ_VOTE_TIMEOUT,
+
+}ALL_STATUS;
+
+
 /*
- * get_unit_connected_info
- * 单元机扫描接口函数
- * 调用此接口函数后，主机自动进行扫描功能，并将生成信息文件@connect_info.conf
+ * 主机信息结构体
+ * 主要是描述主机的固有属性
+ */
+typedef struct{
+
+	//主机型号
+	char host_model[32];
+	//软件版本,硬件版本后续增加
+	char version[32];
+	//出厂信息
+	char factory_information[64];
+
+	//主机MAC地址
+	char mac[32];
+	//主机IP
+	char local_ip[32];
+	//子网掩码
+	char netmask[32];
+}host_info,*Phost_info;
+
+/*
+ * 在消息中需要告知哪个机器(socket_fd)状态改变
+ * status标记为具体的改变状态类，如
+ * 哪个类型(data_type),哪个内容(name_type),改变内容(value)
+ */
+typedef struct{
+
+	/*
+	 * 单元机识别
+	 */
+	int socket_fd;
+	int id;
+	unsigned char seat;
+	/*
+	 * 具体改变值
+	 */
+	unsigned short value;
+
+}queue_event,*Pqueue_event;
+
+/*********************************
  *
- * in/out:
- * NULL
+ * 系统初始化函数
+ *
+ ********************************/
+
+/*
+ *	系统初始化函数
+ */
+int control_tcp_module();
+
+
+
+/********************************
+ *
+ * TODO 基本信息接口
+ * 系统设置:恢复出厂设置、网络状态、本机信息、关机(关闭本机、重启本机、关闭所有单元机)
+ * 系统扩展
+ *
+ *******************************/
+
+/*
+ * reset_factory_mode
+ * 恢复出厂设置
+ * 目前是清除连接信息和清除会议信息相关内容
  *
  * return：
- * @error
- * @success
+ * @ERROR(-1)
+ * @SUCCESS(0)
  */
-int get_unit_connected_info();
+int reset_the_host_factory_mode();
+
+/*
+ * get_the_host_network_info
+ * 获取主机的网路状态
+ *
+ * int/out:
+ * @Phost_info
+ *
+ * return:
+ * @ERROR(-1)
+ * @SUCCESS(0)
+ */
+int get_the_host_network_info(Phost_info list);
+
+/*
+ * get_the_host_factory_infomation
+ * 获取主机信息
+ * 主机信息是保存在文本文件中，为只读属性
+ *
+ * out:
+ * @Phost_info
+ *
+ * return:
+ * @ERROR(-1)
+ * @SUCCESS(0)
+ */
+int get_the_host_factory_infomation(Phost_info info);
+
+/*
+ * get_client_connected_info
+ * 扫描接口函数
+ *
+ * 调用此接口函数后，主机自动进行扫描功能，并将生成信息文件@connect_info.conf
+ *
+ * 扫描主要是开机上电有终端连接后，将终端信息的ip返回给应用
+ *
+ * in/out:
+ * @name
+ *
+ * return:
+ * 写入的连接客户端个数
+ */
+int get_client_connected_info(char* name);
+
+/*
+ * 设备电源设置
+ * 关闭本机(1)、重启本机(2)、关闭单元机(3)
+ *
+ * in/out:
+ * @modle(1,2,3)
+ *
+ * return:
+ * 写入的连接客户端个数
+ */
+int set_device_power_off(int mode);
+
 
 /*
  * get_uint_running_status
- * 单元机实时状态检测函数,用户只需检测设备号和具体返回信息
+ * 单元机实时状态检测函数,用户只需检测设备号(ID)和具体返回信息
  *
  * in/out:
  *
@@ -34,6 +224,7 @@ int get_unit_connected_info();
 	int socket_fd;
 	int id;
 	unsigned char seat;
+	/*具体的改变状态
 	unsigned short value;
 
 	}queue_event,*Pqueue_event;
@@ -42,7 +233,7 @@ int get_unit_connected_info();
  * @error
  * @success
  */
-int get_unit_running_status(void** event_tmp);
+int get_unit_running_status(Pqueue_event* event_tmp);
 
 
 
@@ -150,6 +341,8 @@ int get_the_event_parameter_power(int fd_value);
 int set_the_event_parameter_ssid_pwd(int fd_value,char* ssid,char* pwd);
 
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_TCP_CTRL_API_H_ */

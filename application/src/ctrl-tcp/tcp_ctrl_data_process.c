@@ -7,9 +7,11 @@
 
 
 #include "../../inc/tcp_ctrl_data_process.h"
-
 #include "../../inc/tcp_ctrl_device_status.h"
 #include "../../inc/tcp_ctrl_queue.h"
+#include "../../inc/tcp_ctrl_api.h"
+
+
 /*
  * 定义两个结构体
  * 存取前状态，存储当前状态
@@ -278,7 +280,7 @@ int tcp_ctrl_delete_client(int fd)
 		free(del);
 	}else{
 
-		printf("there is no data in the list\n");
+		printf("there is no data in conference list\n");
 		return ERROR;
 	}
 

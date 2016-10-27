@@ -18,6 +18,9 @@
 #include <fcntl.h>
 #include <sys/msg.h>
 #include <semaphore.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 
 #define TCP_DBG 0
 
@@ -353,6 +356,12 @@ typedef struct {
 	vote_result v_result;
 
 }conference_status,*Pconference_status;
+
+
+
+
+
+
 
 int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
 

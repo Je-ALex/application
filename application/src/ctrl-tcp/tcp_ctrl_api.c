@@ -12,11 +12,6 @@
 #include "../../inc/tcp_ctrl_api.h"
 
 
-
-extern pclient_node conference_head;
-extern pclient_node list_head;
-extern Pconference_status con_status;
-
 extern Pmodule_info node_queue;
 
 
@@ -40,7 +35,8 @@ int reset_the_host_factory_mode()
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
-		if(pinfo->client_fd > 0)
+
+		if(pinfo != NULL)
 		{
 			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
 			tcp_ctrl_delete_client(pinfo->client_fd);
@@ -114,7 +110,6 @@ int get_the_host_network_info(Phost_info list)
 
     strcpy(list->local_ip,inet_ntoa(*(struct in_addr*)&nIP));
 	//获取广播地址
-
 	if (ioctl(s, SIOCGIFBRDADDR, &ifr) < 0)
 	{
 		nBroadIP = 0;
@@ -123,7 +118,6 @@ int get_the_host_network_info(Phost_info list)
 	{
 		nBroadIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
 	}
-
 	//获取子网掩码
 	if (ioctl(s, SIOCGIFNETMASK, &ifr) < 0)
     {
@@ -581,6 +575,7 @@ int get_the_event_parameter_power(int socket_fd)
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
 	printf("%s,%d\n",__func__,__LINE__);
+
 	/*
 	 * 将参数保存
 	 */

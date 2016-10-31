@@ -1,12 +1,8 @@
 //File   : wav_parser.c
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 
-#include "wav_parser.h"
+
+#include "audio_tcp_server.h"
 
 #define WAV_PRINT_MSG
 

@@ -11,7 +11,6 @@
 #include "../../inc/tcp_ctrl_device_status.h"
 #include "../../inc/tcp_ctrl_list.h"
 
-extern pclient_node list_head;
 extern Pmodule_info node_queue;
 
 

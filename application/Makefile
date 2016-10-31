@@ -175,9 +175,10 @@ CFLAGS= -shared -lc -fPIC -I./inc
 
 libso:
 	${CC} -o libctrl.so src/ctrl-tcp/tcp_ctrl_*.c src/udp/ctrl_udp.c $(CFLAGS) $(LIBS)
-bin:
+ctrlbin:
 	${CC} -o server src/ctrl-tcp/tcp_ctrl_*.c src/udp/ctrl_udp.c -I./inc $(LIBS)
-
+audiobin:
+	${CC} -o server src/audio-tcp/tcp_ctrl_*.c -I./inc $(LIBS)
 clean:
 	rm server
 	

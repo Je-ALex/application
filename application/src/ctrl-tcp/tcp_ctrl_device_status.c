@@ -10,14 +10,15 @@
 #include "../../inc/tcp_ctrl_list.h"
 #include "../../inc/tcp_ctrl_api.h"
 
-extern pclient_node list_head;
-extern Plinkqueue report_queue;
-extern Plinkqueue tcp_send_queue;
-
 extern sys_info sys_in;
-
 extern Pmodule_info node_queue;
 
+
+
+/*
+ * 会议信息存储函数
+ *
+ */
 int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 {
 	pclient_node tmp = NULL;
@@ -84,6 +85,7 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 
 	return SUCCESS;
 }
+
 /*
  * tcp_ctrl_tcp_send_enqueue
  * tcp控制模块的数据发送队列
@@ -266,7 +268,7 @@ int tcp_ctrl_report_dequeue(Prun_status* event_tmp)
 
 
 
-int tcp_ctrl_enter_pc_queue(Pframe_type frame_type,int value)
+int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value)
 {
 
 	Pclient_info tmp_info;
@@ -274,18 +276,17 @@ int tcp_ctrl_enter_pc_queue(Pframe_type frame_type,int value)
 	tmp_info = (Pclient_info)malloc(sizeof(client_info));
 	memset(tmp_info,0,sizeof(client_info));
 
+	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * 单元机固有属性
 	 */
 	tmp_info->client_fd = frame_type->fd;
 
-	printf("enter the queue..\n");
-
 	pthread_mutex_lock(&sys_in.tcp_mutex);
-	enter_queue(node_queue->report_queue,tmp_info);
+	enter_queue(node_queue->report_pc_queue,tmp_info);
 	pthread_mutex_unlock(&sys_in.tcp_mutex);
 
-	sem_post(&sys_in.local_report_sem);
+	sem_post(&sys_in.pc_queue_sem);
 
 	return SUCCESS;
 }

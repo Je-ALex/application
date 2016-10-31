@@ -197,9 +197,12 @@ typedef enum {
 	WIFI_MEETING_EVT_SSID,
 	WIFI_MEETING_EVT_KEY,
 	WIFI_MEETING_EVT_MAC,
+
 	WIFI_MEETING_EVT_PC_GET_INFO,
 	WIFI_MEETING_EVT_RP_TO_PC,
-
+	WIFI_MEETING_EVT_UNIT_ONOFF,
+	WIFI_MEETING_EVT_ELECTION,
+	WIFI_MEETING_EVT_SCORE,
 
 }event_name_type;
 
@@ -344,7 +347,7 @@ typedef struct {
  */
 typedef struct {
 
-	int fd;
+
 	int pc_status;
 	unsigned char ssid[32];
 	unsigned char password[64];

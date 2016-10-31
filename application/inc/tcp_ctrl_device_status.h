@@ -66,11 +66,12 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info);
 
 
 int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value);
-
 int tcp_ctrl_report_dequeue(Prun_status* event_tmp);
 
 int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg);
 int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp);
+
+int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value);
 
 
 #endif /* INC_TCP_CTRL_DEVICE_STATUS_H_ */

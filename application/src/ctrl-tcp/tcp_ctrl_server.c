@@ -28,33 +28,10 @@
 #include "../../inc/tcp_ctrl_queue.h"
 #include "../../inc/tcp_ctrl_api.h"
 
-
+//互斥锁和信号量
 sys_info sys_in;
-
+//链表和结点
 Pmodule_info node_queue;
-
-/*
- * 1、连接信息链表，这个链表主要是生成相关的文件后，QT层可以读取该文件，进行相关操作
- * 2、终端会议状态链表，这个链表主要是主机自己用，不对外(QT)共享
- */
-//pclient_node list_head;
-//pclient_node conference_head;
-///*
-// * 实时状态上报队列
-// */
-//Plinkqueue report_queue;
-///*
-// * 实时状态上报pc队列
-// */
-//Plinkqueue report_pc_queue;
-///*
-// * tcp发送队列
-// */
-//Plinkqueue tcp_send_queue;
-///*
-// * 会议实时状态
-// */
-//Pconference_status con_status;
 
 
 
@@ -124,6 +101,11 @@ static void tcp_ctrl_set_noblock(int fd)
     }
 }
 
+/*
+ * tcp_ctrl_module_init
+ * 设备控制模块的链表和队列初始化
+ *
+ */
 static int tcp_ctrl_module_init()
 {
 
@@ -303,6 +285,9 @@ static void* tcp_control_module(void* p)
      *socket init
      */
     sockfd = tcp_ctrl_local_addr_init(CTRL_PORT);
+    if(sockfd < 0)
+    	pthread_exit(0);
+
     tcp_ctrl_set_noblock(sockfd);
 
 
@@ -779,14 +764,14 @@ int init_control_tcp_module()
 	pthread_create(&tcp_send,NULL,control_tcp_send_queue,NULL);
 
 	//测试线程
-	pthread_create(&tcp_send,NULL,control_tcp_send,NULL);
-	pthread_create(&queue_t,NULL,control_tcp_queue,NULL);
+//	pthread_create(&tcp_send,NULL,control_tcp_send,NULL);
+//	pthread_create(&queue_t,NULL,control_tcp_queue,NULL);
 
 
-	pthread_join(udp_t,&status);
+//	pthread_join(udp_t,&status);
 	pthread_join(tcp_rcv,&status);
-	pthread_join(tcp_send,&status);
-	pthread_join(queue_t,&status);
+//	pthread_join(tcp_send,&status);
+//	pthread_join(queue_t,&status);
 
 	return 0;
 }

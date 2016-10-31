@@ -18,9 +18,7 @@
  *
  * 创建查询线程，轮训比对，有差异，就返回新状态
  */
-extern Pconference_status con_status;
-extern pclient_node list_head;
-extern pclient_node conference_head;
+
 extern Pmodule_info node_queue;
 /*
  * tcp_ctrl_source_dest_setting
@@ -366,9 +364,19 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 		if(type->dev_type == PC_CTRL){
 			info->client_name = PC_CTRL;
 			node_queue->con_status->pc_status = type->fd;//PC_CTRL;
+			//上位机无席别
+			if(type->s_id > 0)
+			{
+				info->id = type->s_id;
+			}
 
 		}else{
 			info->client_name = UNIT_CTRL;
+			if(type->s_id > 0)
+			{
+				info->id = type->s_id;
+				info->seat = msg[0];
+			}
 		}
 		/*
 		 * 解析msg，共5个字节，席别和ID
@@ -376,14 +384,15 @@ int tcp_ctrl_refresh_client_list(const unsigned char* msg,Pframe_type type)
 		 * 如果接收到的上线请求消息有id，则将该设备更新至会议信息链表中
 		 *
 		 */
-		if(type->s_id > 0)
-		{
-			info->id = type->s_id;
-			info->seat = msg[0];
-		}else{
+//		if(type->s_id > 0)
+//		{
+//			info->id = type->s_id;
+//			info->seat = msg[0];
+//		}else{
+//
+//			//暂时不知道怎么处理
+//		}
 
-			//暂时不知道怎么处理
-		}
 		/*
 		 * 检查该客户端是否已经存在
 		 *
@@ -1166,6 +1175,7 @@ int tcp_ctrl_unit_request_msg(const unsigned char* msg,Pframe_type frame_type)
 			case WIFI_MEETING_EVT_CHECKIN:
 				tcp_ctrl_uevent_request_checkin(frame_type,msg);
 				break;
+
 			default:
 				printf("there is legal value\n");
 				return ERROR;
@@ -1479,8 +1489,6 @@ int tcp_ctrl_from_unit( const unsigned char* handlbuf,Pframe_type frame_type)
 
 #endif
 
-
-
 	/*
 	 * 消息类型分类
 	 * 具体细分为控制类应答和查询类应答
@@ -1552,6 +1560,26 @@ int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 }
 
 /*
+ * 请求类消息
+ */
+int tcp_ctrl_pc_request_msg(const unsigned char* msg,Pframe_type frame_type)
+{
+
+	frame_type->name_type[0] = msg[0];
+
+	switch(frame_type->name_type[0])
+	{
+	case WIFI_MEETING_EVT_PC_GET_INFO:
+
+		break;
+
+	}
+
+
+
+	return SUCCESS;
+}
+/*
  * tcp_ctrl_from_pc
  * 上位机消息数据
  * 1、上位机上线后先发送宣告在线消息，主机保存上位机连接信息至链表
@@ -1579,6 +1607,7 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 			tcp_ctrl_pc_read_msg(handlbuf,frame_type);
 			break;
 		case REQUEST_MSG:
+			tcp_ctrl_pc_request_msg(handlbuf,frame_type);
 			break;
 		case ONLINE_REQ:
 			tcp_ctrl_refresh_client_list(handlbuf,frame_type);

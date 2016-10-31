@@ -61,8 +61,8 @@ ssize_t SNDWAV_ReadPcm(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_
 	uint8_t *data = sndpcm->data_buf;
 
 
-	if (count != sndpcm->chunk_size) {
-		count = sndpcm->chunk_size;
+	if (count != sndpcm->period_size) {
+		count = sndpcm->period_size;
 	}
 
 	while (count > 0) {
@@ -104,11 +104,11 @@ ssize_t SNDWAV_WritePcm(snd_data_format *sndpcm, size_t wcount)
 	ssize_t result = 0;
 	uint8_t *data = sndpcm->data_buf;
 
-	if (wcount < sndpcm->chunk_size) {
+	if (wcount < sndpcm->period_size) {
 		snd_pcm_format_set_silence(sndpcm->format,
 			data + wcount * sndpcm->bits_per_frame / 8,
-			(sndpcm->chunk_size - wcount) * sndpcm->channels);
-		wcount = sndpcm->chunk_size;
+			(sndpcm->period_size - wcount) * sndpcm->channels);
+		wcount = sndpcm->period_size;
 	}
 //	printf("sndpcm->chunk_size  = %zu\n",sndpcm->chunk_size);
 	while (wcount > 0) {
@@ -145,41 +145,42 @@ int SNDWAV_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 	snd_pcm_format_t format;
 	uint32_t exact_rate;
 	uint32_t buffer_time, period_time;
-	int dir;
-	/* snd_pcm_hw_params_t*/
+	int dir = 0;
+
+	/*为硬件参数申请内存*/
 	snd_pcm_hw_params_alloca(&hwparams);
 
-	/* init paramers*/
+	/*初始化为默认参数*/
 	if (snd_pcm_hw_params_any(sndpcm->handle, hwparams) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_any/n");
 		goto ERR_SET_PARAMS;
 	}
-	/* set the interleaved read/write format */
+	/*设置为交错模式*/
 	if (snd_pcm_hw_params_set_access(sndpcm->handle, hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_access/n");
 		goto ERR_SET_PARAMS;
 	}
 
-	/* get format type */
+	/*获取本地设置的format length*/
 	if (SNDWAV_P_GetFormat(wav, &format) < 0) {
 		fprintf(stderr, "Error get_snd_pcm_format/n");
 		goto ERR_SET_PARAMS;
 	}
-	/* set the sample format */
+	/*设置format参数*/
 	if (snd_pcm_hw_params_set_format(sndpcm->handle, hwparams, format) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_format/n");
 		goto ERR_SET_PARAMS;
 	}
 	sndpcm->format = format;
 
-	/*set channel */
+	/*设置声道参数*/
 	if (snd_pcm_hw_params_set_channels(sndpcm->handle, hwparams, LE_SHORT(wav->format.channels)) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_channels/n");
 		goto ERR_SET_PARAMS;
 	}
 	sndpcm->channels = LE_SHORT(wav->format.channels);
 
-	/* set sample rate */
+	/*设置采样率*/
 	exact_rate = LE_INT(wav->format.sample_rate);
 	if (snd_pcm_hw_params_set_rate_near(sndpcm->handle, hwparams, &exact_rate, 0) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_rate_near/n");
@@ -190,43 +191,48 @@ int SNDWAV_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 		fprintf(stderr, "The rate %d Hz is not supported by your hardware./n ==> Using %d Hz instead./n",
 			LE_INT(wav->format.sample_rate), exact_rate);
 	}
-
+	//获取缓冲区支持的最大time （us）
 	if (snd_pcm_hw_params_get_buffer_time_max(hwparams, &buffer_time, 0) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_get_buffer_time_max/n");
 		goto ERR_SET_PARAMS;
 	}
-	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 50000;
-	period_time = buffer_time / 4;
 
+	if (buffer_time > 500000) buffer_time = 500000;
+	buffer_time = 4000;
+	period_time = buffer_time / 4;//12.5ms
+
+	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)
 	if (snd_pcm_hw_params_set_buffer_time_near(sndpcm->handle, hwparams, &buffer_time, &dir) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_buffer_time_near/n");
 		goto ERR_SET_PARAMS;
 	}
 
+	//设置周期时间 exact value is <,=,> val following dir (-1,0,1)
 	if (snd_pcm_hw_params_set_period_time_near(sndpcm->handle, hwparams, &period_time, &dir) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params_set_period_time_near/n");
 		goto ERR_SET_PARAMS;
 	}
 
-	/* set paramers to snd card */
+	/*将硬件参数设置到PCM设备*/
 	if (snd_pcm_hw_params(sndpcm->handle, hwparams) < 0) {
 		fprintf(stderr, "Error snd_pcm_hw_params(handle, params)/n");
 		goto ERR_SET_PARAMS;
 	}
-	/*get period size */
-	snd_pcm_hw_params_get_period_size(hwparams, &sndpcm->chunk_size, &dir);
-	/* */
+
+	/*从配置空间中获取周期大小*/
+	snd_pcm_hw_params_get_period_size(hwparams, &sndpcm->period_size, &dir);
+
+	/*从配置空间中获取buffer_size大小*/
 	snd_pcm_hw_params_get_buffer_size(hwparams, &sndpcm->buffer_size);
-	if (sndpcm->chunk_size == sndpcm->buffer_size) {
-		fprintf(stderr, ("Can't use period equal to buffer size (%lu == %lu)/n"), sndpcm->chunk_size, sndpcm->buffer_size);
+
+	if (sndpcm->period_size == sndpcm->buffer_size) {
+		fprintf(stderr, ("Can't use period equal to buffer size (%lu == %lu)/n"), sndpcm->period_size, sndpcm->buffer_size);
 		goto ERR_SET_PARAMS;
 	}
 
 	sndpcm->bits_per_sample = snd_pcm_format_physical_width(format);
 	sndpcm->bits_per_frame = sndpcm->bits_per_sample * LE_SHORT(wav->format.channels);
-
-	sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame / 8;
+	sndpcm->chunk_bytes = sndpcm->period_size * sndpcm->bits_per_frame / 8;
 
 	/* alloc mem save the block*/
 	sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
@@ -319,18 +325,18 @@ int play_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 		goto ERR_SET_PARAMS;
 	}
 	/*get period size */
-	snd_pcm_hw_params_get_period_size(hwparams, &sndpcm->chunk_size, 0);
+	snd_pcm_hw_params_get_period_size(hwparams, &sndpcm->period_size, 0);
 	/* */
 	snd_pcm_hw_params_get_buffer_size(hwparams, &sndpcm->buffer_size);
-	if (sndpcm->chunk_size == sndpcm->buffer_size) {
-		fprintf(stderr, ("Can't use period equal to buffer size (%lu == %lu)/n"), sndpcm->chunk_size, sndpcm->buffer_size);
+	if (sndpcm->period_size == sndpcm->buffer_size) {
+		fprintf(stderr, ("Can't use period equal to buffer size (%lu == %lu)/n"), sndpcm->period_size, sndpcm->buffer_size);
 		goto ERR_SET_PARAMS;
 	}
 
 	sndpcm->bits_per_sample = snd_pcm_format_physical_width(format);
 	sndpcm->bits_per_frame = sndpcm->bits_per_sample * LE_SHORT(wav->format.channels);
 
-	sndpcm->chunk_bytes = sndpcm->chunk_size * sndpcm->bits_per_frame /8;
+	sndpcm->chunk_bytes = sndpcm->period_size * sndpcm->bits_per_frame /8;
 
 	/* alloc mem save the block*/
 	sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);

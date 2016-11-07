@@ -78,7 +78,7 @@ ssize_t SNDWAV_ReadPcm(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_
 		} else if (r == -EPIPE) {
 
 				snd_pcm_prepare(sndpcm->handle); 
-				fprintf(stderr, "<<<<<<<<<<<<<<<snd_pcm_readi Buffer Underrun >>>>>>>>>>>>>>>\n");
+				fprintf(stderr, "<<<<<<<<<<<<<<<snd_pcm_readi Buffer overrun >>>>>>>>>>>>>>>\n");
 		} else if (r == -ESTRPIPE) {
 
 				fprintf(stderr, "<<<<<<<<<<<<<<< Need suspend >>>>>>>>>>>>>>>\n");
@@ -144,7 +144,7 @@ int SNDWAV_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 	snd_pcm_hw_params_t *hwparams;
 	snd_pcm_format_t format;
 	uint32_t exact_rate;
-	uint32_t buffer_time, period_time;
+	uint32_t buffer_time, period_time,period_size;
 	int dir = 0;
 
 	/*为硬件参数申请内存*/
@@ -198,8 +198,8 @@ int SNDWAV_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 	}
 
 	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 4000;
-	period_time = buffer_time / 4;//12.5ms
+	buffer_time = 44000;
+	period_time = buffer_time / 4;//11ms
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)
 	if (snd_pcm_hw_params_set_buffer_time_near(sndpcm->handle, hwparams, &buffer_time, &dir) < 0) {
@@ -212,6 +212,9 @@ int SNDWAV_SetParams(snd_data_format *sndpcm, WAVContainer_t *wav)
 		fprintf(stderr, "Error snd_pcm_hw_params_set_period_time_near/n");
 		goto ERR_SET_PARAMS;
 	}
+//	period_size = 256;
+//	snd_pcm_hw_params_set_period_size_near(sndpcm->handle, hwparams, &period_size, &dir);
+
 
 	/*将硬件参数设置到PCM设备*/
 	if (snd_pcm_hw_params(sndpcm->handle, hwparams) < 0) {

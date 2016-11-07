@@ -23,13 +23,20 @@
 #include <sys/unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <alsa/asoundlib.h>
+
 #include <assert.h>
 #include <pthread.h>
 #include <sys/socket.h>//socket():bind();listen():accept();inet_addr();listen():accept();connect();
 #include <arpa/inet.h>//htons();inet_addr():
 #include <netinet/in.h>//inet_addr():
 #include <signal.h>
+
+
+
+#include <alsa/asoundlib.h>
+#include <speex/speex_preprocess.h>
+
+#include "../tcp_ctrl_server.h"
 
 
 #ifdef __cplusplus
@@ -77,13 +84,23 @@ typedef unsigned int   uint32_t;
 #define DEFAULT_SAMPLE_LENGTH    (16)
 #define DEFAULT_DURATION_TIME    (10000)
 
-typedef struct WAVHeader {
+
+/*
+ * timeofday
+ */
+typedef struct {
+	struct timeval time;
+	int ms;
+
+}timetime;
+
+typedef struct  {
 	uint32_t magic;
 	uint32_t length;
 	uint32_t type;
-} WAVHeader_t;
+} WAVHeader;
 
-typedef struct WAVFmt {
+typedef struct  {
 	uint32_t magic;
 	uint32_t fmt_size;
 	uint16_t format;
@@ -92,27 +109,18 @@ typedef struct WAVFmt {
 	uint32_t bytes_p_second;
 	uint16_t blocks_align;
 	uint16_t sample_length;
-} WAVFmt_t;
+} WAVFmt;
 
-typedef struct WAVFmtExtensible {
-	WAVFmt_t format;
-	uint16_t ext_size;
-	uint16_t bit_p_spl;
-	uint32_t channel_mask;
-	uint16_t guid_format;
-	uint8_t guid_tag[14];
-} WAVFmtExtensible_t;
-
-typedef struct WAVChunkHeader {
+typedef struct  {
 	uint32_t type;
 	uint32_t length;
-} WAVChunkHeader_t;
+} WAVChunkHeader;
 
-typedef struct WAVContainer {
-	WAVHeader_t header;
-	WAVFmt_t format;
-	WAVChunkHeader_t chunk;
-} WAVContainer_t;
+typedef struct  {
+	WAVHeader header;
+	WAVFmt format;
+	WAVChunkHeader chunk;
+} WAVContainer,*PWAVContainer;
 
 
 typedef struct  {
@@ -127,12 +135,10 @@ typedef struct  {
 	size_t bits_per_sample;
 	size_t bits_per_frame;
 
-	int recv_unm;
-	int recv_falg;
-	uint8_t* recv_buf;
-
+	int recv_num;
 	uint8_t *data_buf;
-} snd_data_format;
+
+} snd_data_format,*Psnd_data_format;
 
 typedef struct{
 
@@ -155,11 +161,11 @@ typedef struct{
 }audio_tcp_paras,*Paudio_tcp_paras;
 
 
-
-int WAV_ReadHeader(WAVContainer_t *container);
-int audio_parameters_init(WAVContainer_t *container);
-
-int WAV_WriteHeader(int fd, WAVContainer_t *container);
+//
+//int WAV_ReadHeader(WAVContainer_t *container);
+//int audio_parameters_init(WAVContainer_t *container);
+//
+//int WAV_WriteHeader(int fd, WAVContainer_t *container);
 
 
 #ifdef __cplusplus

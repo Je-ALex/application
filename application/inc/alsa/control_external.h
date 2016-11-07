@@ -26,7 +26,7 @@
 #ifndef __ALSA_CONTROL_EXTERNAL_H
 #define __ALSA_CONTROL_EXTERNAL_H
 
-#include "control.h"
+#include "../alsa/control.h"
 
 #ifdef __cplusplus
 extern "C" {

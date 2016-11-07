@@ -2,16 +2,20 @@
 
 CC = gcc
 
-HOSTCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include -I../../inc/audio-tcp
-HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib -lasound -lpthread
+HOSTCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include -I../../inc/audio-tcp \
+	-I../../inc/
+HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib \
+	-lasound -lpthread -L/home/wang/work/hushan/rtp/install-pc/lib -lspeexdsp -lm
 
-ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include -I../../inc/audio-tcp
-ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib -lasound -lpthread
+ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include \
+	-I../../inc/audio-tcp -I../../inc/
+ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib -lasound -lpthread \
+	-L/home/wang/work/hushan/rtp/install-arm/lib -lspeexdsp -lm
 
 .PHNOY: server client
 
 server:
-	$(CC) -o server audio_tcp_server.c sndwav_common.c wav_parser.c \
+	$(CC) -o server audio_tcp_server.c audio_parameter_init.c \
 	../ctrl-tcp/tcp_ctrl_queue.c $(HOSTCFLAGS) $(HOSTLIBS) 
 client:
 	$(CC) -o client lrecord.c sndwav_common.c wav_parser.c $(HOSTCFLAGS) $(HOSTLIBS) 
@@ -19,6 +23,8 @@ client:
 arm-server:
 	$(CC) -o arm-server audio_tcp_server.c sndwav_common.c \
 	wav_parser.c ../ctrl-tcp/tcp_ctrl_queue.c $(ARMCFLAGS) $(ARMLIBS) 
+arm-client:
+	$(CC) -o arm-client lrecord.c sndwav_common.c wav_parser.c $(ARMCFLAGS) $(ARMLIBS)  
 #all:lplay lrecord
 #
 #lplay: lplay.o sndwav_common.o wav_parser.o

@@ -7,10 +7,47 @@
 
 
 #define DEST_PORT 8080
-//#define DEST_IP_ADDRESS "192.168.1.226"
+#define DEST_IP_ADDRESS "192.168.1.101"
 #ifndef DEST_IP_ADDRESS
-#define DEST_IP_ADDRESS "127.0.0.1"
+//#define DEST_IP_ADDRESS "127.0.0.1"
 #endif
+
+static int udp_client()
+{
+	int sock;
+
+	//在recvfrom中使用的对方主机地址
+	struct sockaddr_in addr_server;
+
+	sock = socket(AF_INET,SOCK_DGRAM,0);
+	if(sock < 0)
+	{
+	 printf("创建套接字失败了.\r\n");
+	 return -1;
+	}
+
+    bzero(&addr_server, sizeof(struct sockaddr_in));
+    addr_server.sin_family = AF_INET;
+    addr_server.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr_server.sin_port = htons(DEST_PORT);
+
+    int opt = 1;
+
+	//设置该套接字为广播类型，
+	int nb = 0;
+	nb = setsockopt(sock, SOL_SOCKET, SO_BROADCAST,
+			&opt, sizeof(opt));
+	if(nb == -1)
+	{
+		printf("set socket error...\n");
+		return -1;
+	}
+
+	return sock;
+
+
+
+}
 int tcp_client(int port)
 {
     int sock_fd;
@@ -81,13 +118,40 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,WAVContain
 	int sockfd;
 	int send_num;
 	int n;
+
 //	if (WAV_WriteHeader(fd, wav) < 0) {
 //		exit(-1);
 //	}
 	/*
 	 * tcp send data
 	 */
-	sockfd = tcp_client(port);
+//	sockfd = tcp_client(port);
+//	sockfd = udp_client();
+	struct sockaddr_in addr_server;
+
+	sockfd = socket(AF_INET,SOCK_DGRAM,0);
+	if(sockfd < 0)
+	{
+	 printf("创建套接字失败了.\r\n");
+	 return -1;
+	}
+
+    bzero(&addr_server, sizeof(struct sockaddr_in));
+    addr_server.sin_family = AF_INET;
+    addr_server.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    addr_server.sin_port = htons(DEST_PORT+2);
+
+    int opt = 1;
+
+	//设置该套接字为广播类型，
+	int nb = 0;
+	nb = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST,
+			&opt, sizeof(opt));
+	if(nb == -1)
+	{
+		printf("set socket error...\n");
+		return -1;
+	}
 
 	rest = wav->chunk.length;
 	while (rest > 0) {
@@ -120,19 +184,24 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,WAVContain
 //	    char send_buf[]="00000000";
 //        send_num = send(sockfd,send_buf,sizeof(send_buf),0);
 
-	    send_num = send(sockfd,sndpcm->data_buf,c,0);
+//	    send_num = send(sockfd,sndpcm->data_buf,c,0);
+		 send_num = sendto(sockfd,sndpcm->data_buf,c,0,(struct sockaddr*)&addr_server,
+				 sizeof(struct sockaddr_in));
+
         if (send_num < 0){
                perror("send");
                 exit(1);
         } else {
-//              printf("send sucess:%s\n",sndpcm->data_buf);
+              printf("send sucess send_num:%d\n",send_num);
        }
+
 	    gettimeofday(&stop,0);
 	    time_substract(&diff,&start,&stop);
 //		printf("send_num = %d\n",send_num);
 		printf("Total time : %d s,%d ms,%d us\n",(int)diff.time.tv_sec,diff.ms,(int)diff.time.tv_usec);
 
 
+//		usleep(1000000);
 	    rest -= c;
 	}
     close(sockfd);
@@ -141,26 +210,16 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,WAVContain
 static void* audio_tcp_thread(void* p)
 {
 	char *filename;
-	char *devicename = "default";
+	char *devicename = "hw:0,0";
 	int fd;
 	WAVContainer_t wav;
 	snd_data_format record;
 	snd_data_format playback;
 
-//	if (argc != 2) {
-//		fprintf(stderr, "Usage: ./lrecord <file name>/n");
-//		return -1;
-//	}
 
 	memset(&record, 0x0, sizeof(record));
 	memset(&playback, 0x0, sizeof(playback));
 
-//	filename = argv[1];
-//	remove(filename);
-//	if ((fd = open(filename, O_WRONLY | O_CREAT, 0644)) == -1) {
-//		fprintf(stderr, "Error open: [%s]/n", filename);
-//		return -1;
-//	}
 
 	if (snd_output_stdio_attach(&record.log, stderr, 0) < 0) {
 		fprintf(stderr, "Error snd_output_stdio_attach/n");

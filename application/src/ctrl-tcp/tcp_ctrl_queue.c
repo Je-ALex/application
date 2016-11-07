@@ -45,7 +45,10 @@ int enter_queue(Plinkqueue queue,void* data)
 
 
 	if(queue == NULL)
+	{
+		printf("queue is null\n");
 		return ERROR;
+	}
 
 	queue->rear->next = node;
 	queue->rear = node;

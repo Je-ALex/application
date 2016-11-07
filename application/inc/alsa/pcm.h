@@ -900,7 +900,7 @@ int snd_pcm_sw_params_get_silence_size(const snd_pcm_sw_params_t *params, snd_pc
 /* include old API */
 #ifndef ALSA_LIBRARY_BUILD
 #if defined(ALSA_PCM_OLD_HW_PARAMS_API) || defined(ALSA_PCM_OLD_SW_PARAMS_API)
-#include "pcm_old.h"
+#include "../alsa/pcm_old.h"
 #endif
 #endif
 

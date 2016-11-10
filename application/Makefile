@@ -114,15 +114,15 @@
 #	
 #.PHONY:test testso echo
 #
-CUR_DIR=$(shell pwd)
-
-OBJS_DIR=debug/obj
-
-##bin文件所在的目录
-BIN_DIR=debug/bin
-
-SRC_TCP_DIR=${CUR_DIR}/src/ctrl-tcp
-SRC_UDP_DIR=${CUR_DIR}/src/udp
+#CUR_DIR=$(shell pwd)
+#
+#OBJS_DIR=debug/obj
+#
+###bin文件所在的目录
+#BIN_DIR=debug/bin
+#
+#SRC_TCP_DIR=${CUR_DIR}/src/ctrl-tcp
+#SRC_UDP_DIR=${CUR_DIR}/src/udp
 
 #SUB_DIR=${CUR_DIR}/sub
 #MUL_DIR=${CUR_DIR}/multis
@@ -167,20 +167,47 @@ SRC_UDP_DIR=${CUR_DIR}/src/udp
 #	@echo "Clean done."
 
 CC=gcc
-LIBS=-lpthread
-CFLAGS= -shared -lc -fPIC -I./inc
+
+HOSTCFLAGS = -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include \
+	-I./inc -I./inc/audio -I./inc/control -I./inc/utils
+
+HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib \
+	-lasound -lpthread -L/home/wang/work/hushan/rtp/install-pc/lib -lspeexdsp -lm
+
+ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include \
+	-I./inc/audio-tcp -I./inc
+	
+ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib -lasound -lpthread \
+	-L/home/wang/work/hushan/rtp/install-arm/lib -lspeexdsp -lm
+
+CSOFLAGS= -shared -lc -fPIC -I./inc
 
 
-.PHONY: libso bin clean
+TEST_SOURCE = wifi_sys_init.c \
+			src/scanf-module/ctrl_udp.c \
+			src/ctrl-module/tcp_ctrl_api.c \
+			src/ctrl-module/tcp_ctrl_data_process.c \
+			src/ctrl-module/tcp_ctrl_data_compose.c \
+			src/ctrl-module/tcp_ctrl_device_status.c \
+			src/ctrl-module/tcp_ctrl_list.c \
+			src/ctrl-module/tcp_ctrl_queue.c \
+			src/ctrl-module/tcp_ctrl_server.c \
+#			src/audio-module/audio_server.c \
+#			src/audio-module/audio_params_init.c 
+
+#.PHONY: libso bin arm-bin clean
 
 libso:
-	${CC} -o libctrl.so src/ctrl-tcp/tcp_ctrl_*.c src/udp/ctrl_udp.c $(CFLAGS) $(LIBS)
-ctrlbin:
-	${CC} -o server src/ctrl-tcp/tcp_ctrl_*.c src/udp/ctrl_udp.c -I./inc $(LIBS)
-audiobin:
-	${CC} -o server src/audio-tcp/tcp_ctrl_*.c -I./inc $(LIBS)
+	${CC} -o libctrl.so src/ctrl-tcp/tcp_ctrl_*.c src/udp/ctrl_udp.c $(CSOFLAGS)
+	
+bin:
+	${CC} -o server $(TEST_SOURCE) $(HOSTCFLAGS) $(HOSTLIBS)
+	
+arm-bin:
+	${CC} -o arm-server $(TEST_SOURCE) $(ARMCFLAGS) $(ARMLIBS)
+	
 clean:
-	rm server
+	rm server arm-server
 	
 #编译为库文件
 #libtest.so:libtest.o

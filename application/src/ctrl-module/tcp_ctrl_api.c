@@ -12,6 +12,14 @@
 extern Pmodule_info node_queue;
 
 
+
+/******************
+ *
+ * TODO
+ * 基本信息
+ *
+ ******************/
+
 /*
  * reset_factory_mode
  * 恢复出厂设置
@@ -28,14 +36,14 @@ int reset_the_host_factory_mode()
 
 	printf("%s,%d\n",__func__,__LINE__);
 
-	tmp = node_queue->list_head->next;
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
 
 		if(pinfo != NULL)
 		{
-			printf("fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+			printf("clean fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
 			tcp_ctrl_delete_client(pinfo->client_fd);
 
 		}
@@ -57,7 +65,7 @@ int reset_the_host_factory_mode()
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_network_info(Phost_info list)
+int get_the_host_network_info(Phost_info ninfo)
 {
 
 	struct ifreq ifr;
@@ -65,16 +73,12 @@ int get_the_host_network_info(Phost_info list)
 	unsigned long nIP, nNetmask, nBroadIP;
 
 	char* DevName = "eth0";
-	char* version = "v0.0.1";
-	char* model = "DS-WF620M";
 
 	printf("%s,%d\n",__func__,__LINE__);
 
-	strcpy(list->version,version);
 
-	int s = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if (s < 0)
+	int sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock < 0)
 	{
 		fprintf(stderr, "Create socket failed!errno=%d", errno);
 		return ERROR;
@@ -84,19 +88,17 @@ int get_the_host_network_info(Phost_info list)
 	strcpy(ifr.ifr_name, DevName);
 
 	//获取本机mac地址
-	if (ioctl(s, SIOCGIFHWADDR, &ifr) < 0)
+	if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0)
 	{
          return ERROR;
 	}
 	memcpy(mac, ifr.ifr_hwaddr.sa_data, sizeof(mac));
 
-
-	sprintf(list->mac,"%02X:%02X:%02X:%02X:%02X:%02X",
+	sprintf(ninfo->mac,"%02X:%02X:%02X:%02X:%02X:%02X",
 			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 	//获取本机IP地址
-
-	if (ioctl(s, SIOCGIFADDR, &ifr) < 0)
+	if (ioctl(sock, SIOCGIFADDR, &ifr) < 0)
 	{
 		nIP = 0;
 	}
@@ -104,19 +106,9 @@ int get_the_host_network_info(Phost_info list)
 	{
 		nIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
 	}
-
-    strcpy(list->local_ip,inet_ntoa(*(struct in_addr*)&nIP));
-	//获取广播地址
-	if (ioctl(s, SIOCGIFBRDADDR, &ifr) < 0)
-	{
-		nBroadIP = 0;
-	}
-	else
-	{
-		nBroadIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
-	}
+    strcpy(ninfo->local_ip,inet_ntoa(*(struct in_addr*)&nIP));
 	//获取子网掩码
-	if (ioctl(s, SIOCGIFNETMASK, &ifr) < 0)
+	if (ioctl(sock, SIOCGIFNETMASK, &ifr) < 0)
     {
          nNetmask = 0;
     }
@@ -124,16 +116,27 @@ int get_the_host_network_info(Phost_info list)
 	{
 		nNetmask = *(unsigned long*)&ifr.ifr_netmask.sa_data[2];
 	}
+    strcpy(ninfo->netmask,inet_ntoa(*(struct in_addr*)&nNetmask));
+
+
+	//获取广播地址
+	if (ioctl(sock, SIOCGIFBRDADDR, &ifr) < 0)
+	{
+		nBroadIP = 0;
+	}
+	else
+	{
+		nBroadIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
+	}
 
 //	printf("\tMAC: %02x-%02x-%02x-%02x-%02x-%02x\n",
-//	 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+//	mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 //	printf("\tIP: %s\n", inet_ntoa(*(struct in_addr*)&nIP));
 //	printf("\tBroadIP: %s\n", inet_ntoa(*(struct in_addr*)&nBroadIP));
-//    printf("\tNetmask: %s\n", inet_ntoa(*(struct in_addr*)&nNetmask));
+//  printf("\tNetmask: %s\n", inet_ntoa(*(struct in_addr*)&nNetmask));
 
-    strcpy(list->netmask,inet_ntoa(*(struct in_addr*)&nNetmask));
 
-    close(s);
+    close(sock);
 
 	return SUCCESS;
 }
@@ -151,60 +154,17 @@ int get_the_host_network_info(Phost_info list)
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_factory_infomation(Phost_info info)
+int get_the_host_factory_infomation(Phost_info pinfo)
 {
-	char hmodel[32];
-	char version[32];
-	char finformation[32];
 
-	char* ver = "vesrsion=";
-	char* model = "model=";
-	char* finfp = "finfo=";
-	char* str;
+	char* version = "v0.0.1";
+	char* model = "DS-WF620M";
+	char* product = "四川湖山电器有限责任公司";
 
-	char* buffer;
 
-	int size;
-	int result;
-	FILE* file;
-
-	printf("%s,%d\n",__func__,__LINE__);
-
-	file = fopen("host.info","rt");
-
-	if(file == NULL)
-	{
-		perror("fopen");
-		return ERROR;
-	}
-    /* 获取文件大小 */
-    fseek (file , 0 , SEEK_END);
-    size = ftell (file);
-    rewind (file);
-
-    /* 分配内存存储整个文件 */
-    buffer = (char*) malloc (sizeof(char)*size);
-    if (buffer == NULL)
-    {
-    	return ERROR;
-    }
-
-    /* 将文件拷贝到buffer中 */
-    result = fread (buffer,1,size,file);
-    if (result != size)
-    {
-    	return ERROR;
-    }
-    /* 现在整个文件已经在buffer中，可由标准输出打印内容 */
-//    printf("%s\n", buffer);
-
-    /* 结束演示，关闭文件并释放内存 */
-    fclose (file);
-    free (buffer);
-
-    strcpy(info->version,"v0.0.1");
-    strcpy(info->host_model,"DS-WF620M");
-    strcpy(info->factory_information,"四川湖山电器有限责任公司");
+    strcpy(pinfo->version,version);
+    strcpy(pinfo->host_model,model);
+    strcpy(pinfo->factory_information,product);
 
 
 	return SUCCESS;
@@ -261,13 +221,13 @@ int get_client_connected_info(char* name)
 //	return list_head->size;
 	strcpy(name,connection_name);
 
-	return node_queue->list_head->size;
+	return node_queue->sys_list[CONNECT_LIST]->size;
 
 }
 
 /*
  * 设备电源设置
- * 关闭本机(1)、重启本机(2)、关闭单元机(3)
+ * 关闭本机(1)、重启本机(2)、关闭所有单元机(3)
  *
  * in/out:
  * @modle(1,2,3)
@@ -277,7 +237,40 @@ int get_client_connected_info(char* name)
  */
 int set_device_power_off(int mode)
 {
-	printf("%s,%d,value = %d\n",__func__,__LINE__,mode);
+//	pclient_node tmp = NULL;
+//	Pconference_info tmp_type;
+//
+//	frame_type data_info;
+//	memset(&data_info,0,sizeof(frame_type));
+//
+//	printf("%s,%d,value = %d\n",__func__,__LINE__,mode);
+//
+//	if(mode == UNIT_CTRL)
+//	{
+//		/*
+//		 * 将参数保存
+//		 */
+//		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+//		while(tmp!=NULL)
+//		{
+//			tmp_type = tmp->data;
+//			if(tmp_type->con_data.id)
+//			{
+//				tcp_ctrl_source_dest_setting(-1,tmp_type->fd,frame_type);
+//				data_info.fd = tmp_type->fd;
+//				data_info.evt_data.value = WIFI_MEETING_EVT_PWR_OFF;
+//				data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
+//				data_info.code_type[0] = WIFI_MEETING_CHAR;
+//
+//				config_event_frame_info(&data_info,WRITE_MSG);
+//
+//				tcp_ctrl_module_edit_info(&data_info,NULL);
+//			}
+//			tmp=tmp->next;
+//			usleep(10000);
+//		}
+//	}
+
 
 	return SUCCESS;
 }
@@ -299,10 +292,7 @@ int get_unit_running_status(void* event_tmp)
 
 	int ret;
 
-	printf("%s,%d\n",__func__,__LINE__);
-
 	ret = tcp_ctrl_report_dequeue(event_tmp);
-
 
 	if(ret)
 		return ERROR;
@@ -315,19 +305,19 @@ int get_unit_running_status(void* event_tmp)
 
 /********************************************
  *
+ * TODO
  * 会议型数据设置和查询
- *
  *
  *******************************************/
 
 
-/*
+/* config_conference_frame_info
  * 配置info信息
  */
-static int config_conference_frame_info(Pframe_type type){
+static int config_conference_frame_info(Pframe_type type,char value){
 
 	printf("%s,%d\n",__func__,__LINE__);
-	type->msg_type = WRITE_MSG;
+	type->msg_type = value;
 	type->data_type = CONFERENCE_DATA;
 	type->dev_type = HOST_CTRL;
 
@@ -339,7 +329,6 @@ static int config_conference_frame_info(Pframe_type type){
  * set_the_conference_parameters
  * 设置会议参数,单主机的情况，主机只需进行ID和席位的编码，其他设置为NULL即可，现在保留后续参数
  *
-
  * in:
  * @socket_fd
  * @client_id
@@ -359,12 +348,14 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	Pconference_info confer_info;
 
 	int ret = 0;
-	unsigned char name[128] = "湖山电器有限责任公司-电声分公司";
-	unsigned char sub[128] = "WIFI无线会议系统，项目进展情况,shenm";
+	unsigned char name[128] = "michal jhon";
+	unsigned char conf_name[128] = "WIFI conference meeting";
 
 	memset(&data_info,0,sizeof(frame_type));
 
-	printf("%s,%d,fd_value=%d,client_id=%d\n",__func__,__LINE__,fd_value,client_id);
+	printf("%s,%d,fd_value=%d,client_id=%d\n",__func__,
+			__LINE__,fd_value,client_id);
+
 	/*
 	 * 测试 发送
 	 */
@@ -372,8 +363,7 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	data_info.con_data.id = client_id;
 	data_info.con_data.seat = client_seat;
 	memcpy(data_info.con_data.name,name,strlen(name));
-	memcpy(data_info.con_data.subj[0],sub,strlen(sub));
-
+	memcpy(data_info.con_data.conf_name,conf_name,strlen(conf_name));
 
 	/*
 	 * 会议信息链表
@@ -384,7 +374,8 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	confer_info->con_data.id = client_id;
 	confer_info->con_data.seat = client_seat;
 	memcpy(confer_info->con_data.name,name,strlen(name));
-	memcpy(confer_info->con_data.subj[0],sub,strlen(sub));
+	memcpy(confer_info->con_data.conf_name,conf_name,strlen(conf_name));
+
 	/*
 	 * 增加到会议信息链表中
 	 */
@@ -394,12 +385,14 @@ int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
 	/*
 	 * 组包下发
 	 */
-	config_conference_frame_info(&data_info);
+	config_conference_frame_info(&data_info,WRITE_MSG);
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
 
 }
+
+
 /*
  * get_the_conference_parameters
  * 查询单元机会议类参数
@@ -423,8 +416,8 @@ int get_the_conference_parameters(int fd_value)
 	 */
 	data_info.fd = fd_value;
 
-	config_conference_frame_info(&data_info);
-	data_info.msg_type = READ_MSG;
+	config_conference_frame_info(&data_info,READ_MSG);
+//	data_info.msg_type = READ_MSG;
 
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
@@ -432,6 +425,8 @@ int get_the_conference_parameters(int fd_value)
 	return SUCCESS;
 
 }
+
+
 /*
  * set_the_conference_vote_result
  * 下发投票结果，单主机的情况下，此接口基本用不上，投票结果由上位机统计，通过主机下发给单元机
@@ -467,7 +462,7 @@ int set_the_conference_vote_result()
 	/*
 	 * 请求消息发给所有单元
 	 */
-	tmp=node_queue->conference_head->next;
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
 	while(tmp!=NULL)
 	{
 		tmp_type = tmp->data;
@@ -475,7 +470,7 @@ int set_the_conference_vote_result()
 		{
 			data_info.fd = tmp_type->fd;
 
-			config_conference_frame_info(&data_info);
+			config_conference_frame_info(&data_info,WRITE_MSG);
 
 			tcp_ctrl_module_edit_info(&data_info,NULL);
 		}
@@ -487,8 +482,11 @@ int set_the_conference_vote_result()
 
 }
 
+
+
 /********************************************
  *
+ * TODO
  * 事件型数据设置和查询
  *
  *
@@ -497,15 +495,10 @@ int set_the_conference_vote_result()
 /*
  * 配置info信息
  */
-static int config_event_frame_info(Pframe_type type,unsigned char* value){
+static int config_event_frame_info(Pframe_type type,unsigned char value){
 
-	if(value != NULL)
-	{
-		type->msg_type = WRITE_MSG;
-	}else{
-		type->msg_type = READ_MSG;
-	}
 
+	type->msg_type = value;
 	type->data_type = EVENT_DATA;
 	type->dev_type = HOST_CTRL;
 
@@ -547,7 +540,7 @@ int set_the_event_parameter_power(int socket_fd,unsigned char value)
 	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
 	data_info.code_type[0] = WIFI_MEETING_CHAR;
 
-	config_event_frame_info(&data_info,&value);
+	config_event_frame_info(&data_info,WRITE_MSG);
 
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
@@ -580,7 +573,7 @@ int get_the_event_parameter_power(int socket_fd)
 	data_info.name_type[0] = WIFI_MEETING_EVT_PWR;
 	data_info.code_type[0] = WIFI_MEETING_CHAR;
 
-	config_event_frame_info(&data_info,NULL);
+	config_event_frame_info(&data_info,READ_MSG);
 
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
@@ -602,7 +595,7 @@ int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd)
 	memcpy(&data_info.evt_data.ssid,ssid,strlen(ssid));
 	memcpy(&data_info.evt_data.password,pwd,strlen(pwd));
 
-	config_event_frame_info(&data_info,ssid);
+	config_event_frame_info(&data_info,WRITE_MSG);
 
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 

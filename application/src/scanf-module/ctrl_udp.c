@@ -70,7 +70,7 @@ void udp_data_frame(unsigned char* str,int* len)
 	data[i] = sum;
 	*len = ++i;
 
-	printf("0x%.2x \n",i);
+//	printf("0x%.2x \n",i);
 }
 
 
@@ -90,9 +90,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
     int i,len;
     unsigned char msg[100] = {0};
 
-
 	printf("%s,%d\n",__func__,__LINE__);
-
 
 	/*
 	 * 创建socke套接字
@@ -149,11 +147,11 @@ void* wifi_sys_ctrl_udp_server(void* p)
 		}else{
 
 			{
-				for(i=0;i<len;i++)
-				{
-					printf("%02X ",msg[i]);
-				}
-				printf("send ok\n");
+//				for(i=0;i<len;i++)
+//				{
+//					printf("%02X ",msg[i]);
+//				}
+//				printf("send ok\n");
 			}
 
 		}

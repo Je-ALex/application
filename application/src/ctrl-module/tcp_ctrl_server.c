@@ -33,9 +33,8 @@ sys_info sys_in;
 Pmodule_info node_queue;
 
 
-
 /*
- * tc_local_addr_init.c
+ * tcp_ctrl_local_addr_init.c
  * 服务端socket初始化
  *
  * 返回值
@@ -85,82 +84,24 @@ static int tcp_ctrl_local_addr_init(int port)
  * tc_set_noblock.c
  * 设置socket_fd为非阻塞模式
  */
-static void tcp_ctrl_set_noblock(int fd)
+static int tcp_ctrl_set_noblock(int fd)
 {
     int fl=fcntl(fd,F_GETFL);
     if(fl<0)
     {
         perror("fcntl");
-        pthread_exit(0);
+        return SETOPTERRO;
     }
     if(fcntl(fd,F_SETFL,fl|O_NONBLOCK))
     {
         perror("fcntl");
-        pthread_exit(0);
+        return SETOPTERRO;
     }
+    return SUCCESS;
 }
 
 /*
- * tcp_ctrl_module_init
- * 设备控制模块的链表和队列初始化
- *
- */
-static int tcp_ctrl_module_init()
-{
-
-	node_queue = (Pmodule_info)malloc(sizeof(module_info));
-	memset(node_queue,0,sizeof(module_info));
-	/*
-	 * 终端连接信息链表
-	 */
-	node_queue->list_head = list_head_init();
-	if(node_queue->list_head != NULL)
-		printf("list_head init success\n");
-	else
-		return ERROR;
-	/*
-	 * 会议数据链表
-	 */
-	node_queue->conference_head = list_head_init();
-	if(node_queue->conference_head != NULL)
-		printf("conference_head init success\n");
-	else
-		return ERROR;
-	/*
-	 * 创建本地消息队列
-	 */
-	node_queue->report_queue = queue_init();
-	if(node_queue->report_queue != NULL)
-		printf("report_queue init success\n");
-	else
-		return ERROR;
-	/*
-	 * 创建pc消息队列
-	 */
-	node_queue->report_pc_queue = queue_init();
-	if(node_queue->report_pc_queue != NULL)
-		printf("report_pc_queue init success\n");
-	else
-		return ERROR;
-
-	/*
-	 * 创建tcp发送消息队列
-	 */
-	node_queue->tcp_send_queue = queue_init();
-	if(node_queue->tcp_send_queue != NULL)
-		printf("tcp_send_queue init success\n");
-	else
-		return ERROR;
-	/*
-	 * 相关参数初始化
-	 */
-	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
-	memset(node_queue->con_status,0,sizeof(conference_status));
-
-	return SUCCESS;
-}
-
-/*
+ * tcp_ctrl_process_recv_msg
  * 接收消息的初步处理
  * 分类：
  * 上位机通讯部分
@@ -172,7 +113,7 @@ static int tcp_ctrl_module_init()
  *
  *
  */
-static int tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* length)
+static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* value, int* length)
 {
 
 	/*
@@ -181,19 +122,19 @@ static int tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* leng
 	 * 数据长度的检测
 	 * 校验和的检测
 	 */
-	Pframe_type type;
-	pclient_node tmp = NULL;
-	Pclient_info tmp_type;
+	Pframe_type tmp_type;
+	pclient_node tmp_node = NULL;
+	Pclient_info tmp_info;
 
 	int i;
 	int ret = 0;
 	int status = 0;
 	unsigned char* handlbuf = NULL;
 
-	type = (Pframe_type)malloc(sizeof(frame_type));
-	memset(type,0,sizeof(frame_type));
+	tmp_type = (Pframe_type)malloc(sizeof(frame_type));
+	memset(tmp_type,0,sizeof(frame_type));
 
-	ret = tcp_ctrl_frame_analysis(cli_fd,value,length,type,&handlbuf);
+	ret = tcp_ctrl_frame_analysis(cli_fd,value,length,tmp_type,&handlbuf);
 
 #if TCP_DBG
 
@@ -211,19 +152,19 @@ static int tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* leng
 	/*
 	 * 在连接信息链表中检查端口合法性
 	 */
-	tmp=node_queue->list_head->next;
-	if(type->msg_type != ONLINE_REQ)
+	tmp_node = node_queue->sys_list[CONNECT_LIST]->next;
+	if(tmp_type->msg_type != ONLINE_REQ)
 	{
-		while(tmp!=NULL)
+		while(tmp_node!=NULL)
 		{
-			tmp_type = tmp->data;
+			tmp_info = tmp_node->data;
 
-			if(tmp_type->client_fd == *cli_fd)
+			if(tmp_info->client_fd == *cli_fd)
 			{
 				status++;
 				break;
 			}
-			tmp=tmp->next;
+			tmp_node=tmp_node->next;
 		}
 
 		if(status < 1)
@@ -236,19 +177,19 @@ static int tcp_ctrl_process_rev_msg(int* cli_fd, unsigned char* value, int* leng
 	/*
 	 * 设备类型分类
 	 */
-	switch(type->dev_type)
+	switch(tmp_type->dev_type)
 	{
 		case PC_CTRL:
-			tcp_ctrl_from_pc(handlbuf,type);
+			tcp_ctrl_from_pc(handlbuf,tmp_type);
 			break;
 
 		case UNIT_CTRL:
-			tcp_ctrl_from_unit(handlbuf,type);
+			tcp_ctrl_from_unit(handlbuf,tmp_type);
 			break;
 
 	}
 
-	free(type);
+	free(tmp_type);
 	free(handlbuf);
 
 	return SUCCESS;
@@ -284,15 +225,22 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 	unsigned char buf[1024] = {0};
 
 	printf("%s,%d\n",__func__,__LINE__);
+
     /*
-     *socket init
+     * 控制模块接收服务器套接字初始化
      */
     sockfd = tcp_ctrl_local_addr_init(CTRL_PORT);
     if(sockfd < 0)
+    {
+    	printf("tcp_ctrl_local_addr_init failed\n");
     	pthread_exit(0);
-
-    tcp_ctrl_set_noblock(sockfd);
-
+    }
+    ret = tcp_ctrl_set_noblock(sockfd);
+    if(ret < 0)
+    {
+    	printf("tcp_ctrl_set_noblock failed\n");
+    	pthread_exit(0);
+    }
 
     /*
      * epoll event init
@@ -319,14 +267,10 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 
 	wait_event = calloc(1000,sizeof(struct epoll_event));
 
-	/*
-	 * 队列等初始化
-	 */
-	tcp_ctrl_module_init();
 
 	while(1)
 	{
-		printf("epoll_wait...\n");
+//		printf("epoll_wait...\n");
 		// 监视并等待多个文件（标准输入，udp套接字）描述符的属性变化（是否可读）
         // 没有属性变化，这个函数会阻塞，直到有变化才往下执行，这里没有设置超时
 		wait_ret = epoll_wait(epoll_fd, wait_event, maxi+1, -1);
@@ -339,7 +283,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 		{
 
 			if (wait_event[n].data.fd == sockfd
-					&& ( EPOLLIN == wait_event[n].events & (EPOLLIN|EPOLLERR)))
+					&& (EPOLLIN == wait_event[n].events & (EPOLLIN|EPOLLERR)))
 			{
 				pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 				newfd = accept(sockfd, (struct sockaddr *) &cli_addr,
@@ -351,9 +295,14 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				else
 				{
 
-					tcp_ctrl_set_noblock(newfd);
+					ret = tcp_ctrl_set_noblock(newfd);
+				    if(ret < 0)
+				    {
+				    	printf("tcp_ctrl_set_noblock failed\n");
+				    	pthread_exit(0);
+				    }
 					// 打印客户端的 ip 和端口
-					printf("%d----------------------------------------------\n",newfd);
+					printf("%d---------------------------\n",newfd);
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
@@ -378,7 +327,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				//客户端关闭连接
 				if(len < 0 && errno != EAGAIN)
 				{
-//					printf("wait_event[n].data.fd--%d\n",wait_event[n].data.fd);
+					printf("wait_event[n].data.fd--%d offline\n",wait_event[n].data.fd);
 
 					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
 							wait_event[n].data.fd,&event);
@@ -387,37 +336,48 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
 							 wait_event[n].data.fd, strerror(errno));
 					}
-					maxi--;
-					close(wait_event[n].data.fd);
-
 					/*
 					 * 删除链表中节点信息与文本中的信息
 					 * fd参数
 					 */
 					tcp_ctrl_delete_client(wait_event[n].data.fd);
+					printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
+
+					close(wait_event[n].data.fd);
+					maxi--;
+
+
 
 				}
 				else if(len == 0)//客户端关闭连接
 				{
 					printf("client %d offline\n",wait_event[n].data.fd);
+					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
+							wait_event[n].data.fd,&event);
+					if( ctrl_ret < 0)
+					{
+					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
+							 wait_event[n].data.fd, strerror(errno));
+					}
 
 					tcp_ctrl_delete_client(wait_event[n].data.fd);
+					printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
 
 					close(wait_event[n].data.fd);
-
-					printf("size--%d\n",node_queue->list_head->size);
-
 					maxi--;
 				}
 				else
 				{
-					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
-							&clilen);
-					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
-							ntohs(cli_addr.sin_port));
+//					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
+//							&clilen);
+//					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
+//							ntohs(cli_addr.sin_port));
 					//通过返回值进行处理
-					ret = tcp_ctrl_process_rev_msg(&wait_event[n].data.fd,buf,&len);
 
+//					ret = tcp_ctrl_process_recv_msg(&wait_event[n].data.fd,buf,&len);
+					pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+					tcp_ctrl_tprecv_enqueue(&wait_event[n].data.fd,buf,&len);
+					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
 				}
 			}//end if
 
@@ -447,33 +407,100 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 void* wifi_sys_ctrl_tcp_send(void* p)
 {
 
-	int i;
-	Ptcp_send tmp;
-	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
+	int i,ret;
+	Plinknode node;
+	Pctrl_tcp_rsqueue tmp;
+
+	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
+	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
+
+
 
 	while(1)
 	{
 
-		printf("%s,%d\n",__func__,__LINE__);
-		tcp_ctrl_tpsend_dequeue(&tmp);
-		printf("queue_size--%d ",node_queue->tcp_send_queue->size);
-		printf("send to %d msg：",tmp->socket_fd);
-		for(i=0;i<tmp->len;i++)
-		{
-			printf("%x ",tmp->msg[i]);
-		}
-		printf("\n");
+		sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
+		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+	#if TCP_DBG
+		printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
+	#endif
 
-		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
-		write(tmp->socket_fd,tmp->msg, tmp->len);
-		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+		ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
+
+		if(ret == 0)
+		{
+			tmp = node->data;
+
+			printf("%s-tmp->socket_fd[%d] : \n",
+					__func__,tmp->socket_fd);
+			for(i=0;i<tmp->len;i++)
+			{
+				printf("%x ",tmp->msg[i]);
+			}
+			printf("\n");
+
+			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+			write(tmp->socket_fd,tmp->msg, tmp->len);
+			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+
+			free(tmp->msg);
+			free(tmp);
+			free(node);
+
+		}else{
+			printf("%s dequeue error\n",__func__);
+
+		}
+		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
 
 	}
-	free(tmp);
 }
 
 
+/*
+ * wifi_sys_ctrl_tcp_procs_data
+ * 设备控制模块TCP接收数据处理线程
+ *
+ * 将消息从队列中读取，进行处理后发送
+ *
+ */
+void* wifi_sys_ctrl_tcp_procs_data(void* p)
+{
+	Plinknode node;
+	Pctrl_tcp_rsqueue tmp;
+	int ret;
 
+	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
+	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
+
+	while(1)
+	{
+
+		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
+		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
+		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
+
+		if(ret == 0)
+		{
+			tmp = node->data;
+
+			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
+
+			free(tmp->msg);
+			free(tmp);
+			free(node);
+		}else{
+			printf("%s dequeue error\n",__func__);
+
+		}
+		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+
+	}
+
+}
 
 
 
@@ -481,51 +508,50 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 
 void read_file(){
 
-//	Pclient_info pinfo;
-//	int i;
-//	int ret;
-//	FILE* file;
-//
-//	pinfo = malloc(sizeof(client_info));
-//
-//	file = fopen("connection.info","r");
-//
-//	while(1)
-//	{
-//		ret = fread(pinfo,sizeof(client_info),1,file);
-//		perror("fread");
-//		if(ret ==0)
-//			return;
-//		if(pinfo == NULL)
-//			break;
-//
-//		printf("fd:%d,ip:%s,id:%d\n",pinfo->client_fd,
-//				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->client_name);
-//
-//		usleep(100000);
-//	}
-//	free(pinfo);
-//	fclose(file);
+	Pclient_info pinfo;
+	int i;
+	int ret;
+	FILE* file;
 
-	pclient_node tmp = NULL;
-	Pclient_info info;
+	pinfo = malloc(sizeof(client_info));
 
+	file = fopen("connection.info","r");
 
-	tmp = node_queue->list_head->next;
-	printf("%s\n",__func__);
-	while(tmp != NULL)
+	while(1)
 	{
-		info = tmp->data;
+		ret = fread(pinfo,sizeof(client_info),1,file);
+		perror("fread");
+		if(ret ==0)
+			return;
+		if(pinfo == NULL)
+			break;
 
-		if(info->client_fd > 0)
-		{
-			printf("fd--%d\n",info->client_fd);
-		}
-		tmp = tmp->next;
+		printf("fd:%d,ip:%s-ip-%s,client:%d\n",pinfo->client_fd,
+				inet_ntoa(pinfo->cli_addr.sin_addr),pinfo->ip,
+				pinfo->client_name);
+
+		usleep(100000);
 	}
+	free(pinfo);
+	fclose(file);
+
+//	pclient_node tmp = NULL;
+//	Pclient_info info;
+//
+//
+//	tmp = node_queue->sys_list[CONNECT_LIST]->next;
+//	printf("%s\n",__func__);
+//	while(tmp != NULL)
+//	{
+//		info = tmp->data;
+//
+//		if(info->client_fd > 0)
+//		{
+//			printf("fd--%d\n",info->client_fd);
+//		}
+//		tmp = tmp->next;
+//	}
 }
-
-
 
 int print_conference_list()
 {
@@ -533,7 +559,7 @@ int print_conference_list()
 	Pconference_info info;
 	int ret;
 
-	tmp = node_queue->conference_head->next;
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
 
 	printf("%s\n",__func__);
 
@@ -577,8 +603,7 @@ int print_conference_list()
 	return SUCCESS;
 }
 
-
-static void* control_tcp_send(void* p)
+void* control_tcp_send(void* p)
 {
 
 	int ret;
@@ -591,8 +616,8 @@ static void* control_tcp_send(void* p)
 	int s,fd,id,seat,value;
 
 	Prun_status event_tmp;
-
 	Pconference_info confer_info;
+
 	host_info list;
 	memset(&list,0,sizeof(host_info));
 
@@ -615,6 +640,16 @@ static void* control_tcp_send(void* p)
 		printf("5 set_the_conference_vote_result\n");
 		printf("6 set_the_event_parameter_power\n");
 		printf("7 get_the_event_parameter_power\n");
+		printf("10 get_the_host_factory_infomation\n");
+		printf("11 get_the_host_network_info\n");
+
+
+
+
+
+
+
+
 
 		scanf("%d",&s);
 
@@ -623,7 +658,7 @@ static void* control_tcp_send(void* p)
 			case 1:
 
 				ret=get_client_connected_info(file_name);
-				printf("file name %s,scanf_client size--%d\n",file_name,ret);
+				printf("file name \"%s\",scanf_client size--%d\n",file_name,ret);
 				break;
 			case 2:
 				read_file();
@@ -664,7 +699,7 @@ static void* control_tcp_send(void* p)
 				event_tmp->id = i;
 				event_tmp->seat = 1;
 				event_tmp->value = WIFI_MEETING_EVT_SPK_REQ_SPK;
-				enter_queue(node_queue->report_queue,event_tmp);
+				enter_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],event_tmp);
 				sem_post(&sys_in.local_report_sem);
 				i++;
 				break;
@@ -688,30 +723,31 @@ static void* control_tcp_send(void* p)
 
 			case 10:
 				get_the_host_factory_infomation(&list);
-				get_the_host_network_info(&list);
+			    printf("\tversion: %s\n",list.version );
+			    printf("\thost_model: %s\n",list.host_model );
+			    printf("\tfactory_information: %s\n",
+			    		list.factory_information );
 				break;
 			case 11:
-
+				get_the_host_network_info(&list);
+			    printf("\tmac: %s\n",list.mac );
+			    printf("\tIP: %s\n", list.local_ip);
+			    printf("\tNetmask: %s\n",list.netmask );
 				break;
 
 			default:
 				break;
 		}
 
-	    printf("\tversion: %s\n",list.version );
-	    printf("\thost_model: %s\n",list.host_model );
-	    printf("\tfactory_information: %s\n",list.factory_information );
 
-	    printf("\tmac: %s\n",list.mac );
-	    printf("\tIP: %s\n", list.local_ip);
-	    printf("\tNetmask: %s\n",list.netmask );
+
 
 	}
 
 
 }
 
-static void* control_tcp_queue(void* p)
+void* control_tcp_queue(void* p)
 {
 
 
@@ -722,11 +758,10 @@ static void* control_tcp_queue(void* p)
 	while(1)
 	{
 
-
 		get_unit_running_status(&event_tmp);
-		printf("fd--%d,id--%d,seat--%d,value--%d,queue_size--%d\n",
-				event_tmp->socket_fd,event_tmp->id,event_tmp->seat,
-				event_tmp->value,node_queue->report_queue->size);
+		printf("%s-%s-fd:%d,id:%d,seat:%d,value:%d\n",
+				__FILE__,__func__,event_tmp->socket_fd,
+				event_tmp->id,event_tmp->seat,event_tmp->value);
 
 
 	}

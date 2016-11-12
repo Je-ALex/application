@@ -25,7 +25,6 @@
 #define TCP_DBG 0
 
 #define CTRL_PORT 8080
-
 #define UDP_PORT 50001
 
 
@@ -33,6 +32,7 @@
 #define DATA_TYPE 		0x0C //数据类型
 #define MACHINE_TYPE 	0x03 //设备类型
 
+#define PC_ID 0xFFFF
 /*
  * 系统调度所用到的互斥锁和信号量
  */
@@ -54,27 +54,62 @@ typedef struct{
 	//tcp数据发送队列信号量
 	sem_t tpsend_queue_sem;
 
-	pthread_mutex_t sys_mutex[10];
 
+
+	pthread_mutex_t sys_mutex[10];
 	sem_t sys_sem[10];
+
 }sys_info;
 
-
+/*
+ * system list/mutex/queue
+ */
 typedef enum{
 
+	//设备连接链表
+	CONNECT_LIST = 0,
+	//会议信息链表
+	CONFERENCE_LIST,
+
+	//本地状态上报qt消息队列
+	LOCAL_REP_QUEUE = 0,
+	//状态上报上位机消息队列
+	CTRL_REP_PC_QUEUE,
+	//tcp接收数据消息队列
+	CTRL_TCP_RECV_QUEUE,
+	//tcp发送数据消息队列
+	CTRL_TCP_SEND_QUEUE,
+
+
+	//设备控制模块中TCP数据收发互斥锁
 	CTRL_TCP_MUTEX = 0,
+	//本地状态上报QT消息队列互斥锁
 	LOCAL_REP_MUTEX,
-	CTRL_QUEUE_MUTEX,
-
+	//上报上位机状态互斥锁
 	PC_REP_MUTEX,
+	//TCP接收消息进出队列互斥锁
+	CTRL_TCP_RQUEUE_MUTEX,
+	//TCP发送消息进出队列互斥锁
+	CTRL_TCP_SQUEUE_MUTEX,
 
 
+	//本地状态上报信号量
+	LOCAL_REP_SEM = 0,
+	//上报上位机数据队列信号量
+	PC_REP_SEM,
+	//TCP发送消息信号量
+	CTRL_TCP_SEND_SEM,
+	//TCP接收消息信号量
+	CTRL_TCP_RECV_SEM,
 
 }sys_signal;
 
+/*
+ * 系统错误码
+ */
 typedef enum{
 
-	SOCKERRO = -10,
+	SOCKERRO = -20,
 	BINDERRO,
 	LISNERRO,
 	SETOPTERRO,
@@ -83,6 +118,9 @@ typedef enum{
 	BUF_HEAD_ERR,
 	BUF_LEN_ERR,
 	BUF_CHECKS_ERR,
+
+	INIT_LIST_ERR,
+	INIT_QUEUE_ERR,
 
 	ERROR,
 	SUCCESS = 0,
@@ -234,6 +272,7 @@ typedef enum {
 typedef enum {
 	WIFI_MEETING_EVT_PWR_ON = 1,
 	WIFI_MEETING_EVT_PWR_OFF,
+	WIFI_MEETING_EVT_PWR_OFF_ALL,
 }event_power;
 
 typedef enum {
@@ -277,9 +316,19 @@ typedef enum {
 
 }event_checkin;
 
+typedef enum {
 
+	WIFI_MEETING_EVT_ELECTION_START = 1,
+	WIFI_MEETING_EVT_ELECTION_END,
 
+}event_election;
 
+typedef enum {
+
+	WIFI_MEETING_EVT_SCORE_START = 1,
+	WIFI_MEETING_EVT_SCORE_END,
+
+}event_score;
 
 
 
@@ -297,8 +346,9 @@ typedef enum {
 	WIFI_MEETING_CON_SE_ATTEND,
 
 }conference_seat;
+
 /*
- * event data
+ * 事件数据
  */
 typedef struct {
 
@@ -308,25 +358,41 @@ typedef struct {
 
 }event_data;
 
+//投票类型
 typedef struct{
 
 	unsigned short assent;
 	unsigned short nay;
 	unsigned short waiver;
 	unsigned short timeout;
+
 }vote_result;
 
+//选举类型
+typedef struct{
+
+	unsigned short ele_id[256];
+
+}election_result;
+
+//计分类型
+typedef struct{
+
+	unsigned short score[256];
+
+}score_result;
+
 /*
- * conference data
+ * 会议类参数
  */
 typedef struct {
 
 	/*
 	 * 主机ID为0x0000，上位机ID为0xFFFF
 	 */
-	int id;
+	unsigned short id;
 	unsigned char seat;
-	unsigned char name[128];
+	unsigned char name[64];
 	unsigned char conf_name[128];
 	unsigned char subj[10][128];
 	vote_result v_result;
@@ -346,8 +412,8 @@ typedef struct {
 	int fd;
 	int data_len;
 	int frame_len;
-	int s_id;
-	int d_id;
+	unsigned short s_id;
+	unsigned short d_id;
 
 	event_data evt_data;
 	conference_data con_data;
@@ -377,7 +443,10 @@ typedef struct {
 	unsigned char ssid[32];
 	unsigned char password[64];
 	unsigned char subj[10][128];
+
 	vote_result v_result;
+	election_result ele_result;
+	score_result scr_result;
 
 	int mic_mode;
 	int spk_number;
@@ -396,6 +465,14 @@ typedef struct {
  */
 void* wifi_sys_ctrl_tcp_recv(void* p);
 
+/*
+ * wifi_sys_ctrl_tcp_procs_data
+ * 设备控制模块TCP接收数据处理线程
+ *
+ * 将消息从队列中读取，进行处理后发送
+ *
+ */
+void* wifi_sys_ctrl_tcp_procs_data(void* p);
 
 /*
  * wifi_sys_ctrl_tcp_send
@@ -407,8 +484,8 @@ void* wifi_sys_ctrl_tcp_recv(void* p);
 void* wifi_sys_ctrl_tcp_send(void* p);
 
 
-
-
+void* control_tcp_send(void* p);
+void* control_tcp_queue(void* p);
 
 
 

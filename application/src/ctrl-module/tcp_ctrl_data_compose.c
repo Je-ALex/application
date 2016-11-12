@@ -12,25 +12,22 @@
 #include "tcp_ctrl_list.h"
 
 extern Pmodule_info node_queue;
-
+extern sys_info sys_in;
 
 /*
  * tcp_ctrl_data_shift
  * 移位函数
  * 将高位移至低字节，低位移至高字节
  */
-int tcp_ctrl_data_int_to_char(int value,char* r_value)
+int tcp_ctrl_data_short_to_char(unsigned short value,unsigned char* r_value)
 {
 
-	r_value[0] =(unsigned char) (( value >> 24 ) & 0xff);
+	r_value[0] =(unsigned char) (( value >> 8 ) & 0xff);
 
-	r_value[1] =(unsigned char) (( value >> 16 ) & 0xff);
+	r_value[1] =(unsigned char) ( value & 0xff);
 
-	r_value[2] =(unsigned char) (( value >> 8 ) & 0xff);
 
-	r_value[3] =(unsigned char) (( value >> 0 ) & 0xff);
-
-	return 0;
+	return SUCCESS;
 }
 /*
  * 主机发送数据组包函数
@@ -59,9 +56,8 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	msg=data=machine=info=0;
 
 	if(result_buf == NULL)
-		return -1;
+		return ERROR;
 
-	printf("%s,%d\n",__func__,__LINE__);
 	/*
 	 * HEAD
 	 */
@@ -81,10 +77,8 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	msg = type->msg_type;
 	msg = (msg << 4) & MSG_TYPE;
 
-
 	data = type->data_type;
 	data = (data << 2) & DATA_TYPE;
-
 
 	machine = type->dev_type;
 	machine = machine & MACHINE_TYPE;
@@ -115,13 +109,19 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	 * 分为源地址和目标地址，用ID号
 	 */
 
-	unsigned char id_msg[4] = {0};
-	tcp_ctrl_data_int_to_char(type->s_id,id_msg);
-	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
-	tc_index = tc_index+sizeof(int);
+	unsigned char id_msg[sizeof(short)] = {0};
 
-	tcp_ctrl_data_int_to_char(type->d_id,id_msg);
-	memcpy(&result_buf[tc_index],id_msg,sizeof(int));
+	tcp_ctrl_data_short_to_char(type->s_id,id_msg);
+	memcpy(&result_buf[tc_index],id_msg,sizeof(short));
+	tc_index = tc_index+sizeof(short);
+
+	tcp_ctrl_data_short_to_char(type->d_id,id_msg);
+	memcpy(&result_buf[tc_index],id_msg,sizeof(short));
+	tc_index = tc_index+sizeof(short);
+
+	/*
+	 * 保留四个字节
+	 */
 	tc_index = tc_index+sizeof(int);
 
 	/*
@@ -146,14 +146,14 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 	type->frame_len = tc_index+1;
 
 
-	printf("tcp_ctrl_frame_compose result data: ");
-	for(i=0;i<tc_index+1;i++)
-	{
-		printf("%x ",result_buf[i]);
-	}
-	printf("\n");
+//	printf("tcp_ctrl_frame_compose result data: ");
+//	for(i=0;i<tc_index+1;i++)
+//	{
+//		printf("%x ",result_buf[i]);
+//	}
+//	printf("\n");
 
-	return 0;
+	return SUCCESS;
 }
 
 
@@ -170,7 +170,9 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 {
 	int i;
-	int num = 0;
+	int tmp_index = 0;
+	unsigned char data[sizeof(short)] = {0};
+
 	printf("%s,%d\n",__func__,__LINE__);
 
 	switch (type->msg_type)
@@ -184,32 +186,31 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 			 */
 			if(type->name_type[0] == WIFI_MEETING_CON_VOTE){
 
-				unsigned char data[4] = {0};
-				buf[num++] = type->name_type[0];
-				buf[num++] = type->code_type[0];
+				buf[tmp_index++] = type->name_type[0];
+				buf[tmp_index++] = type->code_type[0];
+
 				//赞成
-				buf[num++] = WIFI_MEETING_CON_V_ASSENT;
-				tcp_ctrl_data_int_to_char(type->con_data.v_result.assent,data);
-				memcpy(&buf[num],data,sizeof(int));
-				num = num + sizeof(int);
+				buf[tmp_index++] = WIFI_MEETING_CON_V_ASSENT;
+				tcp_ctrl_data_short_to_char(type->con_data.v_result.assent,data);
+				memcpy(&buf[tmp_index],data,sizeof(short));
+				tmp_index = tmp_index + sizeof(short);
 				//反对
-				buf[num++] = WIFI_MEETING_CON_V_NAY;
-				tcp_ctrl_data_int_to_char(type->con_data.v_result.nay,data);
-				memcpy(&buf[num],data,sizeof(int));
-				num = num + sizeof(int);
-
+				buf[tmp_index++] = WIFI_MEETING_CON_V_NAY;
+				tcp_ctrl_data_short_to_char(type->con_data.v_result.nay,data);
+				memcpy(&buf[tmp_index],data,sizeof(short));
+				tmp_index = tmp_index + sizeof(short);
 				//弃权
-				buf[num++] = WIFI_MEETING_CON_V_WAIVER;
-				tcp_ctrl_data_int_to_char(type->con_data.v_result.waiver,data);
-				memcpy(&buf[num],data,sizeof(int));
-				num = num + sizeof(int);
+				buf[tmp_index++] = WIFI_MEETING_CON_V_WAIVER;
+				tcp_ctrl_data_short_to_char(type->con_data.v_result.waiver,data);
+				memcpy(&buf[tmp_index],data,sizeof(short));
+				tmp_index = tmp_index + sizeof(short);
 				//超时
-				buf[num++] = WIFI_MEETING_CON_V_TOUT;
-				tcp_ctrl_data_int_to_char(type->con_data.v_result.timeout,data);
-				memcpy(&buf[num],data,sizeof(int));
-				num = num + sizeof(int);
+				buf[tmp_index++] = WIFI_MEETING_CON_V_TOUT;
+				tcp_ctrl_data_short_to_char(type->con_data.v_result.timeout,data);
+				memcpy(&buf[tmp_index],data,sizeof(short));
+				tmp_index = tmp_index + sizeof(short);
 
-				type->data_len = num;
+				type->data_len = tmp_index;
 
 			}else{
 
@@ -223,13 +224,13 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				 */
 				if(type->con_data.id > 0)
 				{
-					unsigned char data[4] = {0};
-					buf[num++]=WIFI_MEETING_CON_ID;
-					buf[num++]=WIFI_MEETING_INT;
-					tcp_ctrl_data_int_to_char(type->con_data.id,data);
-					memcpy(&buf[num],data,sizeof(int));
-					num = num + sizeof(int);
-//					for(i=0;i<num;i++)
+					unsigned char data[sizeof(short)] = {0};
+					buf[tmp_index++]=WIFI_MEETING_CON_ID;
+					buf[tmp_index++]=WIFI_MEETING_USHORT;
+					tcp_ctrl_data_short_to_char(type->con_data.id,data);
+					memcpy(&buf[tmp_index],data,sizeof(short));
+					tmp_index = tmp_index + sizeof(short);
+//					for(i=0;i<tmp_index;i++)
 //					{
 //						printf("%x ",buf[i]);
 //
@@ -242,9 +243,9 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				 */
 				if(type->con_data.seat > 0)
 				{
-					buf[num++]=WIFI_MEETING_CON_SEAT;
-					buf[num++]=WIFI_MEETING_CHAR;
-					buf[num++] = type->con_data.seat;
+					buf[tmp_index++]=WIFI_MEETING_CON_SEAT;
+					buf[tmp_index++]=WIFI_MEETING_CHAR;
+					buf[tmp_index++] = type->con_data.seat;
 				}
 				/*
 				 * 姓名信息
@@ -254,11 +255,25 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				 */
 				if(strlen(type->con_data.name) > 0)
 				{
-					buf[num++] = WIFI_MEETING_CON_NAME;
-					buf[num++] = WIFI_MEETING_STRING;
-					buf[num++] = strlen(type->con_data.name);
-					memcpy(&buf[num],type->con_data.name,strlen(type->con_data.name));
-					num = num+strlen(type->con_data.name);
+					buf[tmp_index++] = WIFI_MEETING_CON_NAME;
+					buf[tmp_index++] = WIFI_MEETING_STRING;
+					buf[tmp_index++] = strlen(type->con_data.name);
+					memcpy(&buf[tmp_index],type->con_data.name,strlen(type->con_data.name));
+					tmp_index = tmp_index+strlen(type->con_data.name);
+				}
+				/*
+				 * 会议名称
+				 * name-0x04
+				 * code-0x0a
+				 * 名称编码+数据格式编码+内容长度+内容
+				 */
+				if(strlen(type->con_data.conf_name) > 0)
+				{
+					buf[tmp_index++] = WIFI_MEETING_CON_CNAME;
+					buf[tmp_index++] = WIFI_MEETING_STRING;
+					buf[tmp_index++] = strlen(type->con_data.conf_name);
+					memcpy(&buf[tmp_index],type->con_data.conf_name,strlen(type->con_data.conf_name));
+					tmp_index = tmp_index+strlen(type->con_data.conf_name);
 				}
 				/*
 				 * 议题信息
@@ -268,14 +283,14 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				 */
 				if(strlen(type->con_data.subj[0]) > 0)
 				{
-					buf[num++] = WIFI_MEETING_CON_SUBJ;
-					buf[num++] = WIFI_MEETING_STRING;
-					buf[num++] = strlen(type->con_data.subj[0]);
-					memcpy(&buf[num],type->con_data.subj[0],strlen(type->con_data.subj[0]));
-					num = num+strlen(type->con_data.subj[0]);
+					buf[tmp_index++] = WIFI_MEETING_CON_SUBJ;
+					buf[tmp_index++] = WIFI_MEETING_STRING;
+					buf[tmp_index++] = strlen(type->con_data.subj[0]);
+					memcpy(&buf[tmp_index],type->con_data.subj[0],strlen(type->con_data.subj[0]));
+					tmp_index = tmp_index+strlen(type->con_data.subj[0]);
 
 				}
-				type->data_len = num;
+				type->data_len = tmp_index;
 
 			}
 			break;
@@ -288,7 +303,7 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 		case READ_MSG:
 		{
 
-			type->data_len = num;
+			type->data_len = tmp_index;
 		}
 			break;
 		default:
@@ -361,6 +376,7 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 
 }
 /*
+ * tcp_ctrl_module_edit_info
  * 下发数据编码
  *
  * 事件型信息(0x01)的设置
@@ -403,12 +419,11 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 	int i;
 	int ret = 0;
 
-	printf("%s,%d\n",__func__,__LINE__);
-	tmp = node_queue->list_head->next;
 	/*
 	 * 在连接信息链表中
 	 * 判断是否有此客户端
 	 */
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp != NULL)
 	{
 		pinfo = tmp->data;
@@ -492,8 +507,10 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 			 */
 			tcp_ctrl_frame_compose(type,msg,s_buf);
 		}
-
+		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
 		tcp_ctrl_tpsend_enqueue(type,s_buf);
+		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+
 #if 0
 	}
 #endif

@@ -25,6 +25,7 @@ typedef enum{
 	//电源开、关
 	WIFI_MEETING_EVENT_POWER_ON,
 	WIFI_MEETING_EVENT_POWER_OFF,
+	WIFI_MEETING_EVENT_POWER_OFF_ALL,
 	//FIFO、标准、自由
 	WIFI_MEETING_EVENT_MIC_FIFO,
 	WIFI_MEETING_EVENT_MIC_STAD,
@@ -80,6 +81,14 @@ typedef enum{
 	WIFI_MEETING_CONF_REQ_VOTE_NAY,
 	WIFI_MEETING_CONF_REQ_VOTE_WAIVER,
 	WIFI_MEETING_CONF_REQ_VOTE_TIMEOUT,
+
+	//选举管理，开始选举，结束选举
+	WIFI_MEETING_CONF_REQ_ELECTION_START,
+	WIFI_MEETING_CONF_REQ_ELECTION_END,
+
+	//投票管理，开始投票，结束投票
+	WIFI_MEETING_CONF_REQ_SCORE_START,
+	WIFI_MEETING_CONF_REQ_SCORE_END,
 
 }ALL_STATUS;
 
@@ -201,7 +210,7 @@ int reset_the_host_factory_mode();
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_network_info(Phost_info list);
+int get_the_host_network_info(Phost_info ninfo);
 
 /*
  * get_the_host_factory_infomation
@@ -215,7 +224,7 @@ int get_the_host_network_info(Phost_info list);
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_factory_infomation(Phost_info info);
+int get_the_host_factory_infomation(Phost_info pinfo);
 
 /*
  * get_client_connected_info

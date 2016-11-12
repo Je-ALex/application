@@ -15,36 +15,20 @@
 typedef struct{
 
 	/*
-	 * 1、连接信息链表，这个链表主要是生成相关的文件后，QT层可以读取该文件，进行相关操作
-	 * 2、终端会议状态链表，这个链表主要是主机自己用，不对外(QT)共享
-	 */
-	pclient_node list_head;
-	pclient_node conference_head;
-	/*
-	 * 实时状态上报队列
-	 */
-	Plinkqueue report_queue;
-	/*
-	 * 实时状态上报pc队列
-	 */
-	Plinkqueue report_pc_queue;
-	/*
-	 * tcp发送队列
-	 */
-	Plinkqueue tcp_send_queue;
-	/*
 	 * 会议实时状态
 	 */
 	Pconference_status con_status;
 
+	pclient_node* sys_list;
+	Plinkqueue* sys_queue;
 
 }module_info,*Pmodule_info;
 
 /*
- * tcp发送队列消息
- * socketfd
- * len
- * conrent
+ * tcp控制模块收发数据信息
+ * @socketfd 套接字号
+ * @len 数据包长度
+ * @msg 详细数据内容
  */
 typedef struct{
 
@@ -52,7 +36,7 @@ typedef struct{
 	int len;
 	unsigned char* msg;
 
-}tcp_send,*Ptcp_send;
+}ctrl_tcp_rsqueue,*Pctrl_tcp_rsqueue;
 
 
 
@@ -63,7 +47,7 @@ int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value);
 int tcp_ctrl_report_dequeue(Prun_status* event_tmp);
 
 int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg);
-int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp);
+int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp);
 
 int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value);
 

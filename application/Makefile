@@ -184,14 +184,15 @@ CSOFLAGS= -shared -lc -fPIC -I./inc
 
 
 TEST_SOURCE = wifi_sys_init.c \
+			src/ctrl-module/tcp_ctrl_server.c \
 			src/scanf-module/ctrl_udp.c \
 			src/ctrl-module/tcp_ctrl_api.c \
 			src/ctrl-module/tcp_ctrl_data_process.c \
 			src/ctrl-module/tcp_ctrl_data_compose.c \
 			src/ctrl-module/tcp_ctrl_device_status.c \
-			src/ctrl-module/tcp_ctrl_list.c \
-			src/ctrl-module/tcp_ctrl_queue.c \
-			src/ctrl-module/tcp_ctrl_server.c \
+			src/utils/sys_list.c \
+			src/utils/sys_queue.c 
+
 #			src/audio-module/audio_server.c \
 #			src/audio-module/audio_params_init.c 
 

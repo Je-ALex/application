@@ -31,7 +31,7 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 	int status = 0;
 
 
-	tmp = node_queue->list_head->next;
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp!=NULL)
 	{
 		cinfo = tmp->data;
@@ -54,7 +54,7 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 	/*
 	 * 删除会议信息链表中的数据
 	 */
-	tmp = node_queue->conference_head->next;
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;;
 	while(tmp != NULL)
 	{
 		info = tmp->data;
@@ -68,10 +68,10 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 		tmp = tmp->next;
 	}
 
-	printf("pos--%d\n",pos);
+//	printf("pos--%d\n",pos);
 	if(status > 0)
 	{
-		list_delete(node_queue->conference_head,pos,&del);
+		list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
 		info = del->data;
 		status = 0;
 		free(info);
@@ -81,11 +81,72 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 		printf("there is no data in the conference list,add it\n");
 	}
 
-	list_add(node_queue->conference_head,data_info);
+	list_add(node_queue->sys_list[CONFERENCE_LIST],data_info);
 
 	return SUCCESS;
 }
 
+
+/*
+ * tcp_ctrl_tprecv_enqueue
+ * tcp控制模块的数据发送队列
+ * 将消息数据送入发送队列等待发送
+ *
+ * in:
+ * @Pframe_type 数据信息结构体
+ * @msg 组包后的数据信息
+ *
+ * out:
+ * @NULL
+ *
+ * return：
+ * @ERROR
+ * @SUCCESS
+ */
+int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len)
+{
+
+	Pctrl_tcp_rsqueue tmp;
+	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
+
+	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
+	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
+
+	tmp->msg = malloc(*len);
+	memset(tmp->msg,0,*len);
+	/*
+	 * 单元机固有属性
+	 */
+	tmp->socket_fd = *fd;
+	tmp->len = *len;
+	memcpy(tmp->msg,msg,tmp->len);
+
+	enter_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],tmp);
+
+	sem_post(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
+
+	return SUCCESS;
+
+}
+
+
+/*
+ * tcp_ctrl_tpsend_dequeue
+ * tcp控制模块的数据出队列
+ * 将消息数据送入发送队列等待发送
+ *
+ * in/out:
+ * @Ptcp_send 数据信息结构体
+ *
+ * return：
+ * @ERROR
+ * @SUCCESS
+ */
+int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue event_tmp)
+{
+
+	return SUCCESS;
+}
 /*
  * tcp_ctrl_tcp_send_enqueue
  * tcp控制模块的数据发送队列
@@ -105,43 +166,30 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 {
 
-	pclient_node node_tmp = NULL;
 	Pclient_info pinfo;
-	int status = 0;
-	Ptcp_send tmp;
+	Pctrl_tcp_rsqueue tmp;
 
-	tmp = (Ptcp_send)malloc(sizeof(tcp_send));
-	memset(tmp,0,sizeof(tcp_send));
-	printf("%s,%d\n",__func__,__LINE__);
+	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
+	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
+
+	tmp->msg = malloc(frame_type->frame_len);
+	memset(tmp->msg,0,frame_type->frame_len);
+
+	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
 #if TCP_DBG
 	printf("tcp_ctrl_tpsend_enqueue the queue..\n");
 #endif
 
-	node_tmp = node_queue->list_head->next;
-	while(node_tmp != NULL)
-	{
-		pinfo = node_tmp->data;
-		if(pinfo->client_fd == frame_type->fd)
-		{
-			status++;
-			break;
-		}
-		node_tmp = node_tmp->next;
-	}
-	if(!status)
-		return ERROR;
-	pthread_mutex_lock(&sys_in.sys_mutex[CTRL_QUEUE_MUTEX]);
 	/*
 	 * 单元机固有属性
 	 */
 	tmp->socket_fd = frame_type->fd;
 	tmp->len = frame_type->frame_len;
-	tmp->msg = msg;
+	memcpy(tmp->msg,msg,frame_type->frame_len);
 
-	enter_queue(node_queue->tcp_send_queue,tmp);
-	pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_QUEUE_MUTEX]);
+	enter_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],tmp);
 
-	sem_post(&sys_in.tpsend_queue_sem);
+	sem_post(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
 
 	return SUCCESS;
 }
@@ -159,28 +207,31 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
  * @ERROR
  * @SUCCESS
  */
-int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp)
+int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 {
 
 	int ret;
-	int value;
 	Plinknode node;
-	Ptcp_send tmp;
+	Pctrl_tcp_rsqueue tmp;
 
-	sem_wait(&sys_in.tpsend_queue_sem);
+	sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
 
 #if TCP_DBG
 	printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
 #endif
-	pthread_mutex_lock(&sys_in.sys_mutex[CTRL_QUEUE_MUTEX]);
-	ret = out_queue(node_queue->tcp_send_queue,&node);
-	pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_QUEUE_MUTEX]);
+
+	ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
+
 
 	if(ret == 0)
 	{
 		tmp = node->data;
-		memcpy(*event_tmp,tmp,sizeof(tcp_send));
+//		memcpy(*event_tmp,tmp,sizeof(tcp_send_queue));
+		event_tmp->socket_fd = tmp->socket_fd;
+		event_tmp->len = tmp->len;
+		memcpy(event_tmp->msg,tmp->msg,tmp->len);
 
+		free(tmp->msg);
 		free(tmp);
 		free(node);
 	}else{
@@ -206,29 +257,32 @@ int tcp_ctrl_tpsend_dequeue(Ptcp_send* event_tmp)
  * @ERROR
  * @SUCCESS
  */
-int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value)
+int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 {
 
 	Prun_status event_tmp;
-
 	event_tmp = (Prun_status)malloc(sizeof(run_status));
 	memset(event_tmp,0,sizeof(run_status));
+
+	printf("%s-%s-%d,value:%d\n",__FILE__,__func__,
+			__LINE__,value);
 
 	/*
 	 * 单元机固有属性
 	 */
-	event_tmp->socket_fd = frame_type->fd;
-	event_tmp->id = frame_type->con_data.id;
-	event_tmp->seat = frame_type->con_data.seat;
+	event_tmp->socket_fd = type->fd;
+	event_tmp->id = type->con_data.id;
+	event_tmp->seat = type->con_data.seat;
 	event_tmp->value = value;
 #if TCP_DBG
 	printf("enter the tcp_ctrl_report_enqueue..\n");
 #endif
+
 	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
-	enter_queue(node_queue->report_queue,event_tmp);
+	enter_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],event_tmp);
 	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
 
-	sem_post(&sys_in.local_report_sem);
+	sem_post(&sys_in.sys_sem[LOCAL_REP_SEM]);
 
 	return SUCCESS;
 }
@@ -241,15 +295,13 @@ int tcp_ctrl_report_dequeue(Prun_status* event_tmp)
 	Plinknode node;
 	Prun_status tmp;
 
-	printf("%s,%d\n",__func__,__LINE__);
-
-	sem_wait(&sys_in.local_report_sem);
+	sem_wait(&sys_in.sys_sem[LOCAL_REP_SEM]);
 
 #if TCP_DBG
 	printf("get the value from tcp_ctrl_report_dequeue\n");
 #endif
 	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
-	ret = out_queue(node_queue->report_queue,&node);
+	ret = out_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],&node);
 	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
 
 	if(ret == 0)
@@ -284,10 +336,10 @@ int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value)
 	tmp_info->client_fd = frame_type->fd;
 
 	pthread_mutex_lock(&sys_in.sys_mutex[PC_REP_MUTEX]);
-	enter_queue(node_queue->report_pc_queue,tmp_info);
+	enter_queue(node_queue->sys_queue[CTRL_REP_PC_QUEUE],tmp_info);
 	pthread_mutex_unlock(&sys_in.sys_mutex[PC_REP_MUTEX]);
 
-	sem_post(&sys_in.pc_queue_sem);
+	sem_post(&sys_in.sys_sem[PC_REP_SEM]);
 
 	return SUCCESS;
 }

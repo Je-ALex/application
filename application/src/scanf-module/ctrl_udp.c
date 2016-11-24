@@ -87,7 +87,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
 	int sock;
 	int ret = 0;
 	int opt = 1;
-    int i,len;
+    int len;
     unsigned char msg[100] = {0};
 
 	printf("%s,%d\n",__func__,__LINE__);

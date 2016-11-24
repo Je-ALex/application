@@ -21,8 +21,12 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 #define TCP_DBG 0
+#define CONNECT_FILE "connection.info"
+
+
 
 #define CTRL_PORT 8080
 #define UDP_PORT 50001
@@ -31,6 +35,9 @@
 #define MSG_TYPE 		0xF0 //消息类型
 #define DATA_TYPE 		0x0C //数据类型
 #define MACHINE_TYPE 	0x03 //设备类型
+
+#define ELE_NUM 		32
+#define SUBJECT_OFFSET 	20
 
 #define PC_ID 0xFFFF
 /*
@@ -145,7 +152,7 @@ typedef enum{
 	TCP_C_ERR_HEAD,
 	TCP_C_ERR_LENGTH,
 	TCP_C_ERR_CHECKSUM,
-
+	TCP_C_ERR_UNKNOW,
 }tcp_ctrl_err;
 
 /*
@@ -216,7 +223,6 @@ typedef enum {
 
 /*
  * 投票结果
- *
  */
 typedef enum {
 
@@ -226,6 +232,7 @@ typedef enum {
 	WIFI_MEETING_CON_V_TOUT ,
 
 }vote_name;
+
 /*
  * 会议类名称编码
  *
@@ -238,9 +245,21 @@ typedef enum {
 	WIFI_MEETING_CON_CNAME ,
 	WIFI_MEETING_CON_SUBJ ,
 	WIFI_MEETING_CON_VOTE ,
+	WIFI_MEETING_CON_ELEC ,
+	WIFI_MEETING_CON_SCORE ,
 
 }conference_name_type;
 
+/*
+ * 议题属性编码
+ */
+typedef enum {
+
+	WIFI_MEETING_CON_SUBJ_ELE  = 1,
+	WIFI_MEETING_CON_SUBJ_VOTE,
+	WIFI_MEETING_CON_SUBJ_SCORE,
+
+}subject_attribute;
 
 /*
  * 事件类名称编码
@@ -263,9 +282,12 @@ typedef enum {
 
 	WIFI_MEETING_EVT_PC_GET_INFO,
 	WIFI_MEETING_EVT_RP_TO_PC,
-	WIFI_MEETING_EVT_UNIT_ONOFF,
+	WIFI_MEETING_EVT_UNIT_ONOFF_LINE,
 	WIFI_MEETING_EVT_ELECTION,
 	WIFI_MEETING_EVT_SCORE,
+	WIFI_MEETING_EVT_CON_MAG,
+	WIFI_MEETING_EVT_SPK_NUM,
+	WIFI_MEETING_EVT_AD_PORT,
 
 }event_name_type;
 
@@ -291,14 +313,12 @@ typedef enum {
 }event_speak;
 
 typedef enum {
-	WIFI_MEETING_EVT_VOT_START = 1,
-	WIFI_MEETING_EVT_VOT_END,
-	WIFI_MEETING_EVT_VOT_ASSENT,
-	WIFI_MEETING_EVT_VOT_NAY,
-	WIFI_MEETING_EVT_VOT_WAIVER,
-	WIFI_MEETING_EVT_VOT_TOUT,
-}event_vote;
-
+	WIFI_MEETING_EVT_SEFC_OFF = 0,
+	WIFI_MEETING_EVT_SEFC_ANC = 1,
+	WIFI_MEETING_EVT_SEFC_AFC_ONE = 2,
+	WIFI_MEETING_EVT_SEFC_AFC_TWO = 4,
+	WIFI_MEETING_EVT_SEFC_AFC_THREE = 8,
+}event_snd_effect;
 
 typedef enum {
 
@@ -317,9 +337,19 @@ typedef enum {
 }event_checkin;
 
 typedef enum {
+	WIFI_MEETING_EVT_VOT_START = 1,
+	WIFI_MEETING_EVT_VOT_END,
+	WIFI_MEETING_EVT_VOT_ASSENT,
+	WIFI_MEETING_EVT_VOT_NAY,
+	WIFI_MEETING_EVT_VOT_WAIVER,
+	WIFI_MEETING_EVT_VOT_TOUT,
+}event_vote;
+
+typedef enum {
 
 	WIFI_MEETING_EVT_ELECTION_START = 1,
 	WIFI_MEETING_EVT_ELECTION_END,
+	WIFI_MEETING_EVT_ELECTION_UNDERWAY,
 
 }event_election;
 
@@ -327,8 +357,22 @@ typedef enum {
 
 	WIFI_MEETING_EVT_SCORE_START = 1,
 	WIFI_MEETING_EVT_SCORE_END,
-
+	WIFI_MEETING_EVT_SCORE_UNDERWAY,
 }event_score;
+
+typedef enum {
+
+	WIFI_MEETING_EVT_CON_MAG_START = 1,
+	WIFI_MEETING_EVT_CON_MAG_END,
+}conference_manage;
+
+typedef enum {
+
+	WIFI_MEETING_EVT_RP_TO_PC_FD = 1,
+	WIFI_MEETING_EVT_RP_TO_PC_ID,
+	WIFI_MEETING_EVT_RP_TO_PC_IP,
+}host_to_pc;
+
 
 
 
@@ -347,18 +391,25 @@ typedef enum {
 
 }conference_seat;
 
+
 /*
- * 事件数据
+ * 网络信息参数
+ * 英文加数字
  */
 typedef struct {
 
-	unsigned char value;
-	unsigned char ssid[32];
-	unsigned char password[64];
+	 char ssid[32];
+	 char key[64];
 
-}event_data;
+}net_info,*Pnet_info;
 
-//投票类型
+
+
+
+/*
+ * 投票型会议，投票管理内容
+ * 单个议题的投票状态
+ */
 typedef struct{
 
 	unsigned short assent;
@@ -366,24 +417,69 @@ typedef struct{
 	unsigned short waiver;
 	unsigned short timeout;
 
-}vote_result;
+}vote_result,*Pvote_result;
 
-//选举类型
+/*
+ * 选举型会议
+ * 需要标记选举人编号，在下发议题时，会解析出选举人编号
+ * 单元机反馈后，更新被选举人的状态，结束选举后，计算被选举人的总的结果
+ */
+typedef struct{
+	//选举编号ID
+	unsigned short ele_id[ELE_NUM];
+	//被选举人总人数
+	char ele_total;
+
+}election_result,*Pelection_result;
+
+/*
+ * 计分型数据，单个议题的计分，所以一个变量就够了
+ * 单元机会上报分数，根据不同id号，区分不同单元机的分数
+ */
 typedef struct{
 
-	unsigned short ele_id[256];
+	unsigned int score;
+	unsigned short num_peop;
+	//计分平均值
+	 char score_r;
 
-}election_result;
+}score_result,*Pscore_result;
 
-//计分类型
+/*
+ * 议题内容
+ * 会议名称，议题名称
+ * 议题的类型，投票表决等属性
+ */
 typedef struct{
 
-	unsigned short score[256];
+	//议题名称和议题属性
 
-}score_result;
+	unsigned char subj[10][128];
+	unsigned char subj_prop;
+
+	vote_result v_result;
+	election_result ele_result;
+	score_result scr_result;
+
+}subject_info,*Psubject_info;
+
+
+/*
+ * 事件数据
+ */
+typedef struct {
+
+	net_info unet_info;
+	unsigned char value;
+	//上报状态信息
+	unsigned char status;
+
+}event_data;
+
 
 /*
  * 会议类参数
+ * 主要是描述每个单元机的属性状态
  */
 typedef struct {
 
@@ -392,13 +488,21 @@ typedef struct {
 	 */
 	unsigned short id;
 	unsigned char seat;
-	unsigned char name[64];
-	unsigned char conf_name[128];
-	unsigned char subj[10][128];
+	//会议参数
+	 char name[64];
+	 char conf_name[128];
+	 char subj[10][128];
+
 	vote_result v_result;
+	election_result elec_rsult;
+	score_result src_result;
 
-}conference_data;
+}signal_unit_data;
 
+/*
+ * 收发数据的帧信息
+ * 主要是在收发数据时，保存数据的信息
+ */
 typedef struct {
 
 	unsigned char msg_type;
@@ -415,41 +519,64 @@ typedef struct {
 	unsigned short s_id;
 	unsigned short d_id;
 
+
+
 	event_data evt_data;
-	conference_data con_data;
+	signal_unit_data con_data;
 
 }frame_type,*Pframe_type;
+
 
 /*
  * 会议信息链表
  * 主要有fd和事件类、会议类内容
+ * 主要是搜索对比消息，进行消息的判断
+ * 保存在链表中的信息，涉及到对单元机设置参数时才会修改
  */
 typedef struct {
 
 	int fd;
-	event_data evt_data;
-	conference_data con_data;
+//	event_data evt_data;
+	signal_unit_data con_data;
 
-}conference_info,*Pconference_info;
+}conference_list,*Pconference_list;
 
 
 /*
- * 会议动态全局变量
+ * 会议中单元机的状态
+ * 如单元机的投票等信息
  */
 typedef struct {
-
-
-	int pc_status;
-	unsigned char ssid[32];
-	unsigned char password[64];
-	unsigned char subj[10][128];
 
 	vote_result v_result;
 	election_result ele_result;
 	score_result scr_result;
 
-	int mic_mode;
+}conference_ustaus,*Pconference_ustaus;
+
+/*
+ * 会议动态全局变量
+ * 主要是会议的信息，不涉及参会人员信息
+ * 会议信息是单次会议中不会更改的状态
+ * 投票，表决，计分是会涉及到下发单元机，所以需要
+ */
+typedef struct {
+
+	int pc_status;
+
+
+	net_info network;
+
+	unsigned char conf_name[128];
+	unsigned char sub_num;
+	subject_info sub_list[10];
+
+	//音频状态信息
+	unsigned char mic_mode;
+	unsigned char snd_effect;
 	int spk_number;
+	//DEBUG
+	char debug_sw;
 
 }conference_status,*Pconference_status;
 

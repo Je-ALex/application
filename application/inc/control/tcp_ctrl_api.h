@@ -15,7 +15,12 @@ extern "C"
 {
 #endif
 
-
+/*
+ * 主机TCP控制模块保存的终端信息参数
+ * TODO 提供参考的结构体
+ * 不区分上位机还是单元机，统一使用这个结构体，保存
+ *
+ */
 typedef enum{
 
 	//宣告上线
@@ -43,7 +48,7 @@ typedef enum{
 	WIFI_MEETING_EVENT_VOTE_ASSENT,
 	WIFI_MEETING_EVENT_VOTE_NAY,
 	WIFI_MEETING_EVENT_VOTE_WAIVER,
-	WIFI_MEETING_EVENT_VOTE_TOUT,
+	WIFI_MEETING_EVENT_VOTE_TIMEOUT,
 
 	//议题管理
 	WIFI_MEETING_EVENT_SUBJECT_ONE,
@@ -56,6 +61,7 @@ typedef enum{
 	WIFI_MEETING_EVENT_SUBJECT_EIGHT,
 	WIFI_MEETING_EVENT_SUBJECT_NINE,
 	WIFI_MEETING_EVENT_SUBJECT_TEN,
+
 	//音效管理
 	WIFI_MEETING_EVENT_SOUND,
 	//会议服务
@@ -72,23 +78,33 @@ typedef enum{
 	WIFI_MEETING_EVENT_CHECKIN_START,
 	WIFI_MEETING_EVENT_CHECKIN_END,
 	WIFI_MEETING_EVENT_CHECKIN_SELECT,
+
 	//会议参数设置成功、失败，查询应答
 	WIFI_MEETING_CONF_WREP_SUCCESS,
 	WIFI_MEETING_CONF_WREP_ERR,
 	WIFI_MEETING_CONF_RREP,
-	//赞成、反对、弃权、超时
-	WIFI_MEETING_CONF_REQ_VOTE_ASSENT,
-	WIFI_MEETING_CONF_REQ_VOTE_NAY,
-	WIFI_MEETING_CONF_REQ_VOTE_WAIVER,
-	WIFI_MEETING_CONF_REQ_VOTE_TIMEOUT,
 
-	//选举管理，开始选举，结束选举
-	WIFI_MEETING_CONF_REQ_ELECTION_START,
-	WIFI_MEETING_CONF_REQ_ELECTION_END,
+	//选举管理，开始选举，结束选举，正在进行
+	WIFI_MEETING_CONF_ELECTION_START,
+	WIFI_MEETING_CONF_ELECTION_END,
+	WIFI_MEETING_CONF_ELECTION_UNDERWAY,
 
-	//投票管理，开始投票，结束投票
-	WIFI_MEETING_CONF_REQ_SCORE_START,
-	WIFI_MEETING_CONF_REQ_SCORE_END,
+	//计分管理，开始计分，结束计分，正在进行
+	WIFI_MEETING_CONF_SCORE_START,
+	WIFI_MEETING_CONF_SCORE_END,
+	WIFI_MEETING_CONF_SCORE_UNDERWAY,
+
+	WIFI_MEETING_EVENT_CON_MAG_START,
+	WIFI_MEETING_EVENT_CON_MAG_END,
+	//上位机下发的指令
+	//事件类数据
+	WIFI_MEETING_EVENT_PC_CMD_SIGNAL,
+	WIFI_MEETING_EVENT_PC_CMD_ALL,
+	//会议类数据
+	WIFI_MEETING_CONF_PC_CMD_SIGNAL,
+	WIFI_MEETING_CONF_PC_CMD_ALL,
+	//上位机查询上报
+	WIFI_MEETING_HOST_REP_TO_PC,
 
 }ALL_STATUS;
 
@@ -104,7 +120,7 @@ typedef struct{
 	//软件版本,硬件版本后续增加
 	char version[32];
 	//出厂信息
-	char factory_information[64];
+	char factory_info[64];
 
 	//主机MAC地址
 	char mac[32];
@@ -112,14 +128,12 @@ typedef struct{
 	char local_ip[32];
 	//子网掩码
 	char netmask[32];
+	//广播地址
+	char broad_ip[32];
+
 }host_info,*Phost_info;
 
-/*
- * 主机TCP控制模块保存的终端信息参数
- * TODO 提供参考的结构体
- * 不区分上位机还是单元机，统一使用这个结构体，保存
- *
- */
+
 typedef struct{
 
 	/*终端sock_fd属性*/
@@ -164,12 +178,15 @@ typedef struct{
 
 }run_status,*Prun_status;
 
-/*********************************
- *
- * 系统初始化函数
- *
- ********************************/
 
+
+/********************************
+ *
+ * TODO 系统属性函数
+ * 系统设置:系统初始化，恢复出厂设置、网络状态、本机信息、关机(关闭本机、重启本机、关闭所有单元机)
+ * 系统扩展
+ *
+ *******************************/
 /* wifi_conference_sys_init
  * 主机设备控制模块的初始化函数
  *
@@ -178,18 +195,8 @@ typedef struct{
  */
 int wifi_conference_sys_init();
 
-
-
-/********************************
- *
- * TODO 基本信息接口
- * 系统设置:恢复出厂设置、网络状态、本机信息、关机(关闭本机、重启本机、关闭所有单元机)
- * 系统扩展
- *
- *******************************/
-
 /*
- * reset_factory_mode
+ * host_info_reset_factory_mode
  * 恢复出厂设置
  * 目前是清除连接信息和清除会议信息相关内容
  *
@@ -197,10 +204,10 @@ int wifi_conference_sys_init();
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int reset_the_host_factory_mode();
+int host_info_reset_factory_mode();
 
 /*
- * get_the_host_network_info
+ * host_info_get_network_info
  * 获取主机的网路状态
  *
  * int/out:
@@ -210,10 +217,10 @@ int reset_the_host_factory_mode();
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_network_info(Phost_info ninfo);
+int host_info_get_network_info(Phost_info ninfo);
 
 /*
- * get_the_host_factory_infomation
+ * host_info_get_factory_infomation
  * 获取主机信息
  * 主机信息是保存在文本文件中，为只读属性
  *
@@ -224,10 +231,15 @@ int get_the_host_network_info(Phost_info ninfo);
  * @ERROR(-1)
  * @SUCCESS(0)
  */
-int get_the_host_factory_infomation(Phost_info pinfo);
+int host_info_get_factory_infomation(Phost_info pinfo);
 
+
+
+/****************************
+ * TODO 单元机管理模块
+ ***************************/
 /*
- * get_client_connected_info
+ * unit_info_get_connected_info
  * 扫描接口函数
  *
  * 调用此接口函数后，主机自动进行扫描功能，并将生成信息文件@connection.info
@@ -243,26 +255,10 @@ int get_the_host_factory_infomation(Phost_info pinfo);
  * return:
  * 写入的连接客户端个数
  */
-int get_client_connected_info(char* name);
+int unit_info_get_connected_info(char* name);
 
 /*
- * 设备电源设置
- * 关闭本机(1)、重启本机(2)、关闭所有单元机(3)
- *
- * in:
- * @modle(1,2,3)
- * out：
- * NULL
- *
- * return:
- * @ERROR
- * @SUCCESS
- */
-int set_device_power_off(int mode);
-
-
-/*
- * get_uint_running_status
+ * unit_info_get_running_status
  * 单元机实时状态检测函数,用户只需检测设备号(ID)和具体返回信息
  * 该函数平时为阻塞状态，等有状态改变时才有状态返回，所以应用需要一直获取
  *
@@ -284,99 +280,20 @@ int set_device_power_off(int mode);
  * @ERROR
  * @SUCCESS
  */
-int get_unit_running_status(void* event_tmp);
-
-
-
-
-/********************************
- * TODO 会议类参数设置
- * 会议类接口函数
- * 1、单主机情况下，会议参数设置，只有ID号设置和席别设置
- * 2、会议类查询接口，查询某个单元机会议信息全状态
- *
- *******************************/
-
+int unit_info_get_running_status(void* data);
 
 /*
- * set_the_conference_parameters
- * 设置会议参数,单主机的情况，主机只需进行ID和席位的编码，其他设置为NULL即可，现在保留后续参数
- *
-
- * in:
- * @socket_fd 单元机的fd号，应用可以从文本文件获取
- * @client_id 设置的ID
- * @client_seat 设置的席别
- * @client_name（保留）
- * @subj（保留）
- *
- * out:
- * @NULL
+ * 设备电源设置
+ * 关闭所有单元机
  *
  * return:
  * @ERROR
  * @SUCCESS
  */
-int set_the_conference_parameters(int fd_value,int client_id,char client_seat,
-		char* client_name,char* subj);
+int unit_info_set_device_power_off();
 
 /*
- * get_the_conference_parameters
- * 获取单元机会议类参数
- * 获取某一个单元机的会议参数信息，如果为空（NULL），则默认为获取全部的参会单元会议信息
- * in:
- * @socket_fd 单元机fd，从文本文件获取
- *
- * return:
- * @ERROR
- * @SUCCESS
- */
-int get_the_conference_parameters(int fd_value);
-
-/*
- * 保留
- * set_the_conference_vote_result
- * 下发投票结果，单主机的情况下，此接口基本用不上，投票结果由上位机统计，通过主机下发给单元机
- * 默认下发给所有参会单元机
- *
- * in/out:
- * @NULL
- *
- * return:
- * @ERROR
- * @SUCCESS
- */
-int set_the_conference_vote_result();
-
-
-/********************************
- *
- * TODO 事件接口函数
- * 1、设置类，主要是对单元机的运行状态进行设置，如电源、发言等等
- * 2、查询类，主要是对单元机的运行状态以及主机状态进行查询，如电源情况、话筒管理等等
- *
- *******************************/
-
-/*
- * set_the_event_parameter_power
- * 设置单元机电源开关
- * 设置某个单元机的电源开关
- *
- * in:
- * @socket_fd单元机fd，文本文件获取
- * @value 0x01为开(保留)，0x02关(只能设置为此数值)
- *
- * out:
- * @NULL
- *
- * return:
- * @ERROR
- * @SUCCESS
- */
-int set_the_event_parameter_power(int socket_fd,unsigned char value);
-
-/*
- * get_the_event_parameter_power
+ * unit_info_get_device_power
  * 获取单元机电源状态
  *
  * in:
@@ -386,7 +303,183 @@ int set_the_event_parameter_power(int socket_fd,unsigned char value);
  * @ERROR
  * @SUCCESS
  */
-int get_the_event_parameter_power(int socket_fd);
+int unit_info_get_device_power(int fd);
+
+/*********************
+ * TODO 会议状态管理模块
+ * 分为主机部分和单元机部分
+ *********************/
+/*
+ * conf_info_set_mic_mode
+ * 话筒管理中的模式设置
+ *
+ * @value FIFO模式(1)、标准模式(2)、自由模式(3)
+ * 在设置成功后，会收到DSP传递的返回值，通过返回值判断，
+ * 再将结果上报
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_mic_mode(int mode);
+
+
+/*
+ * conf_info_get_mic_mode
+ * 获取话筒管理中的模式
+ *
+ * @value FIFO模式(1)、标准模式(2)、自由模式(3)
+ *
+ * 返回值：
+ * @value
+ */
+int conf_info_get_mic_mode();
+
+/*
+ * conf_info_set_spk_num
+ * 话筒管理中的发言管理
+ * 设置会议中最大发言人数
+ *
+ * @num 1/2/4/6/8
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_spk_num(int num);
+
+
+/*
+ * conf_info_get_spk_num
+ * 话筒管理中的发言管理
+ * 设置会议中最大发言人数
+ *
+ * @num 1/2/4/6/8
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_get_spk_num();
+
+/*
+ * conf_info_set_snd_effect
+ * 话筒管理中的模式设置
+ *
+ * @value AFC
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_snd_effect(int mode);
+
+/*
+ * conf_info_get_snd_effect
+ * DSP音效获取
+ *
+ * @value AFC(0/1)，ANC(0/1/2/3)
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_get_snd_effect();
+
+
+/*
+ * conf_info_set_conference_params
+ * 设置会议参数,单主机的情况，主机只需进行ID和席位的编码，
+ * 其他设置为NULL即可，现在保留后续参数
+ *
+ * in:
+ * @fd 单元机的fd号，应用可以从文本文件获取
+ * @id 设置的ID
+ * @seat 设置的席别
+ * @pname（保留）
+ * @cname（保留）
+ *
+ * out:
+ * @NULL
+ *
+ * return:
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
+		char* pname,char* cname);
+
+/*
+ * conf_info_get_the_conference_params
+ * 获取单元机会议类参数
+ * 获取某一个单元机的会议参数信息，
+ * 如果为0，则默认为获取全部的参会单元会议信息
+ * in:
+ * @socket_fd 单元机fd，从文本文件获取
+ *
+ * return:
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_get_the_conference_params(int fd);
+
+/*
+ * 保留
+ * conf_info_send_vote_result
+ * 下发投票结果，单主机的情况下，此接口基本用不上，
+ * 投票结果由上位机统计，通过主机下发给单元机
+ * 默认下发给所有参会单元机
+ *
+ * in/out:
+ * @NULL
+ *
+ * return:
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_send_vote_result();
+
+/*
+ * conf_info_send_elec_result
+ * 下发选举结果，单主机的情况下，此接口基本用不上，
+ * 选举结果由上位机统计，通过主机下发给单元机
+ * 默认下发给所有参会单元机,当结束一个议题以后，
+ * 自动下发结果，单元机选择性显示
+ *
+ * in/out:
+ * @NULL
+ *
+ * return:
+ * @error
+ * @success
+ */
+int conf_info_send_elec_result();
+
+/*
+ * conf_info_send_score_result
+ * 下发计分结果，单主机的情况下，此接口基本用不上，
+ * 计分结果由上位机统计，通过主机下发给单元机
+ * 默认下发给所有参会单元机,当结束一个议题以后，
+ * 自动下发结果，单元机选择性显示
+ *
+ * in/out:
+ * @NULL
+ *
+ * return:
+ * @error
+ * @success
+ */
+int conf_info_send_score_result();
+
+
+
+
+
+
+/***************************************
+ *
+ * TODO 保留
+ *
+ **************************************/
 
 /*
  * 保留
@@ -404,41 +497,6 @@ int get_the_event_parameter_power(int socket_fd);
 int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd);
 
 
-
-
-/***************************************
- *
- * TODO 主机工作模式设置
- *
- **************************************/
-
-/*
- * wifi_meeting_set_mic_mode
- * 话筒管理中的模式设置
- *
- * @value FIFO模式(1)、标准模式(2)、自由模式(3)
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
- */
-int wifi_meeting_set_mic_mode(int mode);
-
-
-
-/*
- * wifi_meeting_set_spk_num
- * 话筒管理中的发言管理
- * 设置会议中最大发言人数
- *
- * @num 1/2/4/6/8
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
- */
-int wifi_meeting_set_spk_num(int num);
-
 /*
  * 设置签到模式
  * 此功能主要主席单元或上位机
@@ -453,16 +511,6 @@ int wifi_meeting_set_spk_num(int num);
  * @SUCCESS
  */
 int wifi_meeting_set_checkin_mode(int value);
-
-
-
-
-/********************************
- *
- * TODO 系统扩展
- * 保留
- *
- ********************************/
 
 
 

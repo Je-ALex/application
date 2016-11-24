@@ -8,8 +8,7 @@
 #ifndef INC_AUDIO_AUDIO_PARAMETER_INIT_H_
 #define INC_AUDIO_AUDIO_PARAMETER_INIT_H_
 
-#include "../audio/audio_tcp_server.h"
-#include "tcp_ctrl_queue.h"
+#include "audio_tcp_server.h"
 
 
 int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav);

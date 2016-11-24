@@ -1,8 +1,7 @@
 //File   : lrecord.c
 
 
-#include "../../inc/audio/audio_parameter_init.h"
-#include "../../inc/audio/audio_tcp_server.h"
+#include "audio_parameter_init.h"
 
 
 

@@ -7,11 +7,10 @@
 
 
 #include "tcp_ctrl_device_status.h"
-
 #include "tcp_ctrl_api.h"
 
 extern sys_info sys_in;
-extern Pmodule_info node_queue;
+extern Pglobal_info node_queue;
 
 
 
@@ -19,18 +18,21 @@ extern Pmodule_info node_queue;
  * 会议信息存储函数
  *
  */
-int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
+int tcp_ctrl_refresh_conference_list(Pconference_list data_info)
 {
 	pclient_node tmp = NULL;
 	pclient_node del = NULL;
 	Pclient_info cinfo;
-	Pconference_info info;
+	Pconference_list info;
 
 
 	int pos = 0;
 	int status = 0;
 
-
+	/*
+	 * 首先在连接信息中搜寻socke_fd
+	 * 判断是否有此设备连接
+	 */
 	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp!=NULL)
 	{
@@ -76,6 +78,7 @@ int tcp_ctrl_refresh_conference_list(Pconference_info data_info)
 		status = 0;
 		free(info);
 		free(del);
+		printf("delete data in the conference list,then add it\n");
 	}else{
 
 		printf("there is no data in the conference list,add it\n");
@@ -166,7 +169,6 @@ int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue event_tmp)
 int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 {
 
-	Pclient_info pinfo;
 	Pctrl_tcp_rsqueue tmp;
 
 	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
@@ -287,11 +289,10 @@ int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 	return SUCCESS;
 }
 
-int tcp_ctrl_report_dequeue(Prun_status* event_tmp)
+int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 {
 
 	int ret;
-	int value;
 	Plinknode node;
 	Prun_status tmp;
 
@@ -307,7 +308,7 @@ int tcp_ctrl_report_dequeue(Prun_status* event_tmp)
 	if(ret == 0)
 	{
 		tmp = node->data;
-		memcpy(*event_tmp,tmp,sizeof(run_status));
+		memcpy(event_tmp,tmp,sizeof(run_status));
 
 		free(tmp);
 		free(node);

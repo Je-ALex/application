@@ -142,12 +142,12 @@ int audio_module_data_write(Psnd_data_format sndpcm, int frame_len)
 
 	while (frame_len > 0) {
 
-		r = snd_pcm_writei(sndpcm->handle, data, frame_len);
+		r = snd_pcm_writei(sndpcm->handle, sndpcm->data_buf, frame_len);
 
 		if (r == -EAGAIN || (r >= 0 && r < frame_len))
 		{
 			snd_pcm_wait(sndpcm->handle, 1000);
-
+			printf("--------EAGAIN--------\n");
 		} else if (r == -EPIPE)
 		{
 			snd_pcm_prepare(sndpcm->handle);
@@ -237,7 +237,7 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	}
 
 	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 44000;
+	buffer_time = 48000;
 	period_time = buffer_time / 4;//11ms
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)

@@ -7,11 +7,10 @@
 
 
 
-#include "tcp_ctrl_data_process.h"
+#include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_status.h"
-#include "tcp_ctrl_list.h"
 
-extern Pmodule_info node_queue;
+extern Pglobal_info node_queue;
 extern sys_info sys_in;
 
 /*
@@ -48,8 +47,6 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 
 	unsigned char msg,data,machine,info;
 	int length = 0;
-	struct sockaddr_in cli_addr;
-	int clilen = sizeof(cli_addr);
 
 	int tc_index = 0;
 
@@ -159,13 +156,37 @@ int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned
 
 
 /*
- * tcp_ctrl_edit_conference_info
- *
- * 会议类数据
+ * tcp_ctrl_edit_conference_content
+ * 会议型数据内容组包
  * 分成控制类，查询类
  *
- * in:@Pframe_type
- * out: buf
+ *
+ *
+ * @Pframe_type帧信息
+ * @buf输出数据包
+ *
+ * 控制类消息中，分为普通的id席别等信息的设置，议题单独进行下发，下发会议结果
+ *
+ * 议题：
+ * name | code | 议题号  | 类型   | 人数   # 姓名长度  | 人员序号   |  姓名     # 议题长度   | 议题内容
+ * 0x05	  0x0a   char  char	 char  char    char    string  char   string
+ *
+ * 投票结果：
+ * name | code | 分类   | 数量  |
+ * 0x06	  0x0a  char  ushort
+ *
+ * 选举结果：
+ * name | code | 人员编号   | 数量  |
+ * 0x07	  0x0a    char  ushort
+ *
+ * 计分结果：
+ * name | code  | 分数    |
+ * 0x08	  0x0a   char
+ *
+ * return：
+ * @ERROR
+ * @SUCCESS
+ *
  */
 static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 {
@@ -181,11 +202,30 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 		case WRITE_MSG:
 		{
 
-			/*
-			 * 会议类下发数据中将投票结果单独进行下发
-			 */
-			if(type->name_type[0] == WIFI_MEETING_CON_VOTE){
+			switch(type->name_type[0])
+			{
 
+			//议题单独进行下发
+			case WIFI_MEETING_CON_SUBJ:
+				/*
+				 * 议题信息
+				 * name-0x03
+				 * code-0x0a
+				 * 姓名编码+数据格式编码+内容长度+内容
+				 */
+				if(strlen(type->con_data.subj[0]) > 0)
+				{
+					buf[tmp_index++] = WIFI_MEETING_CON_SUBJ;
+					buf[tmp_index++] = WIFI_MEETING_STRING;
+					buf[tmp_index++] = strlen(type->con_data.subj[0]);
+					memcpy(&buf[tmp_index],type->con_data.subj[0],strlen(type->con_data.subj[0]));
+					tmp_index = tmp_index+strlen(type->con_data.subj[0]);
+
+				}
+				type->data_len = tmp_index;
+				break;
+
+			case WIFI_MEETING_CON_VOTE:
 				buf[tmp_index++] = type->name_type[0];
 				buf[tmp_index++] = type->code_type[0];
 
@@ -211,9 +251,31 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				tmp_index = tmp_index + sizeof(short);
 
 				type->data_len = tmp_index;
+				break;
+			case WIFI_MEETING_CON_ELEC:
+				buf[tmp_index++] = type->name_type[0];
+				buf[tmp_index++] = type->code_type[0];
 
-			}else{
+				for(i=0;i<node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_total;i++)
+				{
+					buf[tmp_index++] = i;
+					tcp_ctrl_data_short_to_char(node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_id[i],data);
+					memcpy(&buf[tmp_index],data,sizeof(short));
+					tmp_index = tmp_index + sizeof(short);
+				}
 
+				type->data_len = tmp_index;
+				break;
+			case WIFI_MEETING_CON_SCORE:
+				buf[tmp_index++] = type->name_type[0];
+				buf[tmp_index++] = type->code_type[0];
+
+				buf[tmp_index++] = node_queue->con_status->
+						sub_list[node_queue->con_status->sub_num].scr_result.score_r;
+				type->data_len = tmp_index;
+				break;
+
+			default:
 				/*
 				 * 下发的控制消息
 				 *
@@ -230,11 +292,7 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 					tcp_ctrl_data_short_to_char(type->con_data.id,data);
 					memcpy(&buf[tmp_index],data,sizeof(short));
 					tmp_index = tmp_index + sizeof(short);
-//					for(i=0;i<tmp_index;i++)
-//					{
-//						printf("%x ",buf[i]);
-//
-//					}
+
 				}
 				/*
 				 * 席别信息
@@ -275,24 +333,13 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 					memcpy(&buf[tmp_index],type->con_data.conf_name,strlen(type->con_data.conf_name));
 					tmp_index = tmp_index+strlen(type->con_data.conf_name);
 				}
-				/*
-				 * 议题信息
-				 * name-0x03
-				 * code-0x0a
-				 * 姓名编码+数据格式编码+内容长度+内容
-				 */
-				if(strlen(type->con_data.subj[0]) > 0)
-				{
-					buf[tmp_index++] = WIFI_MEETING_CON_SUBJ;
-					buf[tmp_index++] = WIFI_MEETING_STRING;
-					buf[tmp_index++] = strlen(type->con_data.subj[0]);
-					memcpy(&buf[tmp_index],type->con_data.subj[0],strlen(type->con_data.subj[0]));
-					tmp_index = tmp_index+strlen(type->con_data.subj[0]);
 
-				}
 				type->data_len = tmp_index;
 
+				break;
+
 			}
+
 			break;
 		}
 		/*
@@ -336,25 +383,25 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 {
 	int i;
 	int tc_index = 0;
-	unsigned char data[4] = {0};
 
-	printf("%s,%d\n",__func__,__LINE__);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
 	if(type->name_type[0] == WIFI_MEETING_EVT_SSID
 			&& type->name_type[1] == WIFI_MEETING_EVT_KEY )
 	{
 		buf[tc_index++] = type->name_type[0];
 		buf[tc_index++] = type->code_type[0];
-		buf[tc_index++] = strlen(type->evt_data.ssid);
-		memcpy(&buf[tc_index],type->evt_data.ssid,strlen(type->evt_data.ssid));
-		tc_index = tc_index+strlen(type->evt_data.ssid);
+		buf[tc_index++] = strlen(type->evt_data.unet_info.ssid);
+		memcpy(&buf[tc_index],type->evt_data.unet_info.ssid,strlen(type->evt_data.unet_info.ssid));
+
+		tc_index = tc_index+strlen(type->evt_data.unet_info.ssid);
 
 		buf[tc_index++] = type->name_type[1];
 		buf[tc_index++] = type->code_type[1];
-		buf[tc_index++] = strlen(type->evt_data.password);
-		memcpy(&buf[tc_index],type->evt_data.password,strlen(type->evt_data.password));
-		tc_index = tc_index+strlen(type->evt_data.ssid);
+		buf[tc_index++] = strlen(type->evt_data.unet_info.key);
+		memcpy(&buf[tc_index],type->evt_data.unet_info.key,strlen(type->evt_data.unet_info.key));
 
-		tc_index = tc_index+strlen(type->evt_data.password);
+		tc_index = tc_index+strlen(type->evt_data.unet_info.key);
 
 	}else{
 
@@ -366,7 +413,6 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 
 	type->data_len = tc_index;
 
-	perror("tcp_ctrl_edit_event_content");
 	for(i=0;i<tc_index;i++)
 	{
 		printf("%x ",buf[i]);
@@ -412,12 +458,12 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
+	Pconference_list con_list;
 
 	char find_fd = -1;
 	unsigned char buf[512] = {0};
-	unsigned char s_buf[1024] = {0};
-	int i;
-	int ret = 0;
+	unsigned char s_buf[2048] = {0};
+
 
 	/*
 	 * 在连接信息链表中
@@ -440,80 +486,134 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 		printf("please input the right fd..\n");
 		return ERROR;
 	}
-#if 0
+
 	/*
-	 * 发送的数据如果是会议投票结果则单独处理
+	 * 若果有消息体，基本上是需要进行群发的
+	 * 没有消息体的时候，可能会是需要群发，可能需要单独发
 	 */
-	if(type->data_type == CONFERENCE_DATA &&
-			type->name_type[0] == WIFI_MEETING_CON_VOTE)
+	if(msg == NULL)
 	{
-
-		ret = tcp_ctrl_edit_conference_content(type,buf);
-
-		if(ret)
-			return ERROR;
-
-		tmp = list_head->next;
-		while(tmp != NULL)
+		//通过上报的事件类型，进行区分
+		switch(type->data_type)
 		{
-			pinfo = tmp->data;
-			type->fd = pinfo->client_fd;
+		case EVENT_DATA:
+			tcp_ctrl_edit_event_content(type,buf);
 			tcp_ctrl_frame_compose(type,buf,s_buf);
-
-			/*
-			 * 投票结果下发给所有单元机
-			 */
-			if(pinfo->client_fd > 0 && pinfo->client_name != PC_CTRL)
+			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+			tcp_ctrl_tpsend_enqueue(type,s_buf);
+			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+			break;
+		case CONFERENCE_DATA:
+			switch(type->name_type[0])
 			{
-				pthread_mutex_lock(&mutex);
-				write(pinfo->client_fd, s_buf, type->frame_len);
-				pthread_mutex_unlock(&mutex);
-				usleep(10000);
-			}
-			tmp = tmp->next;
+			case WIFI_MEETING_CON_VOTE:
+			case WIFI_MEETING_CON_ELEC:
+			case WIFI_MEETING_CON_SCORE:
+				tcp_ctrl_edit_conference_content(type,buf);
 
+				tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+				while(tmp!=NULL)
+				{
+					con_list = tmp->data;
+					//下发给所有单元机
+					if((con_list->con_data.id > 0) &&
+							(con_list->con_data.id != PC_ID))
+					{
+						type->fd = con_list->fd;
+						tcp_ctrl_source_dest_setting(-1,type->fd,type);
+
+						tcp_ctrl_frame_compose(type,buf,s_buf);
+
+						pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+						tcp_ctrl_tpsend_enqueue(type,s_buf);
+						pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+
+						usleep(1000);
+					}
+					tmp=tmp->next;
+				}
+				break;
+			default:
+				tcp_ctrl_edit_conference_content(type,buf);
+				tcp_ctrl_frame_compose(type,buf,s_buf);
+				pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+				tcp_ctrl_tpsend_enqueue(type,s_buf);
+				pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+				break;
+			}
+			break;
+		default:
+			printf("%s-%s-%d not leagal data type\n",__FILE__,__func__,__LINE__);
+			return ERROR;
 		}
+
 
 	}else{
-#endif
-		if(msg == NULL)
+
+		//通过上报的事件类型，进行区分
+		switch(type->evt_data.status)
 		{
-				/*
-				 *
-				 * 根据type参数，确定数据的内容和格式
-				 *
-				 * 判断是会议类还是事件类
-				 */
-				switch(type->data_type)
+		case WIFI_MEETING_EVENT_POWER_OFF_ALL:
+		case WIFI_MEETING_EVENT_SUBJECT_ONE:
+		case WIFI_MEETING_EVENT_CHECKIN_START:
+		case WIFI_MEETING_EVENT_CHECKIN_END:
+		case WIFI_MEETING_EVENT_VOTE_START:
+		case WIFI_MEETING_EVENT_VOTE_END:
+		case WIFI_MEETING_CONF_ELECTION_START:
+		case WIFI_MEETING_CONF_ELECTION_END:
+		case WIFI_MEETING_CONF_SCORE_START:
+		case WIFI_MEETING_CONF_SCORE_END:
+		case WIFI_MEETING_EVENT_CON_MAG_START:
+		case WIFI_MEETING_EVENT_CON_MAG_END:
+		//上位机下发数据
+		case WIFI_MEETING_CONF_PC_CMD_ALL:
+		case WIFI_MEETING_EVENT_PC_CMD_ALL:
+			tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+			while(tmp!=NULL)
+			{
+				con_list = tmp->data;
+				//下发给所有单元机
+				if((con_list->con_data.id > 0) &&
+						(con_list->con_data.id != PC_ID))
 				{
-					case CONFERENCE_DATA:
-						tcp_ctrl_edit_conference_content(type,buf);
-						break;
+					type->fd = con_list->fd;
+					tcp_ctrl_source_dest_setting(-1,type->fd,type);
 
-					case EVENT_DATA:
-						tcp_ctrl_edit_event_content(type,buf);
-						break;
+					tcp_ctrl_frame_compose(type,msg,s_buf);
 
+					pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+					tcp_ctrl_tpsend_enqueue(type,s_buf);
+					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+
+					usleep(1000);
 				}
-				/*
-				 * 发送消息组包
-				 * 对数据内容进行封装，增数据头等信息
-				 */
+				tmp=tmp->next;
+			}
+			break;
 
-				tcp_ctrl_frame_compose(type,buf,s_buf);
-		}else{
-			/*
-			 * 接收到数据透传
-			 */
+		case WIFI_MEETING_EVENT_SPK_ALLOW:
+		case WIFI_MEETING_EVENT_SPK_VETO:
+		case WIFI_MEETING_EVENT_SPK_REQ_SPK:
+		//上位机下发数据
+		case WIFI_MEETING_EVENT_PC_CMD_SIGNAL:
+		case WIFI_MEETING_CONF_PC_CMD_SIGNAL:
+		case WIFI_MEETING_HOST_REP_TO_PC:
+
 			tcp_ctrl_frame_compose(type,msg,s_buf);
-		}
-		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
-		tcp_ctrl_tpsend_enqueue(type,s_buf);
-		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
 
-#if 0
+			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+			tcp_ctrl_tpsend_enqueue(type,s_buf);
+			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+			break;
+
+		default:
+			printf("%s-%s-%d not leagal status\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+
 	}
-#endif
+
+
 	return SUCCESS;
 }
 

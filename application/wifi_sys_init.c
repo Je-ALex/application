@@ -8,10 +8,17 @@
 
 #include "tcp_ctrl_device_status.h"
 #include "scanf_md_udp.h"
-
+#include "audio_tcp_server.h"
 
 extern sys_info sys_in;
-extern Pmodule_info node_queue;
+extern Pglobal_info node_queue;
+
+
+int runcond = 1;
+static void stophandler(int signum)
+{
+	runcond=0;
+}
 
 /*
  * wifi_sys_signal_init
@@ -35,11 +42,6 @@ int wifi_sys_signal_init()
 		usleep(1000);
 	}
 
-//	pthread_mutex_init(&sys_in.ctrl_tcp_mutex, NULL);
-//	pthread_mutex_init(&sys_in.lreport_queue_mutex, NULL);
-//	pthread_mutex_init(&sys_in.ctcp_queue_mutex, NULL);
-//	pthread_mutex_init(&sys_in.pc_queue_mutex, NULL);
-
 	for(i=0;i<=CTRL_TCP_RECV_SEM;i++)
 	{
 		ret = sem_init(&sys_in.sys_sem[i], 0, 0);
@@ -51,24 +53,7 @@ int wifi_sys_signal_init()
 		usleep(1000);
 	}
 
-//	ret = sem_init(&sys_in.local_report_sem, 0, 0);
-//	if (ret != 0)
-//	{
-//		 perror("local_report_sem initialization failed");
-//		 return ERROR;
-//	}
-//	ret = sem_init(&sys_in.pc_queue_sem, 0, 0);
-//	if (ret != 0)
-//	{
-//		 perror("Semaphore initialization failed");
-//		 return ERROR;
-//	}
-//	ret = sem_init(&sys_in.tpsend_queue_sem, 0, 0);
-//	if (ret != 0)
-//	{
-//		 perror("Semaphore tpsend_queue_sem initialization failed");
-//		 return ERROR;
-//	}
+
 
 	return SUCCESS;
 }
@@ -80,11 +65,10 @@ int wifi_sys_signal_init()
  */
 int wifi_sys_val_init()
 {
-
 	int i;
-	node_queue = (Pmodule_info)malloc(sizeof(module_info));
-	memset(node_queue,0,sizeof(module_info));
 
+	node_queue = (Pglobal_info)malloc(sizeof(global_info));
+	memset(node_queue,0,sizeof(global_info));
 
 	/*
 	 * 队列初始化
@@ -115,6 +99,7 @@ int wifi_sys_val_init()
 	 */
 	node_queue->sys_list = (pclient_node*)malloc(sizeof(client_node)*(CONFERENCE_LIST+1));
 	memset(node_queue->sys_list,0,sizeof(client_node)*(CONFERENCE_LIST+1));
+
 	for(i=0;i<=CONFERENCE_LIST;i++)
 	{
 		node_queue->sys_list[i] = list_head_init();
@@ -140,53 +125,12 @@ int wifi_sys_val_init()
 	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
 	memset(node_queue->con_status,0,sizeof(conference_status));
 
-
-//	/*
-//	 * 终端连接信息链表
-//	 */
-//	node_queue->list_head = list_head_init();
-//	if(node_queue->list_head != NULL)
-//		printf("list_head init success\n");
-//	else
-//		return ERROR;
-//	/*
-//	 * 会议数据链表
-//	 */
-//	node_queue->conference_head = list_head_init();
-//	if(node_queue->conference_head != NULL)
-//		printf("conference_head init success\n");
-//	else
-//		return ERROR;
-//	/*
-//	 * 创建本地消息队列
-//	 */
-//	node_queue->report_queue = queue_init();
-//	if(node_queue->report_queue != NULL)
-//		printf("report_queue init success\n");
-//	else
-//		return ERROR;
-//	/*
-//	 * 创建pc消息队列
-//	 */
-//	node_queue->report_pc_queue = queue_init();
-//	if(node_queue->report_pc_queue != NULL)
-//		printf("report_pc_queue init success\n");
-//	else
-//		return ERROR;
-//
-//	/*
-//	 * 创建tcp发送消息队列
-//	 */
-//	node_queue->tcp_send_queue = queue_init();
-//	if(node_queue->tcp_send_queue != NULL)
-//		printf("tcp_send_queue init success\n");
-//	else
-//		return ERROR;
-//	/*
-//	 * 相关参数初始化
-//	 */
-//	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
-//	memset(node_queue->con_status,0,sizeof(conference_status));
+	/*
+	 * 初始化连接文本信息
+	 */
+	FILE* file;
+	file = fopen(CONNECT_FILE,"w+");
+	fclose(file);
 
 	return SUCCESS;
 }
@@ -204,7 +148,7 @@ int wifi_conference_sys_init()
 	pthread_t ctrl_tcps;
 	pthread_t ctrl_procs;
 
-	void*status;
+//	void*status;
 	int ret;
 
 	printf("%s,%d\n",__func__,__LINE__);
@@ -269,7 +213,18 @@ int wifi_conference_sys_init()
 	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
 
 
-	pthread_join(ctrl_tcps,&status);
+	wifi_sys_audio_init();
+
+//	pthread_join(ctrl_tcps,&status);
+	signal(SIGINT,stophandler);
+	while(runcond)
+		;
+
+	free(node_queue->sys_list);
+	free(node_queue->sys_queue);
+	free(node_queue->con_status);
+	free(node_queue);
+	return SUCCESS;
 
 ERR:
 	free(node_queue->sys_list);
@@ -286,9 +241,10 @@ ERR:
 
 int main(void)
 {
+	int ret = 0;
 
-	wifi_conference_sys_init();
-
+	ret = wifi_conference_sys_init();
+	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
 
     return 0;
 }

@@ -168,17 +168,17 @@
 
 CC=gcc
 
-HOSTCFLAGS = -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include \
+HOSTCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include \
 	-I./inc -I./inc/audio -I./inc/control -I./inc/utils
 
 HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib \
 	-lasound -lpthread -L/home/wang/work/hushan/rtp/install-pc/lib -lspeexdsp -lm
 
 ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include \
-	-I./inc/audio-tcp -I./inc
+	-I./inc -I./inc/audio -I./inc/control -I./inc/utils
 	
-ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib -lasound -lpthread \
-	-L/home/wang/work/hushan/rtp/install-arm/lib -lspeexdsp -lm
+ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib \
+	-lasound -lpthread -lm
 
 CSOFLAGS= -shared -lc -fPIC -I./inc
 
@@ -188,13 +188,14 @@ TEST_SOURCE = wifi_sys_init.c \
 			src/scanf-module/ctrl_udp.c \
 			src/ctrl-module/tcp_ctrl_api.c \
 			src/ctrl-module/tcp_ctrl_data_process.c \
+			src/ctrl-module/tcp_ctrl_data_process_pc.c \
 			src/ctrl-module/tcp_ctrl_data_compose.c \
 			src/ctrl-module/tcp_ctrl_device_status.c \
 			src/utils/sys_list.c \
-			src/utils/sys_queue.c 
-
-#			src/audio-module/audio_server.c \
-#			src/audio-module/audio_params_init.c 
+			src/utils/sys_queue.c \
+			src/audio-module/audio_server.c \
+			src/audio-module/audio_params_init.c \
+			src/audio-module/audio_ring_buf.c 
 
 #.PHONY: libso bin arm-bin clean
 

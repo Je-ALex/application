@@ -33,10 +33,8 @@
 
 
 #include <alsa/asoundlib.h>
-#include <speex/speex_preprocess.h>
 
-#include "../tcp_ctrl_server.h"
-
+#include "tcp_ctrl_device_status.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,7 +79,7 @@ typedef long long 		off64_t;
 
 #define DEFAULT_CHANNELS         (2)
 #define DEFAULT_SAMPLE_RATE      (48000)
-#define DEFAULT_SAMPLE_LENGTH    (24)
+#define DEFAULT_SAMPLE_LENGTH    (16)
 #define DEFAULT_DURATION_TIME    (10000)
 
 
@@ -152,11 +150,13 @@ typedef struct{
 
 typedef struct{
 
-	sem_t audio_sem[10];
+	sem_t audio_mix_sem[10];
+	sem_t audio_recv_sem[10];
 
-}audio_sem;
+}audio_signal;
 
 
+int wifi_sys_audio_init();
 
 #ifdef __cplusplus
 }

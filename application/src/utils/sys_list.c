@@ -35,7 +35,7 @@ pclient_node list_add(pclient_node head,void* data)
 	tail->next = newnode;
 	head->size++;
 
-	printf("instert node success\n");
+	//printf("instert node success\n");
 
 	return 0;
 
@@ -54,9 +54,9 @@ pclient_node list_add(pclient_node head,void* data)
 int list_delete(pclient_node head,int pos,pclient_node* del)
 {
 	pclient_node tmp,tmp2,tmp3;
-	Pclient_info pinfo;
+//	Pclient_info pinfo;
 	int num = 0;
-	char state = -1;
+//	char state = -1;
 
 
 	if (pos < 0 || pos >= head->size)
@@ -80,7 +80,7 @@ int list_delete(pclient_node head,int pos,pclient_node* del)
 
 				*del = tmp;
 				tmp3->next = tmp->next;
-				printf("data in the first\n");
+				//printf("data in the first\n");
 				head->size--;
 				break;
 
@@ -91,7 +91,7 @@ int list_delete(pclient_node head,int pos,pclient_node* del)
 			 */
 			else{
 
-				printf("delete data last...\n");
+				//printf("delete data last...\n");
 				if(pos == num)
 				{
 					*del = tmp;

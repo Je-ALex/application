@@ -7,7 +7,7 @@
 
 
 
-#include "../../inc/audio/audio_parameter_init.h"
+#include "audio_params_init.h"
 
 
 /*
@@ -237,7 +237,7 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	}
 
 	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 48000;
+	buffer_time = 40000;
 	period_time = buffer_time / 4;//11ms
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)

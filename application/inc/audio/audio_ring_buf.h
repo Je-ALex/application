@@ -8,6 +8,7 @@
 #ifndef INC_AUDIO_AUDIO_RING_BUF_H_
 #define INC_AUDIO_AUDIO_RING_BUF_H_
 
+#include "audio_tcp_server.h"
 
 typedef struct
 {
@@ -15,21 +16,24 @@ typedef struct
     int size;
     int head;
     int tail;
+
 }audio_queue,*Paudio_queue;
 
 
-Paudio_queue newQueue(int queueSize); // 初始化队列
-void freeQueue(Paudio_queue queue); // 释放队列
+Paudio_queue audio_queue_init(int size);
 
-int enqueue(Paudio_queue queue, void* element); // 入队
-void* dequeue(Paudio_queue queue); // 出队
+int audio_enqueue(Paudio_queue queue, void* element);
 
-int queueIsEmpty(Paudio_queue queue); // 队列是否为空
-int queueIsFull(Paudio_queue queue); // 队列是否已满
+void* audio_dequeue(Paudio_queue queue);
 
-int queueLength(Paudio_queue queue); // 队列大小
+int audio_queue_empty(Paudio_queue queue);
+int audio_queue_full(Paudio_queue queue);
 
-void* getQueueElement(Paudio_queue queue, int index); // 获取队列指定元素
+void audio_queue_free(Paudio_queue queue);
+
+int audio_queue_len(Paudio_queue queue);
+
+void* audio_queue_element(Paudio_queue queue, int index);
 
 
 #endif /* INC_AUDIO_AUDIO_RING_BUF_H_ */

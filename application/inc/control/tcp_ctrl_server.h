@@ -28,9 +28,9 @@
 
 
 
-#define CTRL_PORT 8080
-#define UDP_PORT 50001
-
+#define CTRL_TCP_PORT 		8080
+#define CTRL_BROADCAST_PORT 50001
+#define	AUDIO_RECV_PORT 	9000
 
 #define MSG_TYPE 		0xF0 //消息类型
 #define DATA_TYPE 		0x0C //数据类型
@@ -373,7 +373,11 @@ typedef enum {
 	WIFI_MEETING_EVT_RP_TO_PC_IP,
 }host_to_pc;
 
+typedef enum {
 
+	WIFI_MEETING_EVT_AD_PORT_SPK = 1,
+	WIFI_MEETING_EVT_AD_PORT_LSN,
+}audio_port;
 
 
 
@@ -574,7 +578,10 @@ typedef struct {
 	//音频状态信息
 	unsigned char mic_mode;
 	unsigned char snd_effect;
+	//设置的发言人数
 	int spk_number;
+	//当前发言的人数
+	int current_spk;
 	//DEBUG
 	char debug_sw;
 

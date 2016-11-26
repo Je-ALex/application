@@ -431,7 +431,10 @@ int tcp_ctrl_refresh_connect_list(const unsigned char* msg,Pframe_type type)
 		 * 发送至本地上报队列
 		 */
 		tcp_ctrl_msg_send_to(type,msg,WIFI_MEETING_EVENT_ONLINE_REQ);
+
+		free(info);
 	}
+
 
 	return SUCCESS;
 }
@@ -656,6 +659,7 @@ int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value)
 
 
 
+
 /*
  * tcp_ctrl_uevent_request_pwr
  * 电源管理，主席单元下发一键关闭单元机功能
@@ -737,6 +741,180 @@ int tcp_ctrl_uevent_request_pwr(Pframe_type frame_type,const unsigned char* msg)
 }
 
 /*
+ * tcp_ctrl_uevent_spk_port
+ * 音频端口管理
+ *
+ * @Pframe_type
+ *
+ */
+int tcp_ctrl_uevent_spk_port(Pframe_type frame_type,int value)
+{
+	unsigned char msg[3] = {0};
+	unsigned char port[2] = {0};
+	int tmp = 0;
+	int tmp_port = 0;
+
+	tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+	frame_type->msg_type = WRITE_MSG;
+	frame_type->dev_type = HOST_CTRL;
+	frame_type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
+	frame_type->code_type[0] = WIFI_MEETING_CHAR;
+
+	msg[0] = WIFI_MEETING_EVT_AD_PORT_SPK;
+	if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+	{
+		tcp_ctrl_data_short_to_char(AUDIO_RECV_PORT,port);
+
+		msg[1] = port[0];
+		msg[2] = port[1];
+		conf_info_set_cspk_num(tmp++);
+
+	}else if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_GUEST){
+
+		tmp_port = conf_info_get_cspk_num();
+
+		//当前发言人数需要告知全局变量
+		if((tmp=conf_info_get_cspk_num()) < conf_info_get_spk_num())
+			conf_info_set_cspk_num(tmp++);
+
+	}
+
+	tcp_ctrl_module_edit_info(frame_type,msg);
+	return SUCCESS;
+}
+
+/*
+ * tcp_ctrl_uevent_spk_manage
+ * 发言管理
+ * 1、处理单元机的请求情况，判断当前发言人数是否达到上限，达到则告知主席，否则直接下发端口号
+ * 2、主席反馈的结果后，处理允许消息，并下发音频端口号
+ *
+ * @Pframe_type
+ * @value
+ *
+ */
+int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg,int value)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+	int tmp_fd = frame_type->fd;
+
+	/*
+	 * 判断当前请求单元机的席别属性
+	 * 主席就直接分配固定端口号
+	 * 列席就需要判断当前发言人数和设置的最大发言人数
+	 * 旁听则不允许申请发言
+	 */
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->fd == frame_type->fd)
+		{
+			frame_type->con_data.seat = con_list->con_data.seat;
+			break;
+		}
+
+		tmp=tmp->next;
+	}
+
+	switch(value)
+	{
+	case WIFI_MEETING_EVENT_SPK_REQ_SPK:
+	{
+
+		if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN){
+			tcp_ctrl_uevent_spk_port(frame_type,value);
+		}else{
+			if(conf_info_get_cspk_num() < conf_info_get_spk_num())
+			{
+				tcp_ctrl_uevent_spk_port(frame_type,value);
+			}else{
+
+				tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+				while(tmp!=NULL)
+				{
+					con_list = tmp->data;
+					if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+					{
+						printf("find the chariman\n");
+						frame_type->fd=con_list->fd;
+						pos++;
+						break;
+					}
+					tmp=tmp->next;
+				}
+
+				if(pos>0){
+					//源地址为请求单元机id，目标地址修改为主机单元id
+					frame_type->evt_data.status = value;
+					tcp_ctrl_source_dest_setting(tmp_fd,frame_type->fd,frame_type);
+					tcp_ctrl_module_edit_info(frame_type,msg);
+				}
+			}
+		}
+		break;
+	}
+	case WIFI_MEETING_EVENT_SPK_ALLOW:
+	{
+		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+		while(tmp!=NULL)
+		{
+			con_list = tmp->data;
+			if(con_list->fd == frame_type->fd)
+			{
+				if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+				{
+					pos++;
+					break;
+				}
+			}
+			tmp=tmp->next;
+		}
+		if(pos>0){
+			pos = 0;
+			tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+			while(tmp!=NULL)
+			{
+				con_list = tmp->data;
+				if(con_list->con_data.id == frame_type->d_id)
+				{
+					frame_type->fd=con_list->fd;
+					pos++;
+					break;
+				}
+				tmp=tmp->next;
+			}
+			if(pos > 0)
+			{
+				printf("reply request\n");
+				//变换为控制类消息下个给单元机
+				frame_type->msg_type = WRITE_MSG;
+				frame_type->evt_data.status = value;
+				tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+				tcp_ctrl_module_edit_info(frame_type,msg);
+				//设置单元音频端口信息
+				tcp_ctrl_uevent_spk_port(frame_type,value);
+			}else{
+				printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
+				return ERROR;
+			}
+
+		}else{
+			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+
+		break;
+	}
+
+	}
+
+	return SUCCESS;
+}
+
+/*
  * tcp_ctrl_uevent_request_spk
  * 发言管理函数
  *
@@ -785,92 +963,92 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 	case WIFI_MEETING_EVT_SPK_REQ_SND:
 		value = WIFI_MEETING_EVENT_SPK_REQ_SND;
 		break;
-	/*
-	 * 单元机请求发言消息
-	 */
 	case WIFI_MEETING_EVT_SPK_REQ_SPK:
-
 		value = WIFI_MEETING_EVENT_SPK_REQ_SPK;
-		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
-		while(tmp!=NULL)
-		{
-			con_list = tmp->data;
-			if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
-			{
-				printf("find the chariman\n");
-				frame_type->fd=con_list->fd;
-				pos++;
-				break;
-			}
-			tmp=tmp->next;
-		}
 
-		if(pos>0){
-			//源地址为请求单元机id，目标地址修改为主机单元id
-			frame_type->evt_data.status = value;
-			tcp_ctrl_source_dest_setting(tmp_fd,frame_type->fd,frame_type);
-			tcp_ctrl_module_edit_info(frame_type,msg);
-		}
-
-
+//		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+//		while(tmp!=NULL)
+//		{
+//			con_list = tmp->data;
+//			if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+//			{
+//				printf("find the chariman\n");
+//				frame_type->fd=con_list->fd;
+//				pos++;
+//				break;
+//			}
+//			tmp=tmp->next;
+//		}
+//
+//		if(pos>0){
+//			//源地址为请求单元机id，目标地址修改为主机单元id
+//			frame_type->evt_data.status = value;
+//			tcp_ctrl_source_dest_setting(tmp_fd,frame_type->fd,frame_type);
+//			tcp_ctrl_module_edit_info(frame_type,msg);
+//		}
 		break;
 	default:
 		printf("there is legal value\n");
 		return ERROR;
 	}
 
-	if(value == WIFI_MEETING_EVENT_SPK_ALLOW ||
-			value == WIFI_MEETING_EVENT_SPK_VETO)
-	{
+//	if(value == WIFI_MEETING_EVENT_SPK_ALLOW ||
+//			value == WIFI_MEETING_EVENT_SPK_VETO)
+//	{
+//
+//		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+//		while(tmp!=NULL)
+//		{
+//			con_list = tmp->data;
+//			if(con_list->fd == frame_type->fd)
+//			{
+//				if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+//				{
+//					pos++;
+//					break;
+//				}
+//			}
+//			tmp=tmp->next;
+//		}
+//		if(pos>0){
+//			pos = 0;
+//
+//			tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+//			while(tmp!=NULL)
+//			{
+//				con_list = tmp->data;
+//				if(con_list->con_data.id == frame_type->d_id)
+//				{
+//					frame_type->fd=con_list->fd;
+//					pos++;
+//					break;
+//				}
+//				tmp=tmp->next;
+//			}
+//			if(pos > 0)
+//			{
+//				printf("reply request\n");
+//				//变换为控制类消息下个给单元机
+//				frame_type->msg_type = WRITE_MSG;
+//				frame_type->evt_data.status = value;
+//				tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+//				tcp_ctrl_module_edit_info(frame_type,msg);
+//
+//				if(value == WIFI_MEETING_EVENT_SPK_ALLOW)
+//					tcp_ctrl_uevent_spk_manage(frame_type);
+//			}else{
+//				printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
+//				return ERROR;
+//			}
+//
+//		}else{
+//			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
+//			return ERROR;
+//		}
+//
+//	}
 
-		tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
-		while(tmp!=NULL)
-		{
-			con_list = tmp->data;
-			if(con_list->fd == frame_type->fd)
-			{
-				if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
-				{
-					pos++;
-					break;
-				}
-			}
-			tmp=tmp->next;
-		}
-		if(pos>0){
-			pos = 0;
-
-			tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
-			while(tmp!=NULL)
-			{
-				con_list = tmp->data;
-				if(con_list->con_data.id == frame_type->d_id)
-				{
-					frame_type->fd=con_list->fd;
-					pos++;
-					break;
-				}
-				tmp=tmp->next;
-			}
-			if(pos > 0)
-			{
-				printf("allow the speaking\n");
-				//变换为控制类消息下个给单元机
-				frame_type->msg_type = WRITE_MSG;
-				frame_type->evt_data.status = value;
-				tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-				tcp_ctrl_module_edit_info(frame_type,msg);
-			}else{
-				printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
-				return ERROR;
-			}
-
-		}else{
-			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
-			return ERROR;
-		}
-
-	}
+	tcp_ctrl_uevent_spk_manage(frame_type,msg,value);
 	/*
 	 * 将事件信息发送至消息队列
 	 * 告知应用
@@ -1178,7 +1356,7 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		value = WIFI_MEETING_EVENT_VOTE_TIMEOUT;
 		break;
 	default:
-		printf("there is legal value\n");
+		printf("there is not legal value\n");
 		return ERROR;
 	}
 

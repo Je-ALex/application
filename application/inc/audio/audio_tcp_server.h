@@ -8,32 +8,7 @@
 #ifndef INC_AUDIO_AUDIO_TCP_SERVER_H_
 #define INC_AUDIO_AUDIO_TCP_SERVER_H_
 
-#include <stdio.h>
-#include <malloc.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <getopt.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <errno.h>
-#include <limits.h>
-#include <time.h>
-#include <locale.h>
-#include <sys/unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <assert.h>
-#include <pthread.h>
-#include <sys/socket.h>//socket():bind();listen():accept();inet_addr();listen():accept();connect();
-#include <arpa/inet.h>//htons();inet_addr():
-#include <netinet/in.h>//inet_addr():
-#include <signal.h>
-
-
-
 #include <alsa/asoundlib.h>
-
 #include "tcp_ctrl_device_status.h"
 
 #ifdef __cplusplus
@@ -83,6 +58,11 @@ typedef long long 		off64_t;
 #define DEFAULT_DURATION_TIME    (10000)
 
 
+
+#define		RECV_NUM 	10
+#define 	LOG_NAME 	"audio_log.log"
+#define 	MAX_SPK_NUM 	8
+#define 	DEF_SPK_NUM 	4
 /*
  * timeofday
  */
@@ -142,7 +122,6 @@ typedef struct  {
 
 typedef struct{
 
-	int status;
 	int len;
 	char* msg;
 
@@ -154,6 +133,14 @@ typedef struct{
 	sem_t audio_recv_sem[10];
 
 }audio_signal;
+
+typedef struct{
+
+	pthread_t th_t;
+
+}audio_manage;
+
+
 
 
 int wifi_sys_audio_init();

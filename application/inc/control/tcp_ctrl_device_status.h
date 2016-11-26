@@ -66,8 +66,23 @@ int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp);
  */
 int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len);
 
-
-int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value);
+/*
+ * tcp_ctrl_tprecv_dequeue
+ * tcp控制模块的接收的数据处队列
+ *
+ * in:
+ * @Pframe_type 数据信息结构体
+ * @msg 组包后的数据信息
+ *
+ *
+ * in/out:
+ * @Pctrl_tcp_rsqueue
+ *
+ * return：
+ * @ERROR
+ * @SUCCESS
+ */
+int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue msg_tmp);
 
 
 #endif /* INC_TCP_CTRL_DEVICE_STATUS_H_ */

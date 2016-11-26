@@ -66,6 +66,7 @@ int wifi_sys_signal_init()
 int wifi_sys_val_init()
 {
 	int i;
+	FILE* cfile;
 
 	node_queue = (Pglobal_info)malloc(sizeof(global_info));
 	memset(node_queue,0,sizeof(global_info));
@@ -124,13 +125,13 @@ int wifi_sys_val_init()
 	 */
 	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
 	memset(node_queue->con_status,0,sizeof(conference_status));
-
+	//设置默认发言人数为1
+	node_queue->con_status->spk_number = DEF_SPK_NUM;
 	/*
 	 * 初始化连接文本信息
 	 */
-	FILE* file;
-	file = fopen(CONNECT_FILE,"w+");
-	fclose(file);
+	cfile = fopen(CONNECT_FILE,"w+");
+	fclose(cfile);
 
 	return SUCCESS;
 }

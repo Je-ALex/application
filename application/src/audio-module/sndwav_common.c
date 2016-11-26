@@ -10,29 +10,6 @@
 #include <alsa/asoundlib.h>
 
 
-int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
-
-{
-
-    if(begin->tv_sec > end->tv_sec)
-    	return -1;
-
-    if((begin->tv_sec == end->tv_sec) && (begin->tv_usec > end->tv_usec))
-    	return -2;
-
-    result->time.tv_sec = (end->tv_sec - begin->tv_sec);
-    result->time.tv_usec = (end->tv_usec - begin->tv_usec);
-    if(result->time.tv_usec < 0)
-    {
-    	result->time.tv_sec--;
-    	result->time.tv_usec += 1000000;
-    }
-    result->ms = result->time.tv_usec / 1000;
-    result->time.tv_usec = result->time.tv_usec % 1000;
-    return 0;
-
-}
-
 
 int SNDWAV_P_GetFormat(WAVContainer_t *wav, snd_pcm_format_t *snd_format)
 {

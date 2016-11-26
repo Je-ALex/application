@@ -1,75 +1,80 @@
-/*
- * util_queue.c
- *
- *  Created on: 2012-5-18
- *      Author: van
- */
 
 #include "audio_ring_buf.h"
-#include <stdlib.h>
-#include <stdio.h>
 
 
-
-// 初始化队列
-Paudio_queue newQueue(int queueSize)
+/*
+ * audio_queue_init
+ * 音频数据队列初始化
+ * @size初始化队列的大小
+ */
+Paudio_queue audio_queue_init(int size)
 {
 	Paudio_queue queue = (Paudio_queue)malloc(sizeof(audio_queue));
     if (NULL == queue)
     {
-        printf("in newQueue queue malloc error.\n");
+        printf("%s-%s-%d queue malloc error\n",__FILE__,__func__,__LINE__);
         return NULL;
     }
 
-    queue->elements = (void**)malloc(sizeof(void*) * (queueSize + 1));
+    queue->elements = (void**)malloc(sizeof(void*) * (size + 1));
     if (NULL == queue->elements)
     {
-        printf("in newQueue queue->elements malloc error.\n");
-        return NULL;
+    	printf("%s-%s-%d queue->elements malloc error\n",__FILE__,__func__,__LINE__);
+		return NULL;
     }
 
     queue->head = 0;
     queue->tail = 0;
-    queue->size = queueSize;
+    queue->size = size;
 
     return queue;
 }
 
-// 释放队列
-void freeQueue(Paudio_queue queue)
+/*
+ * audio_queue_free
+ * 释放音频数据队列
+ * @消息队列句柄
+ */
+void audio_queue_free(Paudio_queue queue)
 {
     free(queue->elements);
     free(queue);
 }
 
-// 入队
-int enqueue(Paudio_queue queue, void* element)
+/*
+ * audio_enqueue
+ * 音频数据进入队列
+ * @消息队列句柄
+ * @元素
+ */
+int audio_enqueue(Paudio_queue queue, void* element)
 {
-    if (queueIsFull(queue))
+    if (audio_queue_full(queue))
     {
         queue->head = 0;
         queue->tail = 0;
-        printf("queue is full.\n");
-//        return -1;
+//      printf("%s-%s-%d queue full\n",__FILE__,__func__,__LINE__);
     }
 
     queue->elements[queue->tail] = element;
     queue->tail = (queue->tail + 1) % queue->size;
 
-    return 0;
+    return SUCCESS;
 }
 
-// 出队
-void* dequeue(Paudio_queue queue)
+/*
+ * audio_dequeue
+ * 音频数据出队列
+ * @队列句柄
+ */
+void* audio_dequeue(Paudio_queue queue)
 {
 	void* result;
 
-    if (queueIsEmpty(queue))
+    if (audio_queue_empty(queue))
     {
-        // printf("queue is empty.\n");
         return NULL;
     }
-
     result = queue->elements[queue->head];
 
     queue->head = (queue->head + 1) % queue->size;
@@ -77,28 +82,36 @@ void* dequeue(Paudio_queue queue)
     return result;
 }
 
-// 队列是否为空
-int queueIsEmpty(Paudio_queue queue)
+/*
+ * 判断队列是否为空
+ */
+int audio_queue_empty(Paudio_queue queue)
 {
     return (queue->head == queue->tail);
 }
 
-// 队列是否已满
-int queueIsFull(Paudio_queue queue)
+/*
+ * 判断队列是否已满
+ */
+int audio_queue_full(Paudio_queue queue)
 {
     return (((queue->tail + 1) % queue->size) == queue->head);
 }
 
-// 队列大小
-int queueLength(Paudio_queue queue)
+/*
+ * 判断队列大小
+ */
+int audio_queue_len(Paudio_queue queue)
 {
     return (((queue->tail + queue->size) + queue->head) % queue->size);
 }
 
-// 获取队列指定元素
-void* getQueueElement(Paudio_queue queue, int index)
+/*
+ * 获取队列指定元素
+ */
+void* audio_queue_element(Paudio_queue queue, int index)
 {
-    if (index < 0 || index >= queueLength(queue))
+    if (index < 0 || index >= audio_queue_len(queue))
     {
         printf("queue element is out of range.\n");
         return NULL;
@@ -106,3 +119,6 @@ void* getQueueElement(Paudio_queue queue, int index)
 
     return (queue->elements[(queue->head + index) % queue->size]);
 }
+
+
+

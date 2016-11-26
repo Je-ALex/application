@@ -48,8 +48,8 @@ void udp_data_frame(unsigned char* str,int* len)
 	 * data[7-8]
 	 * 控制模块的端口号信息
 	 */
-	data[udp_index++] = (unsigned char)((CTRL_PORT >> 8) & 0xff);
-	data[udp_index++] = (unsigned char)(CTRL_PORT & 0xff);
+	data[udp_index++] = (unsigned char)((CTRL_TCP_PORT >> 8) & 0xff);
+	data[udp_index++] = (unsigned char)(CTRL_TCP_PORT & 0xff);
 
 	/*
 	 * data[5] 数据包长度
@@ -118,7 +118,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
 	memset(&addr_serv,0,sizeof(addr_serv));
 	addr_serv.sin_family=AF_INET;
 	addr_serv.sin_addr.s_addr=htonl(INADDR_BROADCAST);
-	addr_serv.sin_port = htons(UDP_PORT);
+	addr_serv.sin_port = htons(CTRL_BROADCAST_PORT);
 	/*
 	 * 绑定套接字号
 	 */

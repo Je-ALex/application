@@ -231,7 +231,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
     /*
      * 控制模块接收服务器套接字初始化
      */
-    sockfd = tcp_ctrl_local_addr_init(CTRL_PORT);
+    sockfd = tcp_ctrl_local_addr_init(CTRL_TCP_PORT);
     if(sockfd < 0)
     {
     	printf("tcp_ctrl_local_addr_init failed\n");
@@ -421,19 +421,42 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 	while(1)
 	{
 
-		sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
-//		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+//		sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
+//
+//		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+//
+//		ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
+//
+//		if(ret == 0)
+//		{
+//			tmp = node->data;
+//
+//			printf("%s-tmp->socket_fd[%d] : \n",
+//					__func__,tmp->socket_fd);
+//			for(i=0;i<tmp->len;i++)
+//			{
+//				printf("%x ",tmp->msg[i]);
+//			}
+//			printf("\n");
+//
+//			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+//			write(tmp->socket_fd,tmp->msg, tmp->len);
+//			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+//
+//			free(tmp->msg);
+//			free(tmp);
+//			free(node);
+//
+//		}else{
+//			printf("%s dequeue error\n",__func__);
+//
+//		}
+//		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+
 		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
-	#if TCP_DBG
-		printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
-	#endif
-
-		ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
-
+		ret = tcp_ctrl_tpsend_dequeue(tmp);
 		if(ret == 0)
 		{
-			tmp = node->data;
-
 			printf("%s-tmp->socket_fd[%d] : \n",
 					__func__,tmp->socket_fd);
 			for(i=0;i<tmp->len;i++)
@@ -446,17 +469,13 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 			write(tmp->socket_fd,tmp->msg, tmp->len);
 			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 
-			free(tmp->msg);
-			free(tmp);
-			free(node);
-
 		}else{
-			printf("%s dequeue error\n",__func__);
-
+			printf("%s-%s-%d dequeue error\n",__FILE__,__func__,__LINE__);
 		}
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
 
 	}
+	free(tmp);
 
 }
 
@@ -479,29 +498,42 @@ void* wifi_sys_ctrl_tcp_procs_data(void* p)
 
 	while(1)
 	{
+//		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
+//		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+//
+//		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+//		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
+//
+//		if(ret == 0)
+//		{
+//			tmp = node->data;
+//
+//			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
+//
+//			free(tmp->msg);
+//			free(tmp);
+//			free(node);
+//		}else{
+//			printf("%s dequeue error\n",__func__);
+//
+//		}
+//		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
 
-		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
-		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
 
+		ret = tcp_ctrl_tprecv_dequeue(tmp);
 		if(ret == 0)
 		{
-			tmp = node->data;
-
 			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
 
-			free(tmp->msg);
-			free(tmp);
-			free(node);
 		}else{
-			printf("%s dequeue error\n",__func__);
+			printf("%s-%s-%d dequeue error\n",__FILE__,__func__,__LINE__);
 
 		}
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-
 	}
+	free(tmp);
 
 }
 

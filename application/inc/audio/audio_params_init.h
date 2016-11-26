@@ -5,8 +5,8 @@
  *      Author: leon
  */
 
-#ifndef INC_AUDIO_AUDIO_PARAMETER_INIT_H_
-#define INC_AUDIO_AUDIO_PARAMETER_INIT_H_
+#ifndef INC_AUDIO_AUDIO_PARAMS_INIT_H_
+#define INC_AUDIO_AUDIO_PARAMS_INIT_H_
 
 #include "audio_tcp_server.h"
 
@@ -17,4 +17,6 @@ int audio_format_init(PWAVContainer wav);
 
 int audio_module_data_write(Psnd_data_format sndpcm, int frame_len);
 
-#endif /* INC_AUDIO_AUDIO_PARAMETER_INIT_H_ */
+int  time_substract( timetime *result, struct timeval *begin,struct timeval *end);
+
+#endif /* INC_AUDIO_AUDIO_PARAMS_INIT_H_ */

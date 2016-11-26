@@ -106,6 +106,7 @@ typedef enum{
 	//上位机查询上报
 	WIFI_MEETING_HOST_REP_TO_PC,
 
+
 }ALL_STATUS;
 
 
@@ -362,10 +363,33 @@ int conf_info_set_spk_num(int num);
 int conf_info_get_spk_num();
 
 /*
- * conf_info_set_snd_effect
- * 话筒管理中的模式设置
+ * conf_info_set_cspk_num
+ * 会议中当前发言的人数
  *
- * @value AFC
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_cspk_num(int num);
+
+/*
+ * conf_info_get_cspk_num
+ * 话筒管理中的发言管理
+ * 设置会议中最大发言人数
+ *
+ * 返回值：
+ * @current_spk
+ */
+int conf_info_get_cspk_num();
+
+/*
+ * conf_info_set_snd_effect
+ * DSP音效设置
+ * 采用为管理分别从bit[0-3]表示状态
+ * bit  0    1     2     3
+ *      AFC  ANC0  ANC1  ANC2
+ *
+ *  * @value AFC(0/1)，ANC(0/1/2/3)
  *
  * 返回值：
  * @ERROR

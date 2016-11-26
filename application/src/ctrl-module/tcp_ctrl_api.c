@@ -387,24 +387,52 @@ int conf_info_set_spk_num(int num)
  * 话筒管理中的发言管理
  * 设置会议中最大发言人数
  *
- * @num 1/2/4/6/8
- *
  * 返回值：
- * @ERROR
- * @SUCCESS
+ * @num 1/2/4/6/8
  */
 int conf_info_get_spk_num()
 {
-	printf("%s,%d num=%d\n",__func__,__LINE__,node_queue->con_status->spk_number);
 
 	return node_queue->con_status->spk_number;
 }
 
 /*
+ * conf_info_set_cspk_num
+ * 会议中当前发言的人数
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_info_set_cspk_num(int num)
+{
+	printf("%s,%d num=%d\n",__func__,__LINE__,num);
+	node_queue->con_status->current_spk = num;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_info_get_cspk_num
+ * 话筒管理中的发言管理
+ * 设置会议中最大发言人数
+ *
+ * 返回值：
+ * @current_spk
+ */
+int conf_info_get_cspk_num()
+{
+	 return node_queue->con_status->current_spk;
+}
+
+/*
  * conf_info_set_snd_effect
  * DSP音效设置
+ * 采用为管理分别从bit[0-3]表示状态
+ * bit  0    1     2     3
+ *      AFC  ANC0  ANC1  ANC2
  *
- * @value AFC(0/1)，ANC(0/1/2/3)
+ *  * @value AFC(0/1)，ANC(0/1/2/3)
  *
  * 返回值：
  * @ERROR

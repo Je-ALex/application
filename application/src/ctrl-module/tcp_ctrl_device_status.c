@@ -13,7 +13,6 @@ extern sys_info sys_in;
 extern Pglobal_info node_queue;
 
 
-
 /*
  * 会议信息存储函数
  *
@@ -132,24 +131,53 @@ int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len)
 
 }
 
-
 /*
- * tcp_ctrl_tpsend_dequeue
- * tcp控制模块的数据出队列
- * 将消息数据送入发送队列等待发送
+ * tcp_ctrl_tprecv_dequeue
+ * tcp控制模块的接收的数据处队列
+ *
+ * in:
+ * @Pframe_type 数据信息结构体
+ * @msg 组包后的数据信息
+ *
  *
  * in/out:
- * @Ptcp_send 数据信息结构体
+ * @Pctrl_tcp_rsqueue
  *
  * return：
  * @ERROR
  * @SUCCESS
  */
-int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue event_tmp)
+int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue msg_tmp)
 {
+	int ret;
+	Plinknode node;
+	Pctrl_tcp_rsqueue tmp;
+
+	sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
+
+	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
+
+	ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
+
+
+	if(ret == 0)
+	{
+		tmp = node->data;
+
+		msg_tmp->socket_fd = tmp->socket_fd;
+		msg_tmp->len = tmp->len;
+		memcpy(msg_tmp->msg,tmp->msg,tmp->len);
+
+		free(tmp->msg);
+		free(tmp);
+		free(node);
+	}else{
+		return ERROR;
+	}
 
 	return SUCCESS;
 }
+
 /*
  * tcp_ctrl_tcp_send_enqueue
  * tcp控制模块的数据发送队列
@@ -228,7 +256,6 @@ int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 	if(ret == 0)
 	{
 		tmp = node->data;
-//		memcpy(*event_tmp,tmp,sizeof(tcp_send_queue));
 		event_tmp->socket_fd = tmp->socket_fd;
 		event_tmp->len = tmp->len;
 		memcpy(event_tmp->msg,tmp->msg,tmp->len);
@@ -320,30 +347,6 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 }
 
 
-
-
-int tcp_ctrl_pc_enqueue(Pframe_type frame_type,int value)
-{
-
-	Pclient_info tmp_info;
-
-	tmp_info = (Pclient_info)malloc(sizeof(client_info));
-	memset(tmp_info,0,sizeof(client_info));
-
-	printf("%s,%d\n",__func__,__LINE__);
-	/*
-	 * 单元机固有属性
-	 */
-	tmp_info->client_fd = frame_type->fd;
-
-	pthread_mutex_lock(&sys_in.sys_mutex[PC_REP_MUTEX]);
-	enter_queue(node_queue->sys_queue[CTRL_REP_PC_QUEUE],tmp_info);
-	pthread_mutex_unlock(&sys_in.sys_mutex[PC_REP_MUTEX]);
-
-	sem_post(&sys_in.sys_sem[PC_REP_SEM]);
-
-	return SUCCESS;
-}
 
 
 

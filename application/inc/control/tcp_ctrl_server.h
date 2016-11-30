@@ -38,8 +38,11 @@
 
 #define ELE_NUM 		32
 #define SUBJECT_OFFSET 	20
-
 #define PC_ID 0xFFFF
+
+
+
+
 /*
  * 系统调度所用到的互斥锁和信号量
  */
@@ -310,6 +313,7 @@ typedef enum {
 	WIFI_MEETING_EVT_SPK_VETO_SND,
 	WIFI_MEETING_EVT_SPK_REQ_SND,
 	WIFI_MEETING_EVT_SPK_REQ_SPK,
+	WIFI_MEETING_EVT_SPK_REQ_CLOSE,
 }event_speak;
 
 typedef enum {
@@ -339,6 +343,7 @@ typedef enum {
 typedef enum {
 	WIFI_MEETING_EVT_VOT_START = 1,
 	WIFI_MEETING_EVT_VOT_END,
+	WIFI_MEETING_EVT_VOT_RESULT,
 	WIFI_MEETING_EVT_VOT_ASSENT,
 	WIFI_MEETING_EVT_VOT_NAY,
 	WIFI_MEETING_EVT_VOT_WAIVER,
@@ -349,6 +354,7 @@ typedef enum {
 
 	WIFI_MEETING_EVT_ELECTION_START = 1,
 	WIFI_MEETING_EVT_ELECTION_END,
+	WIFI_MEETING_EVT_ELECTION_RESULT,
 	WIFI_MEETING_EVT_ELECTION_UNDERWAY,
 
 }event_election;
@@ -357,6 +363,7 @@ typedef enum {
 
 	WIFI_MEETING_EVT_SCORE_START = 1,
 	WIFI_MEETING_EVT_SCORE_END,
+	WIFI_MEETING_EVT_SCORE_RESULT,
 	WIFI_MEETING_EVT_SCORE_UNDERWAY,
 }event_score;
 
@@ -404,11 +411,9 @@ typedef struct {
 
 	 char ssid[32];
 	 char key[64];
+	 unsigned short port;
 
 }net_info,*Pnet_info;
-
-
-
 
 /*
  * 投票型会议，投票管理内容
@@ -432,7 +437,7 @@ typedef struct{
 	//选举编号ID
 	unsigned short ele_id[ELE_NUM];
 	//被选举人总人数
-	char ele_total;
+	unsigned char ele_total;
 
 }election_result,*Pelection_result;
 
@@ -445,7 +450,7 @@ typedef struct{
 	unsigned int score;
 	unsigned short num_peop;
 	//计分平均值
-	 char score_r;
+	char score_r;
 
 }score_result,*Pscore_result;
 
@@ -522,8 +527,8 @@ typedef struct {
 	int frame_len;
 	unsigned short s_id;
 	unsigned short d_id;
-
-
+	unsigned short spk_port;
+	unsigned short brd_port;
 
 	event_data evt_data;
 	signal_unit_data con_data;
@@ -567,8 +572,6 @@ typedef struct {
 typedef struct {
 
 	int pc_status;
-
-
 	net_info network;
 
 	unsigned char conf_name[128];
@@ -579,15 +582,16 @@ typedef struct {
 	unsigned char mic_mode;
 	unsigned char snd_effect;
 	//设置的发言人数
-	int spk_number;
+	unsigned char spk_number;
 	//当前发言的人数
-	int current_spk;
+	unsigned char current_spk;
+	//主席发言状态
+	int chirman_t;
+
 	//DEBUG
 	char debug_sw;
 
 }conference_status,*Pconference_status;
-
-
 
 /*
  * wifi_sys_ctrl_tcp_recv

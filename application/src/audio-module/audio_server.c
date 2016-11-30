@@ -168,7 +168,6 @@ static void audio_data_mix(char** sourseFile,unsigned char *objectFile,int numbe
 static int audio_udp_init(int port)
 {
 	int socket_fd = -1;
-	int opt =0;
 	/*
 	 *configuration the socket  parameter
 	 */
@@ -212,7 +211,7 @@ static void* audio_recv_thread(void* p)
 	timetime diff;
 
 
-	int i,ret;
+	int i;
 	int socket_fd;
 
 	int port = (int)p;
@@ -271,7 +270,7 @@ static void* audio_recv_thread(void* p)
 			data[i]->len = playback.recv_num;
 //	    	printf("%d:recv_num = %d\n",port,playback.recv_num);
 			audio_enqueue(queue[queue_num],data[i]);
-			sem_post(&sem.audio_mix_sem[queue_num]);
+
 			i++;
 			if(i==10)
 				i=0;
@@ -281,6 +280,7 @@ static void* audio_recv_thread(void* p)
 //		playback.recv_num = playback.recv_num * 8 / playback.bits_per_frame;
 //		playback.data_buf = buffer[i];
 //		audio_module_data_write(&playback, playback.recv_num);
+
 
 		if(node_queue->con_status->debug_sw){
 			gettimeofday(&stop,0);
@@ -335,9 +335,7 @@ static void* audio_data_mix_thread(void* data)
 
     	for(i=0;i<conf_info_get_spk_num();i++)
     	{
-    		sem_wait(&sem.audio_mix_sem[i]);
     		tmp[i] = audio_dequeue(queue[i]);
-
 			if(tmp[i] != NULL)
 			{
 				recvbuf[j] = tmp[i]->msg;
@@ -347,19 +345,16 @@ static void* audio_data_mix_thread(void* data)
 				if(length < tmp[i]->len)
 					length = tmp[i]->len;
 
-				++j;
+				j++;
 			}
 			else{
-				printf("queue[%d] %s-%s-%d queue empty\n",i,__FILE__,__func__,__LINE__);
+				//printf("queue[%d] %s-%s-%d queue empty\n",i,__FILE__,__func__,__LINE__);
 
 			}
     	}
 
 		if(j)
 		{
-			//当前发言人数需要告知全局变量
-			if(conf_info_get_cspk_num() != j)
-				conf_info_set_cspk_num(j);
 			/*
 			 * 一个人的时候，就不用进行混音
 			 */
@@ -460,16 +455,8 @@ int wifi_sys_audio_init()
     	}
     	port +=2;
     }
-//	int port = AUDIO_RECV_PORT;
-//	ret = pthread_create(&th_a[i], NULL, audio_recv_thread, (void*)port);
-//	if (ret != 0)
-//	{
-//		perror ("creat audio thread error");
-//	}
 
     while(1){
-
-
 
     }
 

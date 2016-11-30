@@ -256,10 +256,15 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				buf[tmp_index++] = type->name_type[0];
 				buf[tmp_index++] = type->code_type[0];
 
-				for(i=0;i<node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_total;i++)
+				for(i=0;i<conf_status_get_elec_totalp();i++)
 				{
+//					buf[tmp_index++] = i;
+//					tcp_ctrl_data_short_to_char(node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_id[i],data);
+//					memcpy(&buf[tmp_index],data,sizeof(short));
+//					tmp_index = tmp_index + sizeof(short);
+
 					buf[tmp_index++] = i;
-					tcp_ctrl_data_short_to_char(node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_id[i],data);
+					tcp_ctrl_data_short_to_char(type->con_data.elec_rsult.ele_id[i],data);
 					memcpy(&buf[tmp_index],data,sizeof(short));
 					tmp_index = tmp_index + sizeof(short);
 				}
@@ -270,8 +275,7 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				buf[tmp_index++] = type->name_type[0];
 				buf[tmp_index++] = type->code_type[0];
 
-				buf[tmp_index++] = node_queue->con_status->
-						sub_list[node_queue->con_status->sub_num].scr_result.score_r;
+				buf[tmp_index++] = type->con_data.src_result.score_r;
 				type->data_len = tmp_index;
 				break;
 
@@ -359,7 +363,7 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 	}
 #if TCP_DBG
 	printf("tcp_ctrl_edit_conference_content buf: ");
-	for(i=0;i<num;i++)
+	for(i=0;i<tmp_index;i++)
 	{
 		printf("%x ",buf[i]);
 
@@ -379,36 +383,58 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
  * in:@Pframe_type
  * out: buf
  */
-void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
+int tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 {
 	int i;
 	int tc_index = 0;
+	unsigned char port[2] = {0};
 
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
-	if(type->name_type[0] == WIFI_MEETING_EVT_SSID
-			&& type->name_type[1] == WIFI_MEETING_EVT_KEY )
+	switch(type->name_type[0])
+	{
+	case WIFI_MEETING_EVT_SSID:
+	{
+		if(type->name_type[1] == WIFI_MEETING_EVT_KEY)
+		{
+			buf[tc_index++] = type->name_type[0];
+			buf[tc_index++] = type->code_type[0];
+			buf[tc_index++] = strlen(type->evt_data.unet_info.ssid);
+			memcpy(&buf[tc_index],type->evt_data.unet_info.ssid,strlen(type->evt_data.unet_info.ssid));
+
+			tc_index = tc_index+strlen(type->evt_data.unet_info.ssid);
+
+			buf[tc_index++] = type->name_type[1];
+			buf[tc_index++] = type->code_type[1];
+			buf[tc_index++] = strlen(type->evt_data.unet_info.key);
+			memcpy(&buf[tc_index],type->evt_data.unet_info.key,strlen(type->evt_data.unet_info.key));
+
+			tc_index = tc_index+strlen(type->evt_data.unet_info.key);
+		}
+	break;
+	}
+	case WIFI_MEETING_EVT_AD_PORT:
 	{
 		buf[tc_index++] = type->name_type[0];
 		buf[tc_index++] = type->code_type[0];
-		buf[tc_index++] = strlen(type->evt_data.unet_info.ssid);
-		memcpy(&buf[tc_index],type->evt_data.unet_info.ssid,strlen(type->evt_data.unet_info.ssid));
-
-		tc_index = tc_index+strlen(type->evt_data.unet_info.ssid);
-
-		buf[tc_index++] = type->name_type[1];
-		buf[tc_index++] = type->code_type[1];
-		buf[tc_index++] = strlen(type->evt_data.unet_info.key);
-		memcpy(&buf[tc_index],type->evt_data.unet_info.key,strlen(type->evt_data.unet_info.key));
-
-		tc_index = tc_index+strlen(type->evt_data.unet_info.key);
-
-	}else{
-
+		if(type->spk_port > 0){
+			buf[tc_index++] = WIFI_MEETING_EVT_AD_PORT_SPK;
+			tcp_ctrl_data_short_to_char(type->spk_port ,port);
+		}else if(type->brd_port > 0){
+			buf[tc_index++] = WIFI_MEETING_EVT_AD_PORT_LSN;
+			tcp_ctrl_data_short_to_char(type->brd_port ,port);
+		}
+		memcpy(&buf[tc_index],port,sizeof(short));
+		tc_index = tc_index + sizeof(short);
+		break;
+	}
+	default:
+	{
 		buf[tc_index++] = type->name_type[0];
 		buf[tc_index++] = type->code_type[0];
 		buf[tc_index++] = type->evt_data.value;
-
+		break;
+	}
 	}
 
 	type->data_len = tc_index;
@@ -420,6 +446,7 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 	}
 	printf("\n");
 
+	return SUCCESS;
 }
 /*
  * tcp_ctrl_module_edit_info
@@ -455,7 +482,6 @@ void tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
  */
 int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 {
-
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
 	Pconference_list con_list;
@@ -546,8 +572,6 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 			printf("%s-%s-%d not leagal data type\n",__FILE__,__func__,__LINE__);
 			return ERROR;
 		}
-
-
 	}else{
 
 		//通过上报的事件类型，进行区分
@@ -559,10 +583,13 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 		case WIFI_MEETING_EVENT_CHECKIN_END:
 		case WIFI_MEETING_EVENT_VOTE_START:
 		case WIFI_MEETING_EVENT_VOTE_END:
+		case WIFI_MEETING_EVENT_VOTE_RESULT:
 		case WIFI_MEETING_CONF_ELECTION_START:
 		case WIFI_MEETING_CONF_ELECTION_END:
+		case WIFI_MEETING_CONF_ELECTION_RESULT:
 		case WIFI_MEETING_CONF_SCORE_START:
 		case WIFI_MEETING_CONF_SCORE_END:
+		case WIFI_MEETING_CONF_SCORE_RESULT:
 		case WIFI_MEETING_EVENT_CON_MAG_START:
 		case WIFI_MEETING_EVENT_CON_MAG_END:
 		//上位机下发数据

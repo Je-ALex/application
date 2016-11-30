@@ -186,7 +186,7 @@ static int tcp_ctrl_pc_write_msg(const unsigned char* msg,Pframe_type frame_type
 	/*
 	 * 找到上位机需要下发消息的目标地址的
 	 * 在上位机下发指令的时候，目标地址为单元机的fd
-	 * 通过目标地址找出是否存在此单元机
+	 * 通过目标地址找出是否存在此单元机,并保存fd
 	 */
 	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
 	while(tmp!=NULL)
@@ -484,8 +484,7 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 	int ret = 0;
 	int tmp_fd = frame_type->fd;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	switch(frame_type->msg_type)
 	{
@@ -509,6 +508,7 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 	frame_type->dev_type = HOST_CTRL;
 	frame_type->name_type[0] = 0;
 	frame_type->code_type[0] = WIFI_MEETING_ERROR;
+
 	/*
 	 * 收到正确消息，回复上位机
 	 * 返回成功就开始转圈，返回失败就提示失败

@@ -138,7 +138,7 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* value, int* len
 #if TCP_DBG
 	printf("type->msg_type = %d\n"
 			"type->data_type = %d\n"
-			"type->dev_type = %d\n",type->msg_type,type->data_type,type->dev_type);
+			"type->dev_type = %d\n",tmp_type->msg_type,tmp_type->data_type,tmp_type->dev_type);
 #endif
 
 	if(ret != SUCCESS)
@@ -370,13 +370,12 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				}
 				else
 				{
+
 //					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
 //							&clilen);
 //					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
 //							ntohs(cli_addr.sin_port));
 					//通过返回值进行处理
-
-//					ret = tcp_ctrl_process_recv_msg(&wait_event[n].data.fd,buf,&len);
 					pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
 					tcp_ctrl_tprecv_enqueue(&wait_event[n].data.fd,buf,&len);
 					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
@@ -393,8 +392,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
     free(node_queue);
 
     pthread_exit(0);
-
-
 
 }
 
@@ -413,50 +410,19 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 	Plinknode node;
 	Pctrl_tcp_rsqueue tmp;
 
-	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
-	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
-
-
-
 	while(1)
 	{
 
-//		sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
-//
-//		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
-//
-//		ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
-//
-//		if(ret == 0)
-//		{
-//			tmp = node->data;
-//
-//			printf("%s-tmp->socket_fd[%d] : \n",
-//					__func__,tmp->socket_fd);
-//			for(i=0;i<tmp->len;i++)
-//			{
-//				printf("%x ",tmp->msg[i]);
-//			}
-//			printf("\n");
-//
-//			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
-//			write(tmp->socket_fd,tmp->msg, tmp->len);
-//			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
-//
-//			free(tmp->msg);
-//			free(tmp);
-//			free(node);
-//
-//		}else{
-//			printf("%s dequeue error\n",__func__);
-//
-//		}
-//		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+		sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
 
 		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
-		ret = tcp_ctrl_tpsend_dequeue(tmp);
+
+		ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
+
 		if(ret == 0)
 		{
+			tmp = node->data;
+
 			printf("%s-tmp->socket_fd[%d] : \n",
 					__func__,tmp->socket_fd);
 			for(i=0;i<tmp->len;i++)
@@ -469,8 +435,13 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 			write(tmp->socket_fd,tmp->msg, tmp->len);
 			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 
+			free(tmp->msg);
+			free(tmp);
+			free(node);
+
 		}else{
-			printf("%s-%s-%d dequeue error\n",__FILE__,__func__,__LINE__);
+			printf("%s dequeue error\n",__func__);
+
 		}
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
 
@@ -493,45 +464,29 @@ void* wifi_sys_ctrl_tcp_procs_data(void* p)
 	Pctrl_tcp_rsqueue tmp;
 	int ret;
 
-	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
-	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
 
 	while(1)
 	{
-//		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
-//		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-//
-//		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-//		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
-//
-//		if(ret == 0)
-//		{
-//			tmp = node->data;
-//
-//			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
-//
-//			free(tmp->msg);
-//			free(tmp);
-//			free(node);
-//		}else{
-//			printf("%s dequeue error\n",__func__);
-//
-//		}
-//		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-
+		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
+		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
 
-		ret = tcp_ctrl_tprecv_dequeue(tmp);
 		if(ret == 0)
 		{
+			tmp = node->data;
 			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
 
+			free(tmp->msg);
+			free(tmp);
+			free(node);
 		}else{
-			printf("%s-%s-%d dequeue error\n",__FILE__,__func__,__LINE__);
+			printf("%s dequeue error\n",__func__);
 
 		}
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+
 	}
 	free(tmp);
 

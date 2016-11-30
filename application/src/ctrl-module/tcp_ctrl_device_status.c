@@ -347,6 +347,379 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 }
 
 
+/*
+ * conf_status_check_client_legal
+ * 检查数据包来源合法性，会议表中是否有此设备
+ * 并将此设备的席位赋值给临时变量
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_check_client_legal(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->fd == frame_type->fd
+				&& frame_type->s_id == con_list->con_data.id)
+		{
+			frame_type->con_data.seat = con_list->con_data.seat;
+			frame_type->con_data.id = con_list->con_data.id;
+			pos++;
+			break;
+		}
+
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+
+/*
+ * conf_status_check_chariman_legal
+ * 检查数据包来源合法性，是否是主席单元发送的数据
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_check_chariman_legal(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	/*
+	 * 判断消息是否是主席单元发送
+	 */
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->fd == frame_type->fd)
+		{
+			if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+			{
+				pos++;
+				break;
+			}
+		}
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+
+/*
+ * conf_status_find_did_sockfd
+ * 检测临时变量中源地址对应的客户端的sockfd
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_find_did_sockfd(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->con_data.id == frame_type->d_id)
+		{
+			frame_type->fd=con_list->fd;
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+
+/*
+ * conf_status_find_chariman_sockfd
+ * 检测链表中，主席单元的sockfd
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_find_chariman_sockfd(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+		{
+			printf("find the chariman\n");
+			frame_type->fd=con_list->fd;
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+/*
+ * conf_status_set_cmspk
+ * 会议中主席的发言状态
+ *
+ * @value
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_status_set_cmspk(int value){
+
+
+	node_queue->con_status->chirman_t = value;
+
+	return SUCCESS;
+}
+
+
+/*
+ * conf_status_get_cmspk
+ * 会议中主席的发言状态
+ *
+ * 返回值：
+ * @status
+ */
+int conf_status_get_cmspk(){
+
+	return node_queue->con_status->chirman_t;
+}
+
+/*
+ * conf_status_set_current_subject
+ * 会议中投票议题的状态
+ *
+ *
+ */
+int conf_status_set_current_subject(unsigned char num)
+{
+	node_queue->con_status->sub_num = num;
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_subject_property
+ * 会议中投票议题的状态
+ *
+ *
+ */
+int conf_status_get_current_subject()
+{
+	return node_queue->con_status->sub_num;
+}
+
+/*
+ * conf_status_get_subject_property
+ * 会议中投票议题的状态
+ *
+ *
+ */
+int conf_status_get_subject_property(unsigned char* num)
+{
+	if(num == NULL)
+		return node_queue->con_status->sub_list[node_queue->con_status->sub_num].subj_prop;
+	else
+		return node_queue->con_status->sub_list[*num].subj_prop;
+
+}
+
+/*
+ * conf_status_save_vote_result
+ * 会议中投票议题的状态
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_save_vote_result(int value)
+{
+	int sub_num = conf_status_get_current_subject();
+
+	switch(value)
+	{
+	case WIFI_MEETING_EVENT_VOTE_ASSENT:
+		node_queue->con_status->sub_list[sub_num].v_result.assent++;
+		break;
+	case WIFI_MEETING_EVENT_VOTE_NAY:
+		node_queue->con_status->sub_list[sub_num].v_result.nay++;
+		break;
+	case WIFI_MEETING_EVENT_VOTE_WAIVER:
+		node_queue->con_status->sub_list[sub_num].v_result.waiver++;
+		break;
+	case WIFI_MEETING_EVENT_VOTE_TIMEOUT:
+		node_queue->con_status->sub_list[sub_num].v_result.timeout++;
+		break;
+	}
+
+	return SUCCESS;
+}
+/*
+ * conf_status_get_vote_result
+ * 会议中投票议题的状态
+ *
+ *
+ */
+int conf_status_get_vote_result(unsigned char* num,unsigned short* value)
+{
+	int sub_num = *num;
+	int c_num = conf_status_get_current_subject();
+
+	if(num == NULL)
+	{
+		value[0] =
+				node_queue->con_status->sub_list[c_num].v_result.assent;
+		value[1] =
+				node_queue->con_status->sub_list[c_num].v_result.nay;
+		value[2] =
+				node_queue->con_status->sub_list[c_num].v_result.waiver;
+		value[3] =
+				node_queue->con_status->sub_list[c_num].v_result.timeout;
+
+	}else{
+		value[0] =
+				node_queue->con_status->sub_list[sub_num].v_result.assent;
+		value[1] =
+				node_queue->con_status->sub_list[sub_num].v_result.nay;
+		value[2] =
+				node_queue->con_status->sub_list[sub_num].v_result.waiver;
+		value[3] =
+				node_queue->con_status->sub_list[sub_num].v_result.timeout;
+
+	}
+
+	return SUCCESS;
+}
+
+
+/*
+ * conf_status_save_vote_result
+ * 会议中投票议题的状态
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_save_elec_result(unsigned short value)
+{
+	int sub_num = conf_status_get_current_subject();
+
+	node_queue->con_status->sub_list[sub_num].ele_result.ele_id[value]++;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_save_vote_result
+ * 会议中投票议题的状态
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_get_elec_result(unsigned short value)
+{
+	int sub_num = conf_status_get_current_subject();
+	return node_queue->con_status->sub_list[sub_num].ele_result.ele_id[value];
+}
+
+/*
+ * conf_status_get_elec_totalp
+ * 议题中被选举总人数
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_get_elec_totalp()
+{
+	int sub_num = conf_status_get_current_subject();
+	return node_queue->con_status->sub_list[sub_num].ele_result.ele_total;
+}
+
+/*
+ * conf_status_save_score_result
+ * 会议中投票议题的状态
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_save_score_result(unsigned char value)
+{
+	int sub_num = conf_status_get_current_subject();
+	node_queue->con_status->sub_list[sub_num].scr_result.score += value;
+	node_queue->con_status->sub_list[sub_num].scr_result.num_peop++;
+	return SUCCESS;
+}
+
+/*
+ * conf_status_calc_score_result
+ * 计算积分结果
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_calc_score_result()
+{
+	unsigned char value = 0;
+	int sub_num = conf_status_get_current_subject();
+
+	value = node_queue->con_status->sub_list[sub_num].scr_result.score /
+					node_queue->con_status->sub_list[sub_num].scr_result.num_peop;
+	node_queue->con_status->sub_list[sub_num].scr_result.score_r = value;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_score_result
+ * 获取积分结果
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_get_score_result(Pscore_result result)
+{
+	int sub_num = conf_status_get_current_subject();
+
+	result->num_peop = conf_status_get_score_totalp();
+	result->score = node_queue->con_status->sub_list[sub_num].scr_result.score;
+	result->score_r = node_queue->con_status->sub_list[sub_num].scr_result.score_r;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_score_totalp
+ * 议题中被选举总人数
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_get_score_totalp()
+{
+	int sub_num = conf_status_get_current_subject();
+	return node_queue->con_status->sub_list[sub_num].scr_result.num_peop;
+}
+
+
+
+
+
+
 
 
 

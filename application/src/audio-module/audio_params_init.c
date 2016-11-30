@@ -237,8 +237,8 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	}
 
 	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 40000;
-	period_time = buffer_time / 4;//11ms
+	buffer_time = 21333;
+	period_time = buffer_time / 4;//5.3ms/1024B
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)
 	if (snd_pcm_hw_params_set_buffer_time_near(sndpcm->handle, hwparams, &buffer_time, &dir) < 0) {

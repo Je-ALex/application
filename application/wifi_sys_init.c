@@ -127,6 +127,7 @@ int wifi_sys_val_init()
 	memset(node_queue->con_status,0,sizeof(conference_status));
 	//设置默认发言人数为1
 	node_queue->con_status->spk_number = DEF_SPK_NUM;
+
 	/*
 	 * 初始化连接文本信息
 	 */

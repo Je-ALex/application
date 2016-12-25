@@ -3,7 +3,7 @@
 #ifndef __SNDWAV_COMMON_H
 #define __SNDWAV_COMMON_H
 
-#include "../../inc/audio/audio_tcp_server.h"
+#include "../../inc/audio/audio_server.h"
 
 
 

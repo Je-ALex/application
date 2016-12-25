@@ -1,0 +1,80 @@
+tftp -g -r qt570-master.tar.gz 192.168.10.68
+tftp -g -r tslib-master.tar.gz 192.168.10.72
+tftp -g -r libctrl.so 192.168.10.72
+tftp -g -r WIFI_TEST 192.168.10.91
+tftp -g -r wifi_chairman 192.168.10.51
+tftp -g -r libwifi 192.168.10.51
+tftp -g -r host.info 192.168.10.72
+udhcpc -i wlan0
+vi /etc/profile
+source /etc/profile
+cd /tftp
+
+cp ./qt570-master.tar.gz /opt
+cd /opt 
+tar vxf qt570-master.tar.gz
+
+cp ./tslib-master.tar.gz /usr/local
+cd /usr/local
+tar vxf tslib-master.tar.gz
+
+cd /usr/local/tslib-master/bin
+./ts_test
+
+
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+
+PS1='[\u@\h \W]\$ '
+
+export PATH
+
+alias ll='ls -l'
+alias la='ll -a'
+
+export PS1='\u@\h \w$ '
+export PS2='> '
+export PS3='? '
+export PS4='[$LINENO]+'
+
+export GST_PLUGIN_PATH=/usr/lib/fsl_mm_linux/lib/gstreamer-0.10
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
+
+export TSLIB_ROOT=/usr/local/tslib-master
+export TSLIB_TSDEVICE=/dev/input/event1
+export TSLIB_TSEVENTTYPE=input
+export TSLIB_CONSOLEDEVICE=none
+export TSLIB_CALIBFILE=/etc/pointercal
+export TSLIB_CONFFILE=$TSLIB_ROOT/etc/ts.conf
+export TSLIB_PLUGINDIR=$TSLIB_ROOT/lib/ts
+export TSLIB_FBDEVICE=/dev/fb0
+export PATH=$TSLIB_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$TSLIB_ROOT/lib:$LD_LIBRARY_PATH
+
+export QTDIR=/opt/Qt-5.7.0
+export PATH=$QTDIR/bin:$PATH
+export LD_LIBRARY_PATH=$QTDIR/lib:$LD_LIBRARY_PATH
+export QT_QPA_PLATFORM_PLUGIN_PATH=$QTDIR/plugins
+export QT_QPA_FONTDIR=$QTDIR/lib/fonts
+export QT_QPA_PLATFORM=linuxfb:tty=/dev/fb0
+
+#export QWS_MOUSE_PROTO=mouseman:/dev/input/mice
+#export QWS_MOUSE_PROTO=tslib:/dev/input/event1
+export QT_QPA_GENERIC_PLUGINS=tslib
+
+
+
+
+#!/bin/sh  
+#get /proc/pid/task/tid/stat  
+#$1 is tid  
+#$14  is user cpu   
+#$15 is sys cpu  
+echo "tid user sys"  
+for file in /proc/$1/task/*  
+do  
+    if test -d $file  
+    then  
+        cat $file/stat | awk -F" " '{print $1 " " $14 " " $15}'  
+    fi  
+done  

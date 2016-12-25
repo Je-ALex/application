@@ -2,7 +2,7 @@
 
 
 
-#include "../../inc/audio/audio_tcp_server.h"
+#include "../../inc/audio/audio_server.h"
 
 #define WAV_PRINT_MSG
 

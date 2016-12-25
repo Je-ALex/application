@@ -6,19 +6,13 @@
  */
 
 
+#include "inc/audio/audio_server.h"
 #include "tcp_ctrl_device_status.h"
 #include "scanf_md_udp.h"
-#include "audio_tcp_server.h"
+#include "sys_uart_init.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;
-
-
-int runcond = 1;
-static void stophandler(int signum)
-{
-	runcond=0;
-}
 
 /*
  * wifi_sys_signal_init
@@ -127,7 +121,8 @@ int wifi_sys_val_init()
 	memset(node_queue->con_status,0,sizeof(conference_status));
 	//设置默认发言人数为1
 	node_queue->con_status->spk_number = DEF_SPK_NUM;
-
+	//设置默认话筒模式为FIFO
+	node_queue->con_status->mic_mode = DEF_MIC_MODE;
 	/*
 	 * 初始化连接文本信息
 	 */
@@ -149,11 +144,11 @@ int wifi_conference_sys_init()
 	pthread_t ctrl_tcpr;
 	pthread_t ctrl_tcps;
 	pthread_t ctrl_procs;
-
-//	void*status;
+	pthread_t ctrl_heart;
 	int ret;
+	void *retval;
 
-	printf("%s,%d\n",__func__,__LINE__);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	/*
 	 * 系统互斥锁和信号量的初始化
@@ -173,6 +168,15 @@ int wifi_conference_sys_init()
 		 printf("wifi_sys_val_init failed\n");
 		 goto ERR;
 	}
+
+
+	ret = uart_snd_effect_init();
+	if (ret != 0)
+	{
+		 printf("uart_snd_effect_init failed\n");
+		 goto ERR;
+	}
+
 	/*
 	 * 设备发现之UDP广播初始化
 	 */
@@ -201,6 +205,15 @@ int wifi_conference_sys_init()
 		 goto ERR;
 	}
 	/*
+	 * TCP控制模块心跳控制线程
+	 */
+	ret = pthread_create(&ctrl_heart,NULL,wifi_sys_ctrl_tcp_heart_state,NULL);
+	if (ret != 0)
+	{
+		 printf("wifi_sys_ctrl_tcp_heat_sta failed\n");
+		 goto ERR;
+	}
+	/*
 	 * TCP控制模块数据发送线程
 	 */
 	ret = pthread_create(&ctrl_tcps,NULL,wifi_sys_ctrl_tcp_send,NULL);
@@ -210,22 +223,22 @@ int wifi_conference_sys_init()
 		 goto ERR;
 	}
 
-	//测试线程
-	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
-	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
 
 
-	wifi_sys_audio_init();
+	//音频初始化
+	ret = wifi_sys_audio_init();
+	if (ret != 0)
+	{
+		 printf("wifi_sys_audio_init failed\n");
+		 goto ERR;
+	}
 
-//	pthread_join(ctrl_tcps,&status);
-	signal(SIGINT,stophandler);
-	while(runcond)
-		;
+	pthread_join(ctrl_tcps, &retval);
 
-	free(node_queue->sys_list);
-	free(node_queue->sys_queue);
-	free(node_queue->con_status);
-	free(node_queue);
+//	free(node_queue->sys_list);
+//	free(node_queue->sys_queue);
+//	free(node_queue->con_status);
+//	free(node_queue);
 	return SUCCESS;
 
 ERR:
@@ -235,18 +248,31 @@ ERR:
 	free(node_queue);
 
 	return ERROR;
+
 }
 
+//int main(void)
+//{
+//	pthread_t ctrl_tcps;
+//	int ret = 0;
+//	host_info net_info;
+//	void *retval;
+//	//首先检测网络是否启动
+//	ret = host_info_get_network_info(&net_info);
+//	if(ret == ERROR){
+//		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
+//	}
+//	ret = wifi_conference_sys_init();
+//	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
+//
+//	//测试线程
+//	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
+//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
+//
+//	pthread_join(ctrl_tcps, &retval);
+//	exit(0);
+//
+//    return SUCCESS;
+//}
 
 
-
-
-int main(void)
-{
-	int ret = 0;
-
-	ret = wifi_conference_sys_init();
-	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
-
-    return 0;
-}

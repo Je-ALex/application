@@ -7,85 +7,25 @@
 
 
 #include "tcp_ctrl_device_status.h"
-#include "tcp_ctrl_api.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;
 
+/*
+ * 系统调试开关设置
+ */
+int sys_debug_set_switch(unsigned char value)
+{
+	node_queue->con_status->debug_sw = value;
+	return SUCCESS;
+}
 
 /*
- * 会议信息存储函数
- *
+ * 系统调试开关状态获取
  */
-int tcp_ctrl_refresh_conference_list(Pconference_list data_info)
+int sys_debug_get_switch()
 {
-	pclient_node tmp = NULL;
-	pclient_node del = NULL;
-	Pclient_info cinfo;
-	Pconference_list info;
-
-
-	int pos = 0;
-	int status = 0;
-
-	/*
-	 * 首先在连接信息中搜寻socke_fd
-	 * 判断是否有此设备连接
-	 */
-	tmp = node_queue->sys_list[CONNECT_LIST]->next;
-	while(tmp!=NULL)
-	{
-		cinfo = tmp->data;
-		if(cinfo->client_fd == data_info->fd)
-		{
-			status++;
-			break;
-		}
-		tmp = tmp->next;
-	}
-
-	if(status > 0)
-	{
-		status = 0;
-	}else{
-		printf("there is no client in the connection list\n");
-		return ERROR;
-	}
-
-	/*
-	 * 删除会议信息链表中的数据
-	 */
-	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;;
-	while(tmp != NULL)
-	{
-		info = tmp->data;
-		if(info->fd == data_info->fd)
-		{
-			printf("find the fd\n");
-			status++;
-			break;
-		}
-		pos++;
-		tmp = tmp->next;
-	}
-
-//	printf("pos--%d\n",pos);
-	if(status > 0)
-	{
-		list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
-		info = del->data;
-		status = 0;
-		free(info);
-		free(del);
-		printf("delete data in the conference list,then add it\n");
-	}else{
-
-		printf("there is no data in the conference list,add it\n");
-	}
-
-	list_add(node_queue->sys_list[CONFERENCE_LIST],data_info);
-
-	return SUCCESS;
+	return node_queue->con_status->debug_sw;
 }
 
 
@@ -109,7 +49,7 @@ int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len)
 {
 
 	Pctrl_tcp_rsqueue tmp;
-	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
+//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
 	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
@@ -155,7 +95,7 @@ int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue msg_tmp)
 
 	sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
 
-	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
+//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
 
@@ -205,7 +145,8 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg)
 	tmp->msg = malloc(frame_type->frame_len);
 	memset(tmp->msg,0,frame_type->frame_len);
 
-	printf("%s %s,%d\n",__FILE__,__func__,__LINE__);
+//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
 #if TCP_DBG
 	printf("tcp_ctrl_tpsend_enqueue the queue..\n");
 #endif
@@ -289,26 +230,26 @@ int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 {
 
-	Prun_status event_tmp;
-	event_tmp = (Prun_status)malloc(sizeof(run_status));
-	memset(event_tmp,0,sizeof(run_status));
+	Prun_status tmp;
+	tmp = (Prun_status)malloc(sizeof(run_status));
+	memset(tmp,0,sizeof(run_status));
 
-	printf("%s-%s-%d,value:%d\n",__FILE__,__func__,
-			__LINE__,value);
+//	printf("%s-%s-%d,value:%d\n",__FILE__,__func__,
+//			__LINE__,value);
 
 	/*
 	 * 单元机固有属性
 	 */
-	event_tmp->socket_fd = type->fd;
-	event_tmp->id = type->con_data.id;
-	event_tmp->seat = type->con_data.seat;
-	event_tmp->value = value;
+	tmp->socket_fd = type->fd;
+	tmp->id = type->con_data.id;
+	tmp->seat = type->con_data.seat;
+	tmp->value = value;
 #if TCP_DBG
 	printf("enter the tcp_ctrl_report_enqueue..\n");
 #endif
 
 	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
-	enter_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],event_tmp);
+	enter_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],tmp);
 	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
 
 	sem_post(&sys_in.sys_sem[LOCAL_REP_SEM]);
@@ -348,6 +289,28 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 
 
 /*
+ * conf_status_get_connected_len
+ * 获取会议中连接设备的数量
+ *
+ */
+int conf_status_get_connected_len()
+{
+	return node_queue->sys_list[CONNECT_LIST]->size;
+}
+
+
+/*
+ * conf_status_get_conference_len
+ * 获取会议中参会设备数量
+ *
+ */
+int conf_status_get_conference_len()
+{
+	return node_queue->sys_list[CONFERENCE_LIST]->size;
+}
+
+
+/*
  * conf_status_check_client_legal
  * 检查数据包来源合法性，会议表中是否有此设备
  * 并将此设备的席位赋值给临时变量
@@ -370,6 +333,36 @@ int conf_status_check_client_legal(Pframe_type frame_type)
 		{
 			frame_type->con_data.seat = con_list->con_data.seat;
 			frame_type->con_data.id = con_list->con_data.id;
+			pos++;
+			break;
+		}
+
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+
+/*
+ * conf_status_check_connect_legal
+ * 检查连接信息中，设备的合法性
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_check_connect_legal(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pclient_info cnet_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
+	while(tmp!=NULL)
+	{
+		cnet_list = tmp->data;
+		if(cnet_list->client_fd == frame_type->fd)
+		{
+			frame_type->con_data.seat = cnet_list->seat;
 			pos++;
 			break;
 		}
@@ -415,8 +408,40 @@ int conf_status_check_chariman_legal(Pframe_type frame_type)
 }
 
 /*
+ * conf_status_check_chariman_staus
+ * 检查会议中是否有主席单元存在
+ *
+ * 返回值
+ * @主席状态0无1有
+ *
+ */
+int conf_status_check_chariman_staus()
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	/*
+	 * 判断消息是否是主席单元发送
+	 */
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
+		{
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+
+	return pos;
+}
+
+/*
  * conf_status_find_did_sockfd
- * 检测临时变量中源地址对应的客户端的sockfd
+ * 检测临时变量中目标地址对应的客户端的sockfd
  *
  * @Pframe_type
  *
@@ -424,22 +449,23 @@ int conf_status_check_chariman_legal(Pframe_type frame_type)
 int conf_status_find_did_sockfd(Pframe_type frame_type)
 {
 	pclient_node tmp = NULL;
-	Pconference_list con_list;
+	Pclient_info cnet_list;
 	int pos = 0;
 
-	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp!=NULL)
 	{
-		con_list = tmp->data;
-		if(con_list->con_data.id == frame_type->d_id)
+		cnet_list = tmp->data;
+		if(cnet_list->client_fd == frame_type->d_id)
 		{
-			frame_type->fd=con_list->fd;
+			frame_type->fd=cnet_list->client_fd;
 			pos++;
 			break;
 		}
 		tmp=tmp->next;
 	}
 
+	printf("%s-%s-%d，did=%d,pos=%d\n",__FILE__,__func__,__LINE__,frame_type->d_id,pos);
 	return pos;
 }
 
@@ -472,41 +498,65 @@ int conf_status_find_chariman_sockfd(Pframe_type frame_type)
 
 	return pos;
 }
+
 /*
- * conf_status_set_cmspk
- * 会议中主席的发言状态
+ * conf_status_find_max_id
+ * 检测链表中，ID最大值
  *
- * @value
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
  */
-int conf_status_set_cmspk(int value){
+int conf_status_find_max_id()
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int max_id = 0;
 
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->con_data.id)
+		{
+			if(con_list->con_data.id > max_id)
+			{
+				max_id = con_list->con_data.id;
+			}
+		}
+		tmp=tmp->next;
+	}
 
-	node_queue->con_status->chirman_t = value;
+	return max_id;
+}
 
-	return SUCCESS;
+/*
+ * conf_status_compare_id
+ * 比较链表中id号
+ *
+ */
+int conf_status_compare_id(int value)
+{
+	pclient_node tmp = NULL;
+	Pconference_list con_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;
+	while(tmp!=NULL)
+	{
+		con_list = tmp->data;
+		if(con_list->con_data.id == value)
+		{
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+	return pos;
 }
 
 
-/*
- * conf_status_get_cmspk
- * 会议中主席的发言状态
- *
- * 返回值：
- * @status
- */
-int conf_status_get_cmspk(){
-
-	return node_queue->con_status->chirman_t;
-}
 
 /*
  * conf_status_set_current_subject
  * 会议中投票议题的状态
- *
  *
  */
 int conf_status_set_current_subject(unsigned char num)
@@ -550,22 +600,31 @@ int conf_status_get_subject_property(unsigned char* num)
  */
 int conf_status_save_vote_result(int value)
 {
-	int sub_num = conf_status_get_current_subject();
+	unsigned char sub_num = conf_status_get_current_subject();
+	int sub_prop = 0;
 
-	switch(value)
+	//判断当前议题的属性
+	sub_prop = conf_status_get_subject_property(&sub_num);
+	if(sub_prop == WIFI_MEETING_CON_SUBJ_VOTE)
 	{
-	case WIFI_MEETING_EVENT_VOTE_ASSENT:
-		node_queue->con_status->sub_list[sub_num].v_result.assent++;
-		break;
-	case WIFI_MEETING_EVENT_VOTE_NAY:
-		node_queue->con_status->sub_list[sub_num].v_result.nay++;
-		break;
-	case WIFI_MEETING_EVENT_VOTE_WAIVER:
-		node_queue->con_status->sub_list[sub_num].v_result.waiver++;
-		break;
-	case WIFI_MEETING_EVENT_VOTE_TIMEOUT:
-		node_queue->con_status->sub_list[sub_num].v_result.timeout++;
-		break;
+		switch(value)
+		{
+		case WIFI_MEETING_EVENT_VOTE_ASSENT:
+			node_queue->con_status->sub_list[sub_num].v_result.assent++;
+			break;
+		case WIFI_MEETING_EVENT_VOTE_NAY:
+			node_queue->con_status->sub_list[sub_num].v_result.nay++;
+			break;
+		case WIFI_MEETING_EVENT_VOTE_WAIVER:
+			node_queue->con_status->sub_list[sub_num].v_result.waiver++;
+			break;
+		case WIFI_MEETING_EVENT_VOTE_TIMEOUT:
+			node_queue->con_status->sub_list[sub_num].v_result.timeout++;
+			break;
+		}
+	}else{
+		printf("%s-%s-%d the subject is not score subject\n",__FILE__,__func__,__LINE__);
+		return ERROR;
 	}
 
 	return SUCCESS;
@@ -617,9 +676,20 @@ int conf_status_get_vote_result(unsigned char* num,unsigned short* value)
  */
 int conf_status_save_elec_result(unsigned short value)
 {
-	int sub_num = conf_status_get_current_subject();
+	unsigned char sub_num = conf_status_get_current_subject();
+	int sub_prop = 0;
 
-	node_queue->con_status->sub_list[sub_num].ele_result.ele_id[value]++;
+	//判断当前议题的属性
+	sub_prop = conf_status_get_subject_property(&sub_num);
+	if(sub_prop == WIFI_MEETING_CON_SUBJ_ELE)
+	{
+
+		node_queue->con_status->sub_list[sub_num].ele_result.ele_id[value]++;
+	}else{
+		printf("%s-%s-%d the subject is not score subject\n",__FILE__,__func__,__LINE__);
+		return ERROR;
+	}
+
 
 	return SUCCESS;
 }
@@ -631,9 +701,15 @@ int conf_status_save_elec_result(unsigned short value)
  * @value投票结果
  *
  */
-int conf_status_get_elec_result(unsigned short value)
+int conf_status_get_elec_result(unsigned char* num,unsigned short value)
 {
-	int sub_num = conf_status_get_current_subject();
+	int sub_num ;
+
+	if(num == NULL){
+		sub_num = conf_status_get_current_subject();
+	}else{
+		sub_num = *num;
+	}
 	return node_queue->con_status->sub_list[sub_num].ele_result.ele_id[value];
 }
 
@@ -644,9 +720,15 @@ int conf_status_get_elec_result(unsigned short value)
  * @value投票结果
  *
  */
-int conf_status_get_elec_totalp()
+int conf_status_get_elec_totalp(unsigned char* num)
 {
-	int sub_num = conf_status_get_current_subject();
+	int sub_num ;
+	if(num == NULL){
+		sub_num = conf_status_get_current_subject();
+	}else{
+		sub_num = *num;
+	}
+
 	return node_queue->con_status->sub_list[sub_num].ele_result.ele_total;
 }
 
@@ -659,9 +741,20 @@ int conf_status_get_elec_totalp()
  */
 int conf_status_save_score_result(unsigned char value)
 {
-	int sub_num = conf_status_get_current_subject();
-	node_queue->con_status->sub_list[sub_num].scr_result.score += value;
-	node_queue->con_status->sub_list[sub_num].scr_result.num_peop++;
+	unsigned char sub_num = conf_status_get_current_subject();
+	int sub_prop = 0;
+
+	//判断当前议题的属性
+	sub_prop = conf_status_get_subject_property(&sub_num);
+	if(sub_prop == WIFI_MEETING_CON_SUBJ_SCORE)
+	{
+		node_queue->con_status->sub_list[sub_num].scr_result.score += value;
+		node_queue->con_status->sub_list[sub_num].scr_result.num_peop++;
+	}else{
+		printf("%s-%s-%d the subject is not score subject\n",__FILE__,__func__,__LINE__);
+		return ERROR;
+	}
+
 	return SUCCESS;
 }
 
@@ -686,7 +779,7 @@ int conf_status_calc_score_result()
 
 /*
  * conf_status_get_score_result
- * 获取积分结果
+ * 获取计分结果
  *
  * @value投票结果
  *
@@ -704,7 +797,7 @@ int conf_status_get_score_result(Pscore_result result)
 
 /*
  * conf_status_get_score_totalp
- * 议题中被选举总人数
+ * 进行计分总人数
  *
  * @value投票结果
  *
@@ -716,24 +809,253 @@ int conf_status_get_score_totalp()
 }
 
 
+/*
+ * TODO
+ * 1/发言管理
+ * 2/话筒管理
+ * 3/音效管理
+ * 4/会议管理
+ *
+ */
 
 
+/*
+ * conf_status_set_cmspk
+ * 会议中主席的发言状态
+ *
+ * @value
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_status_set_cmspk(int value){
+
+	node_queue->con_status->chirman_t = value;
+
+	return SUCCESS;
+}
 
 
+/*
+ * conf_status_get_cmspk
+ * 会议中主席的发言状态
+ *
+ * 返回值：
+ * @status
+ */
+int conf_status_get_cmspk(){
 
+	return node_queue->con_status->chirman_t;
+}
 
+/*
+ * conf_status_set_mic_mode
+ * 设置会议话筒模式
+ *
+ * @value FIFO模式(1)、标准模式(2)、自由模式(3)
+ *
+ */
+int conf_status_set_mic_mode(int value)
+{
 
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
 
+	node_queue->con_status->mic_mode = value;
 
+	return SUCCESS;
+}
 
+/*
+ * conf_status_get_mic_mode
+ * 获取话筒模式
+ *
+ * @value FIFO模式(1)、标准模式(2)、自由模式(3)
+ *
+ */
+int conf_status_get_mic_mode()
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->mic_mode);
 
+	return node_queue->con_status->mic_mode;
+}
 
+/*
+ * conf_status_set_spk_num
+ * 会议最大发言人数设置
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_set_spk_num(int value)
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
 
+	node_queue->con_status->spk_number = value;
 
+	return SUCCESS;
+}
 
+/*
+ * conf_status_get_spk_num
+ * 会议最大发言人数获取
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_get_spk_num()
+{
 
+	return node_queue->con_status->spk_number;
+}
 
+/*
+ * conf_status_set_cspk_num
+ * 会议当前发言人数设置
+ *
+ * @value投票结果
+ *
+ */
+int conf_status_set_cspk_num(int value)
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
+	node_queue->con_status->current_spk = value;
 
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_cspk_num
+ * 会议当前发言人数获取
+ *
+ *
+ */
+int conf_status_get_cspk_num()
+{
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->current_spk);
+
+	return node_queue->con_status->current_spk;
+}
+
+/*
+ * conf_status_set_snd_effect
+ * DSP音效设置
+ * 采用为管理分别从bit[0-2]表示状态
+ * bit   0    1     2
+ *      AFC  ANC0  ANC1
+ *              ANC2
+ * bit[0-2] 共有8个状态
+ *
+ *
+ * @value AFC(0/1)，ANC(0/1/2/3)
+ *
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_status_set_snd_effect(int value)
+{
+	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
+			value);
+
+	node_queue->con_status->snd_effect = value;
+
+	uart_snd_effect_set(value);
+
+	return SUCCESS;
+}
+
+/*
+ * conf_info_get_snd_effect
+ * DSP音效获取
+ *
+ * @value AFC(0/1)，ANC(0/1/2/3)
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS
+ */
+int conf_status_get_snd_effect()
+{
+	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->snd_effect);
+
+	return node_queue->con_status->snd_effect;
+
+}
+
+/*
+ * conf_status_set_conf_staus
+ * 设置会议进程状态
+ *
+ * @value
+ *
+ */
+int conf_status_set_conf_staus(int value)
+{
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
+
+	node_queue->con_status->confer_status = value;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_conf_staus
+ * 获取会议进程状态
+ *
+ * @value
+ *
+ */
+int conf_status_get_conf_staus()
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->confer_status);
+
+	return node_queue->con_status->confer_status;
+}
+
+/*
+ * conf_status_set_pc_staus
+ * 设置会议中上位机的连接状态
+ *
+ * @value
+ *
+ */
+int conf_status_set_pc_staus(int value)
+{
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
+
+	node_queue->con_status->pc_status = value;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_pc_staus
+ * 获取会议进程中上位机的连接状态
+ *
+ * @value
+ *
+ */
+int conf_status_get_pc_staus()
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->pc_status);
+
+	return node_queue->con_status->pc_status;
+}
 
 
 

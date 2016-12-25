@@ -8,12 +8,15 @@
 #ifndef INC_AUDIO_AUDIO_PARAMS_INIT_H_
 #define INC_AUDIO_AUDIO_PARAMS_INIT_H_
 
-#include "audio_tcp_server.h"
+#include "audio_server.h"
 
 
 int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav);
 
 int audio_format_init(PWAVContainer wav);
+
+ssize_t audio_module_data_read(snd_data_format *sndpcm,snd_data_format *sndpcm_p,
+		size_t rcount);
 
 int audio_module_data_write(Psnd_data_format sndpcm, int frame_len);
 

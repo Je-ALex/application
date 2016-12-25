@@ -8,7 +8,7 @@
 #ifndef INC_TCP_CTRL_API_H_
 #define INC_TCP_CTRL_API_H_
 
-
+#include <arpa/inet.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -27,6 +27,8 @@ typedef enum{
 	WIFI_MEETING_EVENT_ONLINE_REQ = 1,
 	//宣告离线
 	WIFI_MEETING_EVENT_OFFLINE_REQ,
+	//设备心跳
+	WIFI_MEETING_EVENT_DEVICE_HEART,
 	//电源开、关
 	WIFI_MEETING_EVENT_POWER_ON,
 	WIFI_MEETING_EVENT_POWER_OFF,
@@ -52,24 +54,14 @@ typedef enum{
 	WIFI_MEETING_EVENT_VOTE_WAIVER,
 	WIFI_MEETING_EVENT_VOTE_TIMEOUT,
 
-	//议题管理
-	WIFI_MEETING_EVENT_SUBJECT_ONE,
-	WIFI_MEETING_EVENT_SUBJECT_TWO,
-	WIFI_MEETING_EVENT_SUBJECT_THREE,
-	WIFI_MEETING_EVENT_SUBJECT_FOUR,
-	WIFI_MEETING_EVENT_SUBJECT_FIVE,
-	WIFI_MEETING_EVENT_SUBJECT_SIX,
-	WIFI_MEETING_EVENT_SUBJECT_SEVEN,
-	WIFI_MEETING_EVENT_SUBJECT_EIGHT,
-	WIFI_MEETING_EVENT_SUBJECT_NINE,
-	WIFI_MEETING_EVENT_SUBJECT_TEN,
-
 	//音效管理
 	WIFI_MEETING_EVENT_SOUND,
 	//会议服务
 	WIFI_MEETING_EVENT_SERVICE_WATER,
 	WIFI_MEETING_EVENT_SERVICE_PEN,
 	WIFI_MEETING_EVENT_SERVICE_PAPER,
+	WIFI_MEETING_EVENT_SERVICE_OTHERS,
+
 	//全状态
 	WIFI_MEETING_EVENT_ALL_STATUS,
 	//ssid和密码
@@ -80,11 +72,6 @@ typedef enum{
 	WIFI_MEETING_EVENT_CHECKIN_START,
 	WIFI_MEETING_EVENT_CHECKIN_END,
 	WIFI_MEETING_EVENT_CHECKIN_SELECT,
-
-	//会议参数设置成功、失败，查询应答
-	WIFI_MEETING_CONF_WREP_SUCCESS,
-	WIFI_MEETING_CONF_WREP_ERR,
-	WIFI_MEETING_CONF_RREP,
 
 	//选举管理，开始选举，结束选举，正在进行
 	WIFI_MEETING_CONF_ELECTION_START,
@@ -98,8 +85,10 @@ typedef enum{
 	WIFI_MEETING_CONF_SCORE_RESULT,
 	WIFI_MEETING_CONF_SCORE_UNDERWAY,
 
+	//会议管理，开始会议，结束会议
 	WIFI_MEETING_EVENT_CON_MAG_START,
 	WIFI_MEETING_EVENT_CON_MAG_END,
+
 	//上位机下发的指令
 	//事件类数据
 	WIFI_MEETING_EVENT_PC_CMD_SIGNAL,
@@ -110,8 +99,39 @@ typedef enum{
 	//上位机查询上报
 	WIFI_MEETING_HOST_REP_TO_PC,
 
+	//会议参数设置成功、失败，查询应答
+	WIFI_MEETING_CONF_WREP_SUCCESS,
+	WIFI_MEETING_CONF_WREP_ERR,
+	WIFI_MEETING_CONF_RREP,
+
+	//todo 议题管理,议题号偏移量，需将value减去偏移量,此定义必须放在最后
+	WIFI_MEETING_EVENT_SUBJECT_OFFSET,
 
 }ALL_STATUS;
+
+
+
+typedef struct{
+
+	//终端sock_fd属性
+	int client_fd;
+	//qt获取设备参数信息
+	char ip[32];
+	char mac[32];
+	//终端ip属性信息
+	struct sockaddr_in cli_addr;
+	int clilen;
+
+	//终端id属性,默认为0，若是pc则为1，主机机则为2，单元机则为3
+	unsigned char client_name;
+	//单元机电量信息
+	unsigned char client_power;
+	//qt获取会议参数信息参数
+	int id;
+	unsigned char seat;
+
+
+}client_info,*Pclient_info;
 
 
 /*
@@ -128,40 +148,15 @@ typedef struct{
 	char factory_info[64];
 
 	//主机MAC地址
-	char mac[32];
+	char mac_addr[32];
 	//主机IP
-	char local_ip[32];
+	char ip_addr[32];
 	//子网掩码
 	char netmask[32];
 	//广播地址
-	char broad_ip[32];
+	char broad_addr[32];
 
 }host_info,*Phost_info;
-
-
-typedef struct{
-
-	/*终端sock_fd属性*/
-	int 	client_fd;
-	/*终端id属性,默认为0，若是pc则为1，主机机则为2，单元机则为3*/
-	unsigned char 	client_name;
-
-	/*终端ip属性信息*/
-	struct sockaddr_in cli_addr;
-	int 	clilen;
-
-	//网关，掩码等等
-
-	//qt获取设备参数信息
-	char ip[32];
-	char mac[32];
-
-	//qt获取会议参数信息参数
-	int id;
-	unsigned char seat;
-
-
-}client_info,*Pclient_info;
 
 /*
  * 在消息中需要告知哪个机器(socket_fd)状态改变
@@ -176,6 +171,7 @@ typedef struct{
 	int socket_fd;
 	int id;
 	unsigned char seat;
+
 	/*
 	 * 具体改变值
 	 */
@@ -187,7 +183,9 @@ typedef struct{
 
 /********************************
  *
- * TODO 系统属性函数
+ * TODO 主机系统属性模块
+ *
+ * 系统属性函数
  * 系统设置:系统初始化，恢复出厂设置、网络状态、本机信息、关机(关闭本机、重启本机、关闭所有单元机)
  * 系统扩展
  *
@@ -197,6 +195,10 @@ typedef struct{
  *
  * 此函数需要在网络连接正常后进行调用
  *
+ * 返回值
+ * @SUCCESS
+ * @ERROR
+ *
  */
 int wifi_conference_sys_init();
 
@@ -205,9 +207,9 @@ int wifi_conference_sys_init();
  * 恢复出厂设置
  * 目前是清除连接信息和清除会议信息相关内容
  *
- * return：
- * @ERROR(-1)
+ * 返回值：
  * @SUCCESS(0)
+ * @ERROR
  */
 int host_info_reset_factory_mode();
 
@@ -218,30 +220,30 @@ int host_info_reset_factory_mode();
  * int/out:
  * @Phost_info
  *
- * return:
- * @ERROR(-1)
+ * 返回值:
  * @SUCCESS(0)
+ * @ERROR
  */
 int host_info_get_network_info(Phost_info ninfo);
 
 /*
- * host_info_get_factory_infomation
+ * host_info_get_factory_info
  * 获取主机信息
  * 主机信息是保存在文本文件中，为只读属性
  *
  * out:
  * @Phost_info
  *
- * return:
- * @ERROR(-1)
+ * 返回值:
  * @SUCCESS(0)
+ * @ERROR
  */
-int host_info_get_factory_infomation(Phost_info pinfo);
+int host_info_get_factory_info(Phost_info pinfo);
 
 
 
 /****************************
- * TODO 单元机管理模块
+ * TODO 单元机状态管理模块
  ***************************/
 /*
  * unit_info_get_connected_info
@@ -257,8 +259,8 @@ int host_info_get_factory_infomation(Phost_info pinfo);
  * in/out:
  * @name 文本文件的名字
  *
- * return:
- * 写入的连接客户端个数
+ * 返回值:
+ * @size 写入的连接客户端结构体个数
  */
 int unit_info_get_connected_info(char* name);
 
@@ -269,31 +271,31 @@ int unit_info_get_connected_info(char* name);
  *
  * in/out:
  *
- * @Pqueue_event详见头文件定义的结构体，返回参数
+ * @Prun_status详见头文件定义的结构体，返回参数
  *
  * 参考此结构体，应用获取运行状态
- * typedef struct{
-	int socket_fd;
-	int id;
-	unsigned char seat;
-    //具体的改变状态
-	unsigned short value;
+	typedef struct{
 
-	}queue_event,*Pqueue_event;
+		int socket_fd;
+		int id;
+		unsigned char seat;
+		unsigned short value;
 
- * return：
+	}run_status,*Prun_status;
+
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
-int unit_info_get_running_status(void* data);
+int unit_info_get_running_status(Prun_status data);
 
 /*
  * 设备电源设置
  * 关闭所有单元机
  *
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int unit_info_set_device_power_off();
 
@@ -304,9 +306,10 @@ int unit_info_set_device_power_off();
  * in:
  * @socket_fd 单元机fd，文本文件获取
  *
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
+ *
  */
 int unit_info_get_device_power(int fd);
 
@@ -321,9 +324,10 @@ int unit_info_get_device_power(int fd);
  * @value FIFO模式(1)、标准模式(2)、自由模式(3)
  * 在设置成功后，会收到DSP传递的返回值，通过返回值判断，
  * 再将结果上报
+ *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_mic_mode(int mode);
 
@@ -348,7 +352,7 @@ int conf_info_get_mic_mode();
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_spk_num(int num);
 
@@ -358,33 +362,10 @@ int conf_info_set_spk_num(int num);
  * 话筒管理中的发言管理
  * 设置会议中最大发言人数
  *
- * @num 1/2/4/6/8
- *
  * 返回值：
- * @ERROR
- * @SUCCESS
+ * @num 1/2/4/6/8
  */
 int conf_info_get_spk_num();
-
-/*
- * conf_info_set_cspk_num
- * 会议中当前发言的人数
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
- */
-int conf_info_set_cspk_num(int num);
-
-/*
- * conf_info_get_cspk_num
- * 话筒管理中的发言管理
- * 设置会议中最大发言人数
- *
- * 返回值：
- * @current_spk
- */
-int conf_info_get_cspk_num();
 
 /*
  * conf_info_set_snd_effect
@@ -393,11 +374,11 @@ int conf_info_get_cspk_num();
  * bit  0    1     2     3
  *      AFC  ANC0  ANC1  ANC2
  *
- *  * @value AFC(0/1)，ANC(0/1/2/3)
+ * @value AFC(0/1)，ANC(0/1/2/3)
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_snd_effect(int mode);
 
@@ -409,7 +390,7 @@ int conf_info_set_snd_effect(int mode);
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_get_snd_effect();
 
@@ -429,9 +410,9 @@ int conf_info_get_snd_effect();
  * out:
  * @NULL
  *
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
 		char* pname,char* cname);
@@ -444,14 +425,28 @@ int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
  * in:
  * @socket_fd 单元机fd，从文本文件获取
  *
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_get_the_conference_params(int fd);
 
+
 /*
- * 保留
+ * conf_info_get_checkin_total
+ * 获取会议中签到应到人数
+ *
+ * in/out:
+ * @NULL
+ *
+ * 返回值：
+ * @会议中应到人数
+ *
+ */
+int conf_info_get_checkin_total();
+
+
+/*
  * conf_info_send_vote_result
  * 下发投票结果，单主机的情况下，此接口基本用不上，
  * 投票结果由上位机统计，通过主机下发给单元机
@@ -460,9 +455,10 @@ int conf_info_get_the_conference_params(int fd);
  * in/out:
  * @NULL
  *
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
+ *
  */
 int conf_info_send_vote_result();
 
@@ -476,9 +472,9 @@ int conf_info_send_vote_result();
  * in/out:
  * @NULL
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int conf_info_send_elec_result();
 
@@ -492,9 +488,9 @@ int conf_info_send_elec_result();
  * in/out:
  * @NULL
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int conf_info_send_score_result();
 
@@ -503,11 +499,82 @@ int conf_info_send_score_result();
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /***************************************
  *
- * TODO 保留
+ * FIXME 保留
  *
  **************************************/
+
+/*
+ * conf_info_set_cspk_num
+ * 会议中当前发言的人数
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ */
+int conf_info_set_cspk_num(int num);
+
+/*
+ * conf_info_get_cspk_num
+ * 话筒管理中的发言管理
+ * 设置会议中最大发言人数
+ *
+ * 返回值：
+ * @current_spk
+ */
+int conf_info_get_cspk_num();
 
 /*
  * 保留
@@ -518,9 +585,9 @@ int conf_info_send_score_result();
  * @socket_fd 单元机fd，文本文件获取
  * @ssid 网络名称
  * @pwd 连接密钥
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd);
 
@@ -533,12 +600,22 @@ int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd);
  * @value 开始签到(0x01),结束签到(0x02)
  * out:
  * @NULL
-
- * return:
+ * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int wifi_meeting_set_checkin_mode(int value);
+
+/*
+ * conf_info_set_conference_sub_params
+ * 设置会议议题内容
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int conf_info_set_conference_sub_params();
 
 
 
@@ -547,3 +624,9 @@ int wifi_meeting_set_checkin_mode(int value);
 #endif
 
 #endif /* INC_TCP_CTRL_API_H_ */
+
+
+
+
+
+

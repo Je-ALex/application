@@ -2,7 +2,6 @@
 #ifndef INC_TCP_CTRL_SERVER_H_
 #define INC_TCP_CTRL_SERVER_H_
 
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +22,12 @@
 #include <sys/ioctl.h>
 #include <signal.h>
 
+#include <termios.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
+
 #define TCP_DBG 0
 #define CONNECT_FILE "connection.info"
 
@@ -31,6 +36,7 @@
 #define CTRL_TCP_PORT 		8080
 #define CTRL_BROADCAST_PORT 50001
 #define	AUDIO_RECV_PORT 	9000
+#define	AUDIO_SEND_PORT 	9090
 
 #define MSG_TYPE 		0xF0 //消息类型
 #define DATA_TYPE 		0x0C //数据类型
@@ -38,9 +44,11 @@
 
 #define ELE_NUM 		32
 #define SUBJECT_OFFSET 	20
-#define PC_ID 0xFFFF
+#define PC_ID 	0xFFFF
+#define HOST_ID 0x0
+#define DEVICE_HEART 5
 
-
+#define msleep(x) usleep(x*1000)
 
 
 /*
@@ -78,6 +86,10 @@ typedef enum{
 
 	//设备连接链表
 	CONNECT_LIST = 0,
+	//设备连接心跳链表
+	CONNECT_HEART,
+	//会议发言管理链表
+	CONFERENCE_SPK,
 	//会议信息链表
 	CONFERENCE_LIST,
 
@@ -166,8 +178,6 @@ typedef enum{
  * 0x05 查询应答响应
  */
 typedef enum{
-
-
 	WRITE_MSG = 1,
 	READ_MSG,
 	REQUEST_MSG,
@@ -175,6 +185,7 @@ typedef enum{
 	R_REPLY_MSG,
 	ONLINE_REQ,
 	OFFLINE_REQ,
+	ONLINE_HEART,
 
 }Message_Type;
 /*
@@ -261,7 +272,7 @@ typedef enum {
 	WIFI_MEETING_CON_SUBJ_ELE  = 1,
 	WIFI_MEETING_CON_SUBJ_VOTE,
 	WIFI_MEETING_CON_SUBJ_SCORE,
-
+	WIFI_MEETING_CON_SUBJ_NORMAL,
 }subject_attribute;
 
 /*
@@ -307,6 +318,14 @@ typedef enum {
 }event_mic;
 
 typedef enum {
+	WIFI_MEETING_EVT_SPK_ONE= 1,
+	WIFI_MEETING_EVT_SPK_TWO,
+	WIFI_MEETING_EVT_SPK_FOURE,
+	WIFI_MEETING_EVT_SPK_SIX,
+	WIFI_MEETING_EVT_SPK_EIGHT,
+}event_spk_num;
+
+typedef enum {
 	WIFI_MEETING_EVT_SPK_ALLOW = 1,
 	WIFI_MEETING_EVT_SPK_VETO,
 	WIFI_MEETING_EVT_SPK_ALOW_SND,
@@ -317,11 +336,32 @@ typedef enum {
 }event_speak;
 
 typedef enum {
-	WIFI_MEETING_EVT_SEFC_OFF = 0,
-	WIFI_MEETING_EVT_SEFC_ANC = 1,
-	WIFI_MEETING_EVT_SEFC_AFC_ONE = 2,
-	WIFI_MEETING_EVT_SEFC_AFC_TWO = 4,
-	WIFI_MEETING_EVT_SEFC_AFC_THREE = 8,
+
+	WIFI_MEETING_EVT_SEFC_AFC_MODE = 0X01,
+	WIFI_MEETING_EVT_SEFC_ANC_MODE = 0X0e,
+
+
+	WIFI_MEETING_EVT_SEFC_VALUE_ON = 0X01,
+	WIFI_MEETING_EVT_SEFC_VALUE_OFF = 0X00,
+
+	WIFI_MEETING_EVT_SEFC_AFC_BIT = 0X01,
+	WIFI_MEETING_EVT_SEFC_ANC_BIT_ONE = 0X02,
+	WIFI_MEETING_EVT_SEFC_ANC_BIT_TWO = 0X04,
+	WIFI_MEETING_EVT_SEFC_ANC_BIT_THREE = 0X08,
+
+	WIFI_MEETING_EVT_SEFC_NO_REPLY = 0,
+	WIFI_MEETING_EVT_SEFC_NEED_REPLY,
+
+	WIFI_MEETING_EVT_SEFC_AFC_OFF ,
+	WIFI_MEETING_EVT_SEFC_AFC_ON ,
+
+	WIFI_MEETING_EVT_SEFC_ANC_OFF ,
+	WIFI_MEETING_EVT_SEFC_ANC_ON ,
+
+	WIFI_MEETING_EVT_SEFC_ANC_ONE ,
+	WIFI_MEETING_EVT_SEFC_ANC_TWO ,
+	WIFI_MEETING_EVT_SEFC_ANC_THREE ,
+
 }event_snd_effect;
 
 typedef enum {
@@ -378,6 +418,8 @@ typedef enum {
 	WIFI_MEETING_EVT_RP_TO_PC_FD = 1,
 	WIFI_MEETING_EVT_RP_TO_PC_ID,
 	WIFI_MEETING_EVT_RP_TO_PC_IP,
+	WIFI_MEETING_EVT_RP_TO_PC_SEAT,
+	WIFI_MEETING_EVT_RP_TO_PC_POWER,
 }host_to_pc;
 
 typedef enum {
@@ -385,10 +427,6 @@ typedef enum {
 	WIFI_MEETING_EVT_AD_PORT_SPK = 1,
 	WIFI_MEETING_EVT_AD_PORT_LSN,
 }audio_port;
-
-
-
-
 
 
 /*
@@ -411,6 +449,9 @@ typedef struct {
 
 	 char ssid[32];
 	 char key[64];
+
+	 int sockfd;
+	 unsigned int ip;
 	 unsigned short port;
 
 }net_info,*Pnet_info;
@@ -483,6 +524,8 @@ typedef struct {
 	//上报状态信息
 	unsigned char status;
 
+	unsigned char electricity;
+
 }event_data;
 
 
@@ -497,6 +540,7 @@ typedef struct {
 	 */
 	unsigned short id;
 	unsigned char seat;
+	unsigned char sub_num;
 	//会议参数
 	 char name[64];
 	 char conf_name[128];
@@ -509,32 +553,64 @@ typedef struct {
 }signal_unit_data;
 
 /*
+ * 会议类参数
+ * 主要是描述会议的属性状态
+ */
+typedef struct{
+
+}Cfcontents,*PCfcontents;
+
+/*
  * 收发数据的帧信息
  * 主要是在收发数据时，保存数据的信息
  */
 typedef struct {
 
+	int fd;
 	unsigned char msg_type;
 	unsigned char data_type;
 	unsigned char dev_type;
 
-	//查询是需要给此赋值,考虑现在有SSID和密码同时进行下发的情况，所以为数组
-	unsigned char name_type[2];
-	unsigned char code_type[2];
-
-	int fd;
 	int data_len;
 	int frame_len;
 	unsigned short s_id;
 	unsigned short d_id;
+	//查询是需要给此赋值,考虑现在有SSID和密码同时进行下发的情况，所以为数组
+	unsigned char name_type[2];
+	unsigned char code_type[2];
+
 	unsigned short spk_port;
 	unsigned short brd_port;
+
+	volatile char heart;
 
 	event_data evt_data;
 	signal_unit_data con_data;
 
 }frame_type,*Pframe_type;
 
+
+/*
+ * 心跳状态
+ */
+typedef struct {
+
+	int sockfd;
+	volatile char status;
+
+}connect_heart,*Pconnect_heart;
+
+/*
+ * 发言管理
+ *
+ */
+typedef struct {
+
+	int sockfd;
+	int asport;
+	unsigned int ts;
+
+}as_port,*Pas_port;
 
 /*
  * 会议信息链表
@@ -545,7 +621,6 @@ typedef struct {
 typedef struct {
 
 	int fd;
-//	event_data evt_data;
 	signal_unit_data con_data;
 
 }conference_list,*Pconference_list;
@@ -571,54 +646,39 @@ typedef struct {
  */
 typedef struct {
 
-	int pc_status;
-	net_info network;
+	volatile int pc_status;
+	volatile unsigned char confer_status;
 
 	unsigned char conf_name[128];
-	unsigned char sub_num;
+	volatile unsigned char sub_num;
 	subject_info sub_list[10];
 
+
 	//音频状态信息
-	unsigned char mic_mode;
-	unsigned char snd_effect;
+	volatile unsigned char mic_mode;
+	volatile unsigned char snd_effect;
 	//设置的发言人数
-	unsigned char spk_number;
+	volatile unsigned char spk_number;
 	//当前发言的人数
-	unsigned char current_spk;
+	volatile unsigned char current_spk;
 	//主席发言状态
-	int chirman_t;
+	volatile int chirman_t;
 
 	//DEBUG
-	char debug_sw;
+	unsigned char debug_sw;
+
+
+	net_info network;
 
 }conference_status,*Pconference_status;
 
-/*
- * wifi_sys_ctrl_tcp_recv
- * 设备控制模块TCP数据接收模块
- *
- * 采用epoll模式，维护多终端
- * 接收客户端的通讯数据
- *
- */
+
 void* wifi_sys_ctrl_tcp_recv(void* p);
 
-/*
- * wifi_sys_ctrl_tcp_procs_data
- * 设备控制模块TCP接收数据处理线程
- *
- * 将消息从队列中读取，进行处理后发送
- *
- */
 void* wifi_sys_ctrl_tcp_procs_data(void* p);
 
-/*
- * wifi_sys_ctrl_tcp_send
- * 设备控制模块TCP数据下发线程
- *
- * 发送消息进入发送队列，进行数据下发
- *
- */
+void* wifi_sys_ctrl_tcp_heart_state(void* p);
+
 void* wifi_sys_ctrl_tcp_send(void* p);
 
 

@@ -16,7 +16,7 @@
  * 移位函数
  * 将高位移至低字节，低位移至高字节
  */
-int tcp_ctrl_data_short_to_char(unsigned short value,unsigned char* r_value);
+int tcp_ctrl_data_short2char(unsigned short value,unsigned char* r_value);
 
 int tcp_ctrl_frame_compose(Pframe_type type,const unsigned char* params,unsigned char* result_buf);
 

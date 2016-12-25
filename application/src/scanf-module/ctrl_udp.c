@@ -91,7 +91,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
     unsigned char msg[100] = {0};
 
 	printf("%s,%d\n",__func__,__LINE__);
-
+	pthread_detach(pthread_self());
 	/*
 	 * 创建socke套接字
 	 */

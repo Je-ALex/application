@@ -8,7 +8,7 @@
 #ifndef INC_AUDIO_AUDIO_RING_BUF_H_
 #define INC_AUDIO_AUDIO_RING_BUF_H_
 
-#include "audio_tcp_server.h"
+#include "audio_server.h"
 
 typedef struct
 {

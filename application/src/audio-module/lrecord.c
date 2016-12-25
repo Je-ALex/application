@@ -157,20 +157,20 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 	while (1) {
 //		printf("rest %lld\n",rest);
 
-		c = (rest <= (off64_t)sndpcm->chunk_bytes) ? (size_t)rest : sndpcm->chunk_bytes;
+//		c = (rest <= (off64_t)sndpcm->chunk_bytes) ? (size_t)rest : sndpcm->chunk_bytes;
 //		printf("c %zu\n",c);
 //		c = sndpcm->chunk_bytes;
 		frame_size = sndpcm->chunk_bytes * 8 / sndpcm->bits_per_frame;
 //		printf("frame_size %zu\n",frame_size);
-		gettimeofday(&start,0);
-		if (SNDWAV_ReadPcm(sndpcm, NULL, frame_size) != frame_size)
+//		gettimeofday(&start,0);
+		if (audio_module_data_read(sndpcm, NULL, frame_size) != frame_size)
 			break;
 
 		/*
 		 * play
 		 */
 //		sndpcm_p->data_buf = sndpcm->data_buf;
-//		SNDWAV_WritePcm(sndpcm_p, frame_size);
+//		audio_module_data_write(sndpcm_p, frame_size);
 
 
 		/*write to note*/
@@ -185,6 +185,7 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 //        send_num = send(sockfd,send_buf,sizeof(send_buf),0);
 
 //	    send_num = send(sockfd,sndpcm->data_buf,c,0);
+
 		 send_num = sendto(sockfd,sndpcm->data_buf,sndpcm->chunk_bytes,0,
 				 (struct sockaddr*)&addr_server,sizeof(struct sockaddr_in));
 
@@ -195,10 +196,10 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
               printf("send sucess send_num:%d\n",send_num);
        }
 
-	    gettimeofday(&stop,0);
-	    time_substract(&diff,&start,&stop);
+//	    gettimeofday(&stop,0);
+//	    time_substract(&diff,&start,&stop);
 //		printf("send_num = %d\n",send_num);
-		printf("Total time : %d s,%d ms,%d us\n",(int)diff.time.tv_sec,diff.ms,(int)diff.time.tv_usec);
+//		printf("Total time : %d s,%d ms,%d us\n",(int)diff.time.tv_sec,diff.ms,(int)diff.time.tv_usec);
 
 
 //		usleep(1000000);
@@ -240,24 +241,24 @@ static void* audio_tcp_thread(void* p)
 		fprintf(stderr, "Error set_snd_pcm_params/n");
 		goto Err;
 	}
-//	/*
-//	 * play part
-//	 */
-//	if (snd_output_stdio_attach(&playback.log, stderr, 0) < 0) {
-//         fprintf(stderr, "Error snd_output_stdio_attach/n");
-//         goto Err;
-//     }
-//
-//     if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
-//         fprintf(stderr, "Error snd_pcm_open [ %s]/n", devicename);
-//         goto Err;
-//     }
-//
-//     if (play_SetParams(&playback, &wav) < 0) {
-//         fprintf(stderr, "Error set_snd_pcm_params/n");
-//         goto Err;
-//     }
-//     snd_pcm_dump(playback.handle, playback.log);
+	/*
+	 * play part
+	 */
+	if (snd_output_stdio_attach(&playback.log, stderr, 0) < 0) {
+         fprintf(stderr, "Error snd_output_stdio_attach/n");
+         goto Err;
+     }
+
+     if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+         fprintf(stderr, "Error snd_pcm_open [ %s]/n", devicename);
+         goto Err;
+     }
+
+     if (audio_snd_params_init(&playback, &wav) < 0) {
+         fprintf(stderr, "Error set_snd_pcm_params/n");
+         goto Err;
+     }
+     snd_pcm_dump(playback.handle, playback.log);
 
      /*
       * end
@@ -341,21 +342,21 @@ static void* audio_tcp_thread2(void* p)
 	/*
 	 * play part
 	 */
-//	if (snd_output_stdio_attach(&playback.log, stderr, 0) < 0) {
-//         fprintf(stderr, "Error snd_output_stdio_attach/n");
-//         goto Err;
-//     }
-//
-//     if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
-//         fprintf(stderr, "Error snd_pcm_open [ %s]/n", devicename);
-//         goto Err;
-//     }
-//
-//     if (play_SetParams(&playback, &wav) < 0) {
-//         fprintf(stderr, "Error set_snd_pcm_params/n");
-//         goto Err;
-//     }
-//     snd_pcm_dump(playback.handle, playback.log);
+	if (snd_output_stdio_attach(&playback.log, stderr, 0) < 0) {
+         fprintf(stderr, "Error snd_output_stdio_attach/n");
+         goto Err;
+     }
+
+     if (snd_pcm_open(&playback.handle, devicename, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+         fprintf(stderr, "Error snd_pcm_open [ %s]/n", devicename);
+         goto Err;
+     }
+
+     if (audio_snd_params_init(&playback, &wav) < 0) {
+         fprintf(stderr, "Error set_snd_pcm_params/n");
+         goto Err;
+     }
+     snd_pcm_dump(playback.handle, playback.log);
 
      /*
       * end

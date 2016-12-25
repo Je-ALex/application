@@ -9,30 +9,6 @@
 
 #include "audio_params_init.h"
 
-
-/*
- * 函数：音频文件数据格式初始化
- */
-int audio_format_init(PWAVContainer wav)
-{
-
-	wav->format.channels = DEFAULT_CHANNELS;
-	wav->format.sample_rate = DEFAULT_SAMPLE_RATE;
-	wav->format.sample_length = DEFAULT_SAMPLE_LENGTH;
-
-//	wav->format.blocks_align = LE_SHORT(wav->format.channels * wav->format.sample_length / 8);
-//	wav->format.bytes_p_second = LE_INT((uint16_t)(wav->format.blocks_align) * wav->format.sample_rate);
-//	wav->chunk.length = LE_INT(DEFAULT_DURATION_TIME * (uint32_t)(wav->format.bytes_p_second));
-//	wav->header.length = LE_INT((uint32_t)(wav->chunk.length) + sizeof(wav->chunk) +
-//			sizeof(wav->format) + sizeof(wav->header) - 8);
-
-#ifdef WAV_PRINT_MSG
-	WAV_P_PrintHeader(wav);
-#endif
-	return 0;
-
-}
-
 int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
 
 {
@@ -52,9 +28,25 @@ int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
     }
     result->ms = result->time.tv_usec / 1000;
     result->time.tv_usec = result->time.tv_usec % 1000;
-    return 0;
+    return SUCCESS;
 
 }
+
+/*
+ * 函数：音频文件数据格式初始化
+ */
+int audio_format_init(PWAVContainer wav)
+{
+
+	wav->format.channels = DEFAULT_CHANNELS;
+	wav->format.sample_rate = DEFAULT_SAMPLE_RATE;
+	wav->format.sample_length = DEFAULT_SAMPLE_LENGTH;
+
+	return SUCCESS;
+
+}
+
+
 
 
 int audio_get_format(PWAVContainer wav, snd_pcm_format_t *snd_format)
@@ -63,7 +55,7 @@ int audio_get_format(PWAVContainer wav, snd_pcm_format_t *snd_format)
 	switch (LE_SHORT(wav->format.sample_length)) {
 
 	case 32:
-		*snd_format = SND_PCM_FORMAT_S32_LE;
+		*snd_format = SND_PCM_FORMAT_S24_3LE;
 		break;
 	case 24:
 		*snd_format = SND_PCM_FORMAT_S24_LE;
@@ -82,7 +74,7 @@ int audio_get_format(PWAVContainer wav, snd_pcm_format_t *snd_format)
 	return SUCCESS;
 }
 
-ssize_t SNDWAV_ReadPcm(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_t rcount)
+ssize_t audio_module_data_read(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_t rcount)
 {
 	ssize_t r;
 	size_t result = 0;
@@ -112,7 +104,7 @@ ssize_t SNDWAV_ReadPcm(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_
 
 				fprintf(stderr, "<<<<<<<<<<<<<<< Need suspend >>>>>>>>>>>>>>>\n");
 		} else if (r < 0) {
-				fprintf(stderr, "Error snd_pcm_writei: [%s]", snd_strerror(r));
+				fprintf(stderr, "Error snd_pcm_writei: [%s] \n", snd_strerror(r));
 				exit(-1);
 		}
 
@@ -237,7 +229,8 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	}
 
 	if (buffer_time > 500000) buffer_time = 500000;
-	buffer_time = 21333;
+//	buffer_time = 21333;
+	buffer_time = 10666;
 	period_time = buffer_time / 4;//5.3ms/1024B
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)

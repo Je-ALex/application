@@ -7,7 +7,7 @@
 
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_status.h"
-
+#include "tcp_ctrl_device_manage.h"
 
 extern Pglobal_info node_queue;
 
@@ -58,7 +58,7 @@ int host_info_reset_factory_mode()
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
 
-	printf("%s,%d\n",__func__,__LINE__);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 	while(tmp != NULL)
@@ -68,11 +68,11 @@ int host_info_reset_factory_mode()
 		if(pinfo != NULL)
 		{
 			printf("clean fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
-			tcp_ctrl_delete_client(pinfo->client_fd);
+			dmanage_delete_info(pinfo->client_fd);
 
 		}
 		tmp = tmp->next;
-		usleep(10000);
+		msleep(10);
 	}
 
 	return SUCCESS;
@@ -86,7 +86,7 @@ int host_info_reset_factory_mode()
  * @Phost_info
  *
  * return:
- * @ERROR(-1)
+ * @ERROR
  * @SUCCESS(0)
  */
 int host_info_get_network_info(Phost_info ninfo)
@@ -97,7 +97,7 @@ int host_info_get_network_info(Phost_info ninfo)
 
 	char* DevName = "eth0";
 
-	printf("%s,%d\n",__func__,__LINE__);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0)
@@ -105,7 +105,6 @@ int host_info_get_network_info(Phost_info ninfo)
 		fprintf(stderr, "Create socket failed!errno=%d", errno);
 		return ERROR;
 	}
-	printf("%s:\n", DevName);
 
 	strcpy(ifr.ifr_name, DevName);
 
@@ -116,7 +115,7 @@ int host_info_get_network_info(Phost_info ninfo)
 	}
 	memcpy(mac, ifr.ifr_hwaddr.sa_data, sizeof(mac));
 
-	sprintf(ninfo->mac,"%02X:%02X:%02X:%02X:%02X:%02X",
+	sprintf(ninfo->mac_addr,"%02X:%02X:%02X:%02X:%02X:%02X",
 			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 	//获取本机IP地址
@@ -128,7 +127,7 @@ int host_info_get_network_info(Phost_info ninfo)
 	{
 		nIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
 	}
-    strcpy(ninfo->local_ip,inet_ntoa(*(struct in_addr*)&nIP));
+    strcpy(ninfo->ip_addr,inet_ntoa(*(struct in_addr*)&nIP));
 	//获取子网掩码
 	if (ioctl(sock, SIOCGIFNETMASK, &ifr) < 0)
     {
@@ -149,7 +148,7 @@ int host_info_get_network_info(Phost_info ninfo)
 	{
 		nBroadIP = *(unsigned long*)&ifr.ifr_broadaddr.sa_data[2];
 	}
-	strcpy(ninfo->broad_ip,inet_ntoa(*(struct in_addr*)&nBroadIP));
+	strcpy(ninfo->broad_addr,inet_ntoa(*(struct in_addr*)&nBroadIP));
 
 //	printf("\tMAC: %02x-%02x-%02x-%02x-%02x-%02x\n",
 //	mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -160,11 +159,14 @@ int host_info_get_network_info(Phost_info ninfo)
 
     close(sock);
 
+    if(nIP == 0)
+    	return ERROR;
+
 	return SUCCESS;
 }
 
 /*
- * host_info_get_factory_infomation
+ * host_info_get_factory_info
  * 获取主机信息
  * 主机信息是保存在文本文件中，为只读属性
  *
@@ -172,21 +174,19 @@ int host_info_get_network_info(Phost_info ninfo)
  * @Phost_info
  *
  * return:
- * @ERROR(-1)
+ * @ERROR
  * @SUCCESS(0)
  */
-int host_info_get_factory_infomation(Phost_info pinfo)
+int host_info_get_factory_info(Phost_info pinfo)
 {
 
 	char* version = "v0.0.1";
 	char* model = "DS-WF620M";
 	char* product = "四川湖山电器有限责任公司";
 
-
     strcpy(pinfo->version,version);
     strcpy(pinfo->host_model,model);
     strcpy(pinfo->factory_info,product);
-
 
 	return SUCCESS;
 
@@ -212,8 +212,8 @@ int host_info_get_factory_infomation(Phost_info pinfo)
  */
 int unit_info_get_connected_info(char* name)
 {
-	printf("%s,%d\n",__func__,__LINE__);
 
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	strcpy(name,CONNECT_FILE);
 
 	return node_queue->sys_list[CONNECT_LIST]->size;
@@ -222,12 +222,36 @@ int unit_info_get_connected_info(char* name)
 
 
 /*
+ * unit_info_get_running_status
+ * 单元机实时状态检测函数,用户只需检测设备号和具体返回信息
+ *
+ * in/out:
+ * @Pqueue_event详见头文件定义的结构体，返回参数
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ */
+int unit_info_get_running_status(Prun_status data)
+{
+
+	int ret;
+
+	ret = tcp_ctrl_report_dequeue(data);
+
+	if(ret)
+		return ERROR;
+
+	return SUCCESS;
+}
+
+/*
  * unit_info_set_device_power_off
  * 关闭所有单元机
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int unit_info_set_device_power_off()
 {
@@ -266,16 +290,17 @@ int unit_info_set_device_power_off()
  * in:
  * @fd_value设备号
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int unit_info_get_device_power(int fd)
 {
 
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-	printf("%s,%d\n",__func__,__LINE__);
+
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	/*
 	 * 将参数保存
@@ -292,31 +317,6 @@ int unit_info_get_device_power(int fd)
 
 }
 
-/*
- * unit_info_get_running_status
- * 单元机实时状态检测函数,用户只需检测设备号和具体返回信息
- *
- * in/out:
- *
- * @Pqueue_event详见头文件定义的结构体，返回参数
- *
- * return：
- * @error
- * @success
- */
-int unit_info_get_running_status(void* data)
-{
-
-	int ret;
-
-	ret = tcp_ctrl_report_dequeue(data);
-
-	if(ret)
-		return ERROR;
-
-	return SUCCESS;
-}
-
 
 
 
@@ -324,6 +324,7 @@ int unit_info_get_running_status(void* data)
  * TODO 会议状态管理模块
  * 分为主机部分和单元机部分
  *********************/
+
 /*
  * conf_info_set_mic_mode
  * 话筒管理中的模式设置
@@ -331,20 +332,17 @@ int unit_info_get_running_status(void* data)
  * @value FIFO模式(1)、标准模式(2)、自由模式(3)
  * 在设置成功后，会收到DSP传递的返回值，通过返回值判断，
  * 再将结果上报
+ * FIFO模式和标准模式下，可以对发言人数进行设置，自由模式下，默认最大发言人数为最大值
+ *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_mic_mode(int mode)
 {
-
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			mode);
-
-	node_queue->con_status->mic_mode = mode;
-
-
-	return SUCCESS;
+	int ret;
+	ret=conf_status_set_mic_mode(mode);
+	return ret;
 }
 
 /*
@@ -358,9 +356,7 @@ int conf_info_set_mic_mode(int mode)
  */
 int conf_info_get_mic_mode()
 {
-	printf("%s,%d mode=%d\n",__func__,__LINE__,node_queue->con_status->mic_mode);
-
-	return node_queue->con_status->mic_mode;
+	return conf_status_get_mic_mode();
 }
 
 /*
@@ -372,20 +368,21 @@ int conf_info_get_mic_mode()
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
+ *
  */
 int conf_info_set_spk_num(int num)
 {
-	printf("%s,%d num=%d\n",__func__,__LINE__,num);
-	node_queue->con_status->spk_number = num;
+	int ret;
+	ret=conf_status_set_spk_num(num);
 
-	return SUCCESS;
+	return ret;
 }
 
 /*
  * conf_info_get_spk_num
  * 话筒管理中的发言管理
- * 设置会议中最大发言人数
+ * 获取设置当前设置的最大发言人数
  *
  * 返回值：
  * @num 1/2/4/6/8
@@ -393,59 +390,58 @@ int conf_info_set_spk_num(int num)
 int conf_info_get_spk_num()
 {
 
-	return node_queue->con_status->spk_number;
+	return conf_status_get_spk_num();
 }
 
 /*
  * conf_info_set_cspk_num
- * 会议中当前发言的人数
+ * 设置会议中当前发言的人数
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_cspk_num(int num)
 {
-	printf("%s,%d num=%d\n",__func__,__LINE__,num);
-	node_queue->con_status->current_spk = num;
+	int ret;
+	ret=conf_status_set_cspk_num(num);
 
-	return SUCCESS;
+	return ret;
 }
 
 
 /*
  * conf_info_get_cspk_num
- * 话筒管理中的发言管理
- * 设置会议中最大发言人数
+ * 获取当前发言人数
  *
  * 返回值：
  * @current_spk
  */
 int conf_info_get_cspk_num()
 {
-	 return node_queue->con_status->current_spk;
+	 return conf_status_get_cspk_num();
 }
 
 /*
  * conf_info_set_snd_effect
  * DSP音效设置
- * 采用为管理分别从bit[0-3]表示状态
+ * 采用为管理分别从bit[0-2]表示状态
+ *
  * bit  0    1     2     3
  *      AFC  ANC0  ANC1  ANC2
  *
- *  * @value AFC(0/1)，ANC(0/1/2/3)
+ * @value AFC(0/1)，ANC(0/1/2/3)
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_set_snd_effect(int mode)
 {
-	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
-			mode);
-	node_queue->con_status->snd_effect = mode;
+	int ret;
 
-	return SUCCESS;
+	ret=conf_status_set_snd_effect(mode);
+	return ret;
 }
 
 /*
@@ -456,13 +452,12 @@ int conf_info_set_snd_effect(int mode)
  *
  * 返回值：
  * @ERROR
- * @SUCCESS
+ * @SUCCESS(0)
  */
 int conf_info_get_snd_effect()
 {
-	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
-			node_queue->con_status->snd_effect);
-	return node_queue->con_status->snd_effect;
+
+	return conf_status_get_snd_effect();
 }
 
 
@@ -478,52 +473,32 @@ int conf_info_get_snd_effect()
  * @client_name（保留）
  * @subj（保留）
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
 		char* pname,char* cname)
 {
 
 	frame_type data_info;
-	Pconference_list confer_info;
-
 	int ret = 0;
-	char name[128] = "电声分公司";
-	char conf_name[128] = "WIFI会议第一次全体会议";
 
 	memset(&data_info,0,sizeof(frame_type));
+	printf("%s-%s-%d ,fd=%d,id=%d\n",__FILE__,__func__,__LINE__,fd,id);
 
-	printf("%s,%d,fd_value=%d,client_id=%d\n",__func__,
-			__LINE__,fd,id);
-
-	/*
-	 * 测试 发送
-	 */
 	data_info.fd = fd;
 	data_info.con_data.id = id;
 	data_info.con_data.seat = seat;
-	memcpy(data_info.con_data.name,name,strlen(name));
-	memcpy(data_info.con_data.conf_name,conf_name,strlen(conf_name));
 
 	/*
-	 * 会议信息链表
+	 * 更新到链表
 	 */
-	confer_info = (Pconference_list)malloc(sizeof(conference_list));
-	memset(confer_info,0,sizeof(conference_list));
-	confer_info->fd = fd;
-	confer_info->con_data.id = id;
-	confer_info->con_data.seat = seat;
-	memcpy(confer_info->con_data.name,name,strlen(name));
-	memcpy(confer_info->con_data.conf_name,conf_name,strlen(conf_name));
-
-	/*
-	 * 增加到会议信息链表中
-	 */
-	ret = tcp_ctrl_refresh_conference_list(confer_info);
+	ret = dmanage_refresh_info(&data_info);
 	if(ret)
 		return ERROR;
+
+
 	/*
 	 * 组包下发
 	 */
@@ -544,9 +519,10 @@ int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
  * @socket_fd 获取某一个单元机的会议参数信息，
  * 如果为0，则默认为获取全部的参会单元会议信息
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
  */
 int conf_info_get_the_conference_params(int fd)
 {
@@ -561,7 +537,8 @@ int conf_info_get_the_conference_params(int fd)
 
 	//判断是否需要继续全部单元机查询
 	if(data_info.fd)
-		data_info.name_type[0] = WIFI_MEETING_CON_VOTE;
+		//用议题表示需要全部查询
+		data_info.name_type[0] = WIFI_MEETING_CON_SUBJ;
 	else
 		data_info.name_type[0] = WIFI_MEETING_CON_ID;
 
@@ -577,6 +554,28 @@ int conf_info_get_the_conference_params(int fd)
 
 
 /*
+ * conf_info_get_checkin_total
+ * 获取会议中签到应到人数
+ *
+ * in/out:
+ * @NULL
+ *
+ * 返回值：
+ * @会议中应到人数
+ *
+ */
+int conf_info_get_checkin_total()
+{
+	int ret = 0;
+
+	ret = conf_status_get_conference_len();
+
+	printf("%s-%s-%d,checkin=%d\n",__FILE__,__func__,__LINE__,ret);
+
+	return ret;
+}
+
+/*
  * conf_info_send_vote_result
  * 下发投票结果，单主机的情况下，此接口基本用不上，投票结果由上位机统计，通过主机下发给单元机
  * 默认下发给所有参会单元机,当结束一个议题以后，自动下发结果，单元机选择性显示
@@ -584,9 +583,10 @@ int conf_info_get_the_conference_params(int fd)
  * in/out:
  * @NULL
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
  */
 int conf_info_send_vote_result()
 {
@@ -594,6 +594,8 @@ int conf_info_send_vote_result()
 	memset(&data_info,0,sizeof(frame_type));
 
 	unsigned short result[4] = {0};
+
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 判断当前议题的属性，符合就下发，不是则返回错误码
 	 */
@@ -605,13 +607,10 @@ int conf_info_send_vote_result()
 		conf_status_get_vote_result(NULL,result);
 
 		data_info.con_data.v_result.assent = result[0];
-//				node_queue->con_status->sub_list[node_queue->con_status->sub_num].v_result.assent;
 		data_info.con_data.v_result.nay = result[1];
-//				node_queue->con_status->sub_list[node_queue->con_status->sub_num].v_result.nay;
 		data_info.con_data.v_result.waiver = result[2];
-//				node_queue->con_status->sub_list[node_queue->con_status->sub_num].v_result.waiver;
 		data_info.con_data.v_result.timeout = result[3];
-//				node_queue->con_status->sub_list[node_queue->con_status->sub_num].v_result.timeout;
+
 		config_conference_frame_info(&data_info,WRITE_MSG);
 
 		tcp_ctrl_module_edit_info(&data_info,NULL);
@@ -634,16 +633,17 @@ int conf_info_send_vote_result()
  * in/out:
  * @NULL
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
  */
 int conf_info_send_elec_result()
 {
 	int i;
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 判断当前议题的属性，符合就下发，不是则返回错误码
 	 */
@@ -652,9 +652,9 @@ int conf_info_send_elec_result()
 		data_info.name_type[0] = WIFI_MEETING_CON_ELEC;
 		data_info.code_type[0] = WIFI_MEETING_STRING;
 		//将全局变量中的数据保存到
-		for(i=0;i<conf_status_get_elec_totalp();i++)
+		for(i=0;i<conf_status_get_elec_totalp(NULL);i++)
 		{
-			data_info.con_data.elec_rsult.ele_id[i] = conf_status_get_elec_result(i);
+			data_info.con_data.elec_rsult.ele_id[i] = conf_status_get_elec_result(NULL,i);
 		}
 
 	}else{
@@ -678,16 +678,17 @@ int conf_info_send_elec_result()
  * in/out:
  * @NULL
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
  */
 int conf_info_send_score_result()
 {
 	score_result result;
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
-
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 判断当前议题的属性，符合就下发，不是则返回错误码
 	 */
@@ -712,9 +713,53 @@ int conf_info_send_score_result()
 }
 
 
-/*
- * TODO 保留
- */
+/***************************************
+ *
+ * FIXME 保留
+ *
+ **************************************/
+int conf_info_set_conference_params_test(int fd,unsigned short id,unsigned char seat,
+		char* pname,char* cname)
+{
+
+	frame_type data_info;
+
+	int ret = 0;
+	char name[128] = "赵钱孙李";
+	char conf_name[128] = "WIFI会议第一次全体会议";
+
+	memset(&data_info,0,sizeof(frame_type));
+
+	printf("%s,%d,fd_value=%d,client_id=%d\n",__func__,
+			__LINE__,fd,id);
+
+	/*
+	 * 测试 发送
+	 */
+	data_info.fd = fd;
+	data_info.con_data.id = id;
+	data_info.con_data.seat = seat;
+	memcpy(data_info.con_data.name,name,strlen(name));
+	memcpy(data_info.con_data.conf_name,conf_name,strlen(conf_name));
+	data_info.con_data.sub_num = 10;
+
+	/*
+	 * 增加到会议信息链表中
+	 */
+	ret = dmanage_refresh_info(&data_info);
+	if(ret)
+		return ERROR;
+	/*
+	 * 组包下发
+	 */
+	config_conference_frame_info(&data_info,WRITE_MSG);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
+
+	return SUCCESS;
+
+}
+
+
 /*
  *  wifi_meeting_get_vote_status
  *  获取投票结果
@@ -763,10 +808,10 @@ int wifi_meeting_get_elec_status(unsigned char num,Pelection_result result)
 
 	if(conf_status_get_subject_property(&num) == WIFI_MEETING_CON_SUBJ_ELE)
 	{
-		for(i=0;i<node_queue->con_status->sub_list[num].ele_result.ele_total;i++)
+		for(i=0;i<conf_status_get_elec_totalp(&num);i++)
 		{
 
-			result->ele_id[i] = node_queue->con_status->sub_list[num].ele_result.ele_id[i];
+			result->ele_id[i] = conf_status_get_elec_result(&num,i);
 		}
 
 	}else{
@@ -786,9 +831,9 @@ int wifi_meeting_get_elec_status(unsigned char num,Pelection_result result)
  *	@num 议题编号
  *  @Pvote_result 投票结果类型
  *
- *	return：
- *	@ERROR
- *	@SUCCESS
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int wifi_meeting_get_score_status(unsigned char num,Pscore_result result)
 {
@@ -817,9 +862,9 @@ int wifi_meeting_get_score_status(unsigned char num,Pscore_result result)
  * @ssid
  * @key
  *
- * return:
- * @error
- * @success
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
  */
 int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd)
 {
@@ -845,3 +890,65 @@ int set_the_event_parameter_ssid_pwd(int socket_fd,char* ssid,char* pwd)
 	return SUCCESS;
 
 }
+/*
+ * conf_info_set_conference_sub_params
+ * 设置会议议题内容
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int conf_info_set_conference_sub_params()
+{
+
+	frame_type data_info;
+	int i = 0;
+	memset(&data_info,0,sizeof(frame_type));
+
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+	data_info.name_type[0] = WIFI_MEETING_CON_SUBJ;
+
+	unsigned char subject[10][19]=
+	{
+			{0x01,0x01,0x01,0x05,0x01,0x44,0x53,0x44,0x53,0x44,0x08,0x44,0x44,0x44,0x44,0x44,0x44,0x44,0x44},
+	};
+	/*
+	 * 测试 发送
+	 */
+
+	memcpy(&data_info.con_data.subj[0],subject[i],19);
+
+	/*
+	 *
+	 * 组包下发
+	 */
+	config_conference_frame_info(&data_info,WRITE_MSG);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
+
+	return SUCCESS;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

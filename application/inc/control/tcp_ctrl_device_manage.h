@@ -14,15 +14,17 @@
 
 
 
+int conf_status_close_last_spk_client(Pframe_type type);
 
-
-
+int conf_status_close_first_spk_client(Pframe_type type);
 
 int conf_status_delete_spk_node(int fd);
 
 int conf_status_add_spk_node(Pframe_type type);
 
-int conf_status_search_spk_node(Pframe_type type);
+int conf_status_search_last_spk_node(Pframe_type type);
+
+int conf_status_search_first_spk_node(Pframe_type type);
 
 int conf_status_refresh_spk_node(Pframe_type type);
 

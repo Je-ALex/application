@@ -1,7 +1,7 @@
 //File   : lrecord.c
 
 
-#include "../../inc/audio/audio_params_init.h"
+#include "audio_params_init.h"
 
 
 

@@ -18,6 +18,7 @@
  */
 
 extern Pglobal_info node_queue;
+extern sys_info sys_in;
 
 /*
  * tcp_ctrl_source_dest_setting
@@ -144,13 +145,16 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	}
 	printf("\n");
 #endif
-
-	printf("receive from %d：",*fd);
-	for(i=0;i<length;i++)
+	if(buf[4] != 0x87)
 	{
-		printf("%x ",buf[i]);
+		printf("receive from %d：",*fd);
+		for(i=0;i<length;i++)
+		{
+			printf("%x ",buf[i]);
+		}
+		printf("\n");
 	}
-	printf("\n");
+
 	/*
 	 * 验证数据头是否正确buf[0]~buf[3]
 	 */
@@ -394,6 +398,7 @@ int tcp_ctrl_uevent_request_pwr(Pframe_type frame_type,const unsigned char* msg)
 	return SUCCESS;
 }
 
+
 /*
  * tcp_ctrl_uevent_spk_port
  * 音频端口管理
@@ -423,10 +428,21 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
 		{
 			tmp_port = AUDIO_RECV_PORT;
-			tmp = conf_status_get_cspk_num();
-			tmp++;
-			conf_status_set_cspk_num(tmp);
-			conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHARIMAN);
+			/*
+			 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
+			 * 人数饱满，则需要关闭最后上线的设备
+			 */
+			if(conf_status_get_cspk_num() == conf_status_get_spk_num())
+			{
+				conf_status_close_last_spk_client(frame_type);
+			}else{
+
+				tmp = conf_status_get_cspk_num();
+				tmp++;
+				conf_status_set_cspk_num(tmp);
+				conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHARIMAN);
+			}
+
 
 		}else if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_GUEST
 				|| frame_type->con_data.seat == WIFI_MEETING_CON_SE_ATTEND)
@@ -440,19 +456,9 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 			if(conf_status_get_cspk_num() == conf_status_get_spk_num())
 			{
 				/*
-				 * 查询会议中排位，关闭第一位单元
-				 * 将端口下发给新申请的单元
-				 *
+				 * 人数已满，需要进行管理，关闭最早上线单元
 				 */
-				conf_status_search_spk_node(frame_type);
-				conf_status_delete_spk_node(frame_type->fd);
-
-				frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
-				frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-
-				tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-				tcp_ctrl_module_edit_info(frame_type,NULL);
-
+				conf_status_close_first_spk_client(frame_type);
 				/*
 				 * 更新发言链表，下发端口信息
 				 */
@@ -460,13 +466,16 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				frame_type->fd = tmp_fd;
 				frame_type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
 
-//				conf_status_refresh_spk_node(frame_type);
-//				tcp_ctrl_module_edit_info(frame_type,NULL);
 
 			}else{
 
 				//列席单元是从9002端口开始
 				tmp_port = AUDIO_RECV_PORT+2;
+
+				/*
+				 * 查找申请者是否重复申请，若是，则直接下发原来原来的端口，并删除原来信息
+				 */
+
 				tmp_num = conf_status_get_cspk_num();
 
 				if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHARIMAN)
@@ -493,8 +502,16 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 					}
 					break;
 				default:
+				{
+					frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
+					frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+
+					tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+					tcp_ctrl_module_edit_info(frame_type,NULL);
 					printf("%s-%s-%d error\n",__FILE__,__func__,__LINE__);
 					return ERROR;
+				}
+
 				}
 			}
 		}
@@ -508,18 +525,31 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		tcp_ctrl_module_edit_info(frame_type,NULL);
 		break;
 	}
+	case WIFI_MEETING_EVENT_SPK_VETO:
+	{
+		frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
+		frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
+		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+		tcp_ctrl_module_edit_info(frame_type,NULL);
+		break;
+	}
+	case WIFI_MEETING_EVENT_SPK_REQ_SND:
 	case WIFI_MEETING_EVENT_SPK_ALOW_SND:
 	{
 		frame_type->brd_port = AUDIO_SEND_PORT;
 		tcp_ctrl_module_edit_info(frame_type,NULL);
 		break;
 	}
+
 	case WIFI_MEETING_EVENT_SPK_REQ_CLOSE:
 		tmp=conf_status_get_cspk_num();
 		if(tmp)
+		{
 			tmp--;
-		conf_status_set_cspk_num(tmp);
+			conf_status_set_cspk_num(tmp);
+		}
+
 		if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
 		{
 			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
@@ -621,6 +651,11 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 		}
 		break;
 	}
+	case WIFI_MEETING_EVENT_SPK_REQ_SND:
+	{
+		tcp_ctrl_uevent_spk_port(frame_type);
+		break;
+	}
 	case WIFI_MEETING_EVENT_SPK_ALLOW:
 	case WIFI_MEETING_EVENT_SPK_VETO:
 	{
@@ -628,7 +663,7 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 
 		if(pos > 0){
 			pos = 0;
-			pos = conf_status_find_did_sockfd(frame_type);
+			pos = conf_status_find_did_sockfd_id(frame_type);
 			if(pos > 0)
 			{
 				printf("reply request\n");
@@ -637,8 +672,12 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 				tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
 				tcp_ctrl_module_edit_info(frame_type,msg);
 				//设置单元音频端口信息
-				if(frame_type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALLOW)
+				if(conf_status_check_connect_legal(frame_type)
+						&& frame_type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALLOW)
+				{
 					tcp_ctrl_uevent_spk_port(frame_type);
+				}
+
 			}else{
 				printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
 				return ERROR;
@@ -657,7 +696,7 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 		pos = conf_status_check_chariman_legal(frame_type);
 		if(pos > 0){
 			pos = 0;
-			pos = conf_status_find_did_sockfd(frame_type);
+			pos = conf_status_find_did_sockfd_id(frame_type);
 			if(pos > 0)
 			{
 				printf("reply sound request\n");
@@ -910,6 +949,7 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 		if(pos > 0)
 		{
 			frame_type->msg_type = WRITE_MSG;
+			frame_type->dev_type = HOST_CTRL;
 			frame_type->evt_data.status = value;
 			tcp_ctrl_module_edit_info(frame_type,msg);
 		}else{
@@ -994,7 +1034,6 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		/*
 		 * 检查是否是主席单元下发的指令
 		 */
-
 		pos = conf_status_check_chariman_legal(frame_type);
 		if(pos > 0)
 		{
@@ -1246,6 +1285,7 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 		{
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
+			frame_type->dev_type = HOST_CTRL;
 			frame_type->evt_data.status = value;
 			tcp_ctrl_module_edit_info(frame_type,msg);
 			conf_status_set_conf_staus(value);
@@ -1266,6 +1306,25 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 
 	return SUCCESS;
 }
+
+
+/*
+ * tcp_ctrl_uevent_request_conf_manage
+ * 电量状态请求，主机需要转发上位机
+ *
+ * 开始会议和结束会议
+ */
+int tcp_ctrl_uevent_request_electricity(Pframe_type frame_type,const unsigned char* msg)
+{
+	int value = 0;
+	value = WIFI_MEETING_EVENT_UNIT_ELECTRICITY;
+
+	tcp_ctrl_msg_send_to(frame_type,msg,value);
+
+	return SUCCESS;
+}
+
+
 /*
  * tcp_ctrl_unit_request_msg
  * 单元机请求消息处理函数
@@ -1376,6 +1435,12 @@ int tcp_ctrl_unit_request_msg(const unsigned char* msg,Pframe_type type)
 				 */
 				case WIFI_MEETING_EVT_CON_MAG:
 					tcp_ctrl_uevent_request_conf_manage(type,msg);
+					break;
+				/*
+				 * 单元电量
+				 */
+				case WIFI_MEETING_EVT_UNIT_ELECTRICITY:
+					tcp_ctrl_uevent_request_electricity(type,msg);
 					break;
 				default:
 					printf("there is legal value\n");
@@ -1872,7 +1937,9 @@ int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type type)
 		 * 上线请求消息
 		 */
 		case ONLINE_REQ:
+			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 			dmanage_add_info(handlbuf,type);
+			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 			break;
 		/*
 		 * 在线心跳

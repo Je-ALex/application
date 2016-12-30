@@ -109,6 +109,8 @@ typedef enum{
 	LOCAL_REP_MUTEX,
 	//上报上位机状态互斥锁
 	PC_REP_MUTEX,
+	//list互斥锁
+	LIST_MUTEX,
 	//TCP接收消息进出队列互斥锁
 	CTRL_TCP_RQUEUE_MUTEX,
 	//TCP发送消息进出队列互斥锁
@@ -302,6 +304,7 @@ typedef enum {
 	WIFI_MEETING_EVT_CON_MAG,
 	WIFI_MEETING_EVT_SPK_NUM,
 	WIFI_MEETING_EVT_AD_PORT,
+	WIFI_MEETING_EVT_UNIT_ELECTRICITY,
 
 }event_name_type;
 
@@ -542,9 +545,9 @@ typedef struct {
 	unsigned char seat;
 	unsigned char sub_num;
 	//会议参数
-	 char name[64];
-	 char conf_name[128];
-	 char subj[10][128];
+	char name[64];
+	char conf_name[128];
+	char subj[50][128];
 
 	vote_result v_result;
 	election_result elec_rsult;
@@ -607,6 +610,7 @@ typedef struct {
 typedef struct {
 
 	int sockfd;
+	int seat;
 	int asport;
 	unsigned int ts;
 

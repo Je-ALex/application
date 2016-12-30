@@ -230,6 +230,7 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 
 	if (buffer_time > 500000) buffer_time = 500000;
 //	buffer_time = 21333;
+//	buffer_time = 42666;
 	buffer_time = 10666;
 	period_time = buffer_time / 4;//5.3ms/1024B
 

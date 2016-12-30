@@ -163,8 +163,9 @@ int conf_status_check_chariman_staus();
  * @Pframe_type
  *
  */
-int conf_status_find_did_sockfd(Pframe_type frame_type);
+int conf_status_find_did_sockfd_id(Pframe_type frame_type);
 
+int conf_status_find_did_sockfd_sock(Pframe_type frame_type);
 /*
  * conf_status_find_chariman_sockfd
  * 检测链表中，主席单元的sockfd

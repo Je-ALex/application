@@ -14,8 +14,47 @@ extern Pglobal_info node_queue;
 
 unsigned int spk_ts = 0;
 
+/*
+ * 关闭最后发言的设置
+ */
+int conf_status_close_last_spk_client(Pframe_type type)
+{
+	/*
+	 * 查询会议中排位，关闭时间戳最大的单元
+	 * 将端口下发给新申请的单元
+	 *
+	 */
+	conf_status_search_last_spk_node(type);
+	conf_status_delete_spk_node(type->fd);
 
+	type->name_type[0] = WIFI_MEETING_EVT_SPK;
+	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
+	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+	tcp_ctrl_module_edit_info(type,NULL);
+
+	return SUCCESS;
+
+}
+
+int conf_status_close_first_spk_client(Pframe_type type)
+{
+	/*
+	 * 查询会议中排位，关闭时间戳最小的单元
+	 * 将端口下发给新申请的单元
+	 *
+	 */
+	conf_status_search_first_spk_node(type);
+	conf_status_delete_spk_node(type->fd);
+
+	type->name_type[0] = WIFI_MEETING_EVT_SPK;
+	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+
+	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+	tcp_ctrl_module_edit_info(type,NULL);
+
+	return SUCCESS;
+}
 
 int conf_status_delete_spk_node(int fd)
 {
@@ -56,9 +95,10 @@ int conf_status_delete_spk_node(int fd)
 		free(del);
 	}else{
 		printf("%s-%s-%d,not have spk client\n",__FILE__,__func__,__LINE__);
+		return ERROR;
 	}
 
-
+	return SUCCESS;
 }
 
 int conf_status_add_spk_node(Pframe_type type)
@@ -70,6 +110,7 @@ int conf_status_add_spk_node(Pframe_type type)
 	spk_ts++;
 
 	sinfo->sockfd = type->fd;
+	sinfo->seat = type->con_data.seat;
 	sinfo->asport = type->spk_port;
 	sinfo->ts = spk_ts;
 	printf("%s-%s-%d fd:%d,asport：%d,ts:%d\n",__FILE__,__func__,__LINE__,
@@ -88,41 +129,117 @@ int conf_status_add_spk_node(Pframe_type type)
  * conf_status_search_spk_node
  * 查找发言链表中的设备信息，时间戳最小的，将会返回fd，用于发送关闭
  *
- *
  * 返回值：
  * @ERROR
  * @SUCCESS
  *
  */
-int conf_status_search_spk_node(Pframe_type type)
+int conf_status_search_first_spk_node(Pframe_type type)
 {
 	pclient_node tmp_node;
 	Pas_port sinfo;
 
-	unsigned int ts = 0;
+	unsigned int ts = 0xFFFFFFFF;
 
+	/*
+	 * 找出信息中的最小时间戳
+	 */
 	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
 	while(tmp_node!=NULL)
 	{
 		sinfo = tmp_node->data;
 		if(sinfo->sockfd)
 		{
-			if(sinfo->ts > ts)
+			if((sinfo->ts < ts) &&
+					(sinfo->seat != WIFI_MEETING_CON_SE_CHARIMAN))
 			{
-				type->spk_port = sinfo->asport;
-				type->fd = sinfo->sockfd;
-
 				ts = sinfo->ts;
 			}
-			break;
 		}
-		tmp_node=tmp_node->next;
 
+		tmp_node=tmp_node->next;
+	}
+	if(ts < 0xffffffff)
+	{
+		/*
+		 * 找到最小时间戳的配置信息
+		 */
+		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+		while(tmp_node!=NULL)
+		{
+			sinfo = tmp_node->data;
+			if(sinfo->sockfd)
+			{
+				if(sinfo->ts == ts)
+				{
+					type->fd = sinfo->sockfd;
+					type->spk_port = sinfo->asport;
+					break;
+				}
+			}
+
+			tmp_node=tmp_node->next;
+		}
 	}
 
 	return SUCCESS;
 }
 
+/*
+ * 查找发言中，最后上线的设备
+ *
+ */
+int conf_status_search_last_spk_node(Pframe_type type)
+{
+	pclient_node tmp_node;
+	Pas_port sinfo;
+
+	unsigned int ts = 0;
+
+	/*
+	 * 找出信息中的最大时间戳
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd)
+		{
+			if((sinfo->ts > ts) &&
+					(sinfo->seat != WIFI_MEETING_CON_SE_CHARIMAN))
+			{
+				ts = sinfo->ts;
+			}
+		}
+
+		tmp_node=tmp_node->next;
+	}
+	if(ts > 0)
+	{
+		/*
+		 * 找到最大设备的配置信息
+		 */
+		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+		while(tmp_node!=NULL)
+		{
+			sinfo = tmp_node->data;
+			if(sinfo->sockfd)
+			{
+				if(sinfo->ts == ts)
+				{
+					type->fd = sinfo->sockfd;
+					type->spk_port = sinfo->asport;
+					break;
+				}
+			}
+
+			tmp_node=tmp_node->next;
+		}
+	}
+
+
+	return SUCCESS;
+}
 
 /*
  * conf_status_refresh_spk_node
@@ -458,7 +575,8 @@ int dmanage_delete_conference_list(int fd)
  */
 int dmanage_delete_info(int fd)
 {
-
+	int tmp = 0;
+	int ret = 0;
 	dmanage_delete_heart_list(fd);
 
 	dmanage_delete_connected_list(fd);
@@ -473,8 +591,25 @@ int dmanage_delete_info(int fd)
 	memset(&tmp_type,0,sizeof(frame_type));
 	tmp_type.msg_type = OFFLINE_REQ;
 	tmp_type.dev_type = UNIT_CTRL;
-
 	tmp_type.fd = fd;
+
+	tmp_type.evt_data.status = WIFI_MEETING_EVENT_SPK_REQ_CLOSE;
+	ret = conf_status_refresh_spk_node(&tmp_type);
+	if(!ret)
+	{
+		tmp=conf_status_get_cspk_num();
+		if(tmp)
+		{
+			tmp--;
+			conf_status_set_cspk_num(tmp);
+		}
+		if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHARIMAN)
+		{
+			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
+		}
+	}
+
+
 	tcp_ctrl_msg_send_to(&tmp_type,NULL,WIFI_MEETING_EVENT_OFFLINE_REQ);
 
 	return SUCCESS;
@@ -620,7 +755,6 @@ int dmanage_add_info(const unsigned char* msg,Pframe_type type)
 		if(type->dev_type != PC_CTRL){
 			dmanage_set_communication_heart(type);
 		}
-
 		/*
 		 * 保存至会议信息链表
 		 * 如果上线单元机有id号则将上线单元机信息进行存储
@@ -673,16 +807,12 @@ int dmanage_add_info(const unsigned char* msg,Pframe_type type)
 				}
 
 			}
-
 			/*
 			 * 发送至本地上报队列
 			 */
 			tcp_ctrl_msg_send_to(type,msg,WIFI_MEETING_EVENT_ONLINE_REQ);
 		}
-
 //	}
-
-
 
 	return SUCCESS;
 }
@@ -867,8 +997,19 @@ int dmanage_refresh_conference_list(Pconference_list data_info)
  */
 int dmanage_refresh_info(const Pframe_type data_info)
 {
-	Pconference_list confer_info;
+	Pconference_list confer_info = NULL;
 	int ret = 0;
+
+	/*
+	 * 更新到连接信息链表中
+	 */
+	ret = conf_status_refresh_spk_node(data_info);
+	if(ret)
+	{
+		printf("%s-%s-%d,dmanage_refresh_connected_list err\n",__FILE__,__func__,__LINE__);
+		free(confer_info);
+		return ERROR;
+	}
 
 	/*
 	 * 会议信息链表

@@ -5,7 +5,7 @@ CC = gcc
 HOSTCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc/alsa_lib/include \
 	-I../../inc/audio -I../../inc/control -I../../inc/utils -I../../inc/uart
 HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib \
-	-lasound -lpthread -L/home/wang/work/hushan/rtp/install-pc/lib -lspeexdsp -lm
+	-lasound -lpthread -lm
 
 ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include \
 	-I../../inc/audio -I../../inc/control -I../../inc/utils -I../../inc/uart

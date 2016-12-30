@@ -148,7 +148,7 @@ int wifi_conference_sys_init()
 	int ret;
 	void *retval;
 
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+	printf("%s-%s-%d-%s-%s\n",__FILE__,__func__,__LINE__,__DATE__,__TIME__);
 
 	/*
 	 * 系统互斥锁和信号量的初始化
@@ -223,8 +223,6 @@ int wifi_conference_sys_init()
 		 goto ERR;
 	}
 
-
-
 	//音频初始化
 	ret = wifi_sys_audio_init();
 	if (ret != 0)
@@ -232,13 +230,15 @@ int wifi_conference_sys_init()
 		 printf("wifi_sys_audio_init failed\n");
 		 goto ERR;
 	}
+//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
 
-	pthread_join(ctrl_tcps, &retval);
+//	pthread_join(ctrl_tcps, &retval);
 
 //	free(node_queue->sys_list);
 //	free(node_queue->sys_queue);
 //	free(node_queue->con_status);
 //	free(node_queue);
+
 	return SUCCESS;
 
 ERR:

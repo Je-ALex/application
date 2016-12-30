@@ -11,7 +11,7 @@
 #include "tcp_ctrl_device_manage.h"
 
 extern Pglobal_info node_queue;
-
+extern sys_info sys_in;
 /***************
  *
  * PC PART START
@@ -121,6 +121,9 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 		ret = tcp_ctrl_module_edit_info(frame_type,msg);
 		if(ret)
 			return ERROR;
+	}else if(value == WIFI_MEETING_CONF_PC_CMD_ALL){
+
+
 	}else{
 		printf("%s-%s-%d-not legal conference data\n",__FILE__,__func__,__LINE__);
 		return ERROR;
@@ -206,7 +209,7 @@ static int tcp_ctrl_pc_write_msg(const unsigned char* msg,Pframe_type frame_type
 		 */
 		if(frame_type->name_type[0] == WIFI_MEETING_CON_ID)
 		{
-			pos = conf_status_find_did_sockfd(frame_type);
+			pos = conf_status_find_did_sockfd_sock(frame_type);
 			if(pos)
 			{
 				tcp_ctrl_pc_write_msg_con(msg,frame_type);
@@ -466,7 +469,9 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 			ret = tcp_ctrl_pc_request_msg(handlbuf,frame_type);
 			break;
 		case ONLINE_REQ:
+			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 			ret = dmanage_add_info(handlbuf,frame_type);
+			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 			break;
 	}
 

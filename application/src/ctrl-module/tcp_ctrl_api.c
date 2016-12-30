@@ -10,7 +10,7 @@
 #include "tcp_ctrl_device_manage.h"
 
 extern Pglobal_info node_queue;
-
+extern sys_info sys_in;
 
 /* config_conference_frame_info
  * 配置info信息
@@ -65,10 +65,12 @@ int host_info_reset_factory_mode()
 	{
 		pinfo = tmp->data;
 
-		if(pinfo != NULL)
+		if(pinfo!=NULL)
 		{
 			printf("clean fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
+			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 			dmanage_delete_info(pinfo->client_fd);
+			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 
 		}
 		tmp = tmp->next;

@@ -266,9 +266,6 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 
 	sem_wait(&sys_in.sys_sem[LOCAL_REP_SEM]);
 
-#if TCP_DBG
-	printf("get the value from tcp_ctrl_report_dequeue\n");
-#endif
 	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
 	ret = out_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],&node);
 	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
@@ -446,7 +443,37 @@ int conf_status_check_chariman_staus()
  * @Pframe_type
  *
  */
-int conf_status_find_did_sockfd(Pframe_type frame_type)
+int conf_status_find_did_sockfd_id(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pclient_info cnet_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
+	while(tmp!=NULL)
+	{
+		cnet_list = tmp->data;
+		if(cnet_list->id == frame_type->d_id)
+		{
+			frame_type->fd=cnet_list->client_fd;
+			pos++;
+			break;
+		}
+		tmp=tmp->next;
+	}
+
+	printf("%s-%s-%d，did=%d,pos=%d\n",__FILE__,__func__,__LINE__,frame_type->d_id,pos);
+	return pos;
+}
+
+/*
+ * conf_status_get_did_sockfd
+ * 检测临时变量中目标地址对应的客户端的sockfd
+ *
+ * @Pframe_type
+ *
+ */
+int conf_status_find_did_sockfd_sock(Pframe_type frame_type)
 {
 	pclient_node tmp = NULL;
 	Pclient_info cnet_list;
@@ -468,6 +495,7 @@ int conf_status_find_did_sockfd(Pframe_type frame_type)
 	printf("%s-%s-%d，did=%d,pos=%d\n",__FILE__,__func__,__LINE__,frame_type->d_id,pos);
 	return pos;
 }
+
 
 /*
  * conf_status_find_chariman_sockfd
@@ -524,7 +552,7 @@ int conf_status_find_max_id()
 		tmp=tmp->next;
 	}
 
-	return max_id;
+	return max_id+1;
 }
 
 /*

@@ -332,7 +332,9 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 					 * 删除链表中节点信息与文本中的信息
 					 * fd参数
 					 */
+					pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 					dmanage_delete_info(wait_event[n].data.fd);
+					pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 					printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
 
 					close(wait_event[n].data.fd);
@@ -351,8 +353,9 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
 							 wait_event[n].data.fd, strerror(errno));
 					}
-
+					pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 					dmanage_delete_info(wait_event[n].data.fd);
+					pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 					printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
 
 					close(wait_event[n].data.fd);
@@ -400,7 +403,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 	Plinknode node;
 	Pctrl_tcp_rsqueue tmp;
 
-//	pthread_detach(pthread_self());
+	pthread_detach(pthread_self());
 
 	while(1)
 	{
@@ -415,13 +418,16 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 		{
 			tmp = node->data;
 
-			printf("%s-tmp->socket_fd[%d] : \n",
-					__func__,tmp->socket_fd);
-			for(i=0;i<tmp->len;i++)
+			if(tmp->msg[4] != 0x87)
 			{
-				printf("%x ",tmp->msg[i]);
+				printf("%s-tmp->socket_fd[%d] : \n",
+						__func__,tmp->socket_fd);
+				for(i=0;i<tmp->len;i++)
+				{
+					printf("%x ",tmp->msg[i]);
+				}
+				printf("\n");
 			}
-			printf("\n");
 
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 			write(tmp->socket_fd,tmp->msg, tmp->len);
@@ -493,7 +499,6 @@ void* wifi_sys_ctrl_tcp_procs_data(void* p)
 void* wifi_sys_ctrl_tcp_heart_state(void* p)
 {
 	frame_type type;
-	int tmp = 0;
 	memset(&type,0,sizeof(frame_type));
 
 	pthread_detach(pthread_self());
@@ -509,19 +514,10 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 			if(type.fd)
 			{
 				printf("%s-%s-%d client connect err,close it\n",__FILE__,__func__,__LINE__);
+				pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 				dmanage_delete_info(type.fd);
+				pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 				close(type.fd);
-
-				tmp=conf_status_get_cspk_num();
-
-				if(tmp)
-					tmp--;
-				conf_status_set_cspk_num(tmp);
-				if(type.con_data.seat == WIFI_MEETING_CON_SE_CHARIMAN)
-				{
-					conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
-				}
-
 				type.fd = 0;
 			}
 		}
@@ -643,7 +639,7 @@ void* control_tcp_send(void* p)
 				scanf("%d",&fd);
 				scanf("%d",&id);
 				scanf("%d",&seat);
-				conf_info_set_conference_params_test(fd,id,seat,0,0);
+				conf_info_set_conference_params(fd,id,seat,0,0);
 				break;
 			case 3:
 				printf("s=%d,input the fd\n",s);

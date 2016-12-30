@@ -45,18 +45,16 @@ typedef long long 		off64_t;
 #define WAV_FMT         COMPOSE_ID('f','m','t',' ')
 #define WAV_DATA        COMPOSE_ID('d','a','t','a')
 
+
 #define WAV_FMT_PCM             0x0001
 #define WAV_FMT_IEEE_FLOAT      0x0003
 #define WAV_FMT_DOLBY_AC3_SPDIF 0x0092
 #define WAV_FMT_EXTENSIBLE      0xfffe
 
 
-
 #define DEFAULT_CHANNELS         (2)
 #define DEFAULT_SAMPLE_RATE      (48000)
 #define DEFAULT_SAMPLE_LENGTH    (16)
-#define DEFAULT_DURATION_TIME    (10000)
-
 
 
 #define		RS_NUM 	10
@@ -64,6 +62,7 @@ typedef long long 		off64_t;
 #define 	MAX_SPK_NUM 	8
 #define 	DEF_SPK_NUM 	4
 #define 	DEF_MIC_MODE 	1
+
 /*
  * timeofday
  */
@@ -103,6 +102,7 @@ typedef struct  {
 
 
 typedef struct  {
+
 	snd_pcm_t *handle;
 	snd_output_t *log;
 	snd_pcm_uframes_t period_size;
@@ -118,7 +118,6 @@ typedef struct  {
 	uint8_t *data_buf;
 
 } snd_data_format,*Psnd_data_format;
-
 
 
 typedef struct{

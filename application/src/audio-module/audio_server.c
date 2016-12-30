@@ -192,11 +192,11 @@ static void audio_data_mix(unsigned char** sourseFile,unsigned char* objectFile,
 		/*
 		 * 24bit 混音
 		 */
-//	    int const MAX = 0X7FFFFFFF;
-//	    int const MIN = -0X80000000;
+	    int const MAX = 0X7FFFFFFF;
+	    int const MIN = -0X80000000;
 
-	    int const MAX = 0X7FFFFF80;
-	    int const MIN = -0X7FFFFF80;
+//	    int const MAX = 0X7FFFFF80;
+//	    int const MIN = -0X7FFFFF80;
 
 	    double f=1;
 	    int output;

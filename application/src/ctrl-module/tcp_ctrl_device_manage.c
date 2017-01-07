@@ -9,6 +9,7 @@
 #include "tcp_ctrl_data_process.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_manage.h"
+#include "sys_uart_init.h"
 
 extern Pglobal_info node_queue;
 
@@ -30,6 +31,8 @@ int conf_status_close_last_spk_client(Pframe_type type)
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
+	sys_uart_video_set(type->d_id,0);
+
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
 
@@ -50,11 +53,43 @@ int conf_status_close_first_spk_client(Pframe_type type)
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
+	sys_uart_video_set(type->d_id,0);
+
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
 
 	return SUCCESS;
 }
+
+int conf_status_close_guest_spk_client(Pframe_type type)
+{
+	pclient_node tmp_node;
+	Pas_port sinfo;
+
+	type->name_type[0] = WIFI_MEETING_EVT_SPK;
+	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+	/*
+	 * 查找连接信息中，是否有该设备存在
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+		{
+			tcp_ctrl_source_dest_setting(-1,sinfo->sockfd,type);
+			tcp_ctrl_module_edit_info(type,NULL);
+
+			conf_status_delete_spk_node(sinfo->sockfd);
+			msleep(1);
+		}
+		tmp_node=tmp_node->next;
+
+	}
+
+	return SUCCESS;
+}
+
 
 int conf_status_delete_spk_node(int fd)
 {
@@ -151,7 +186,7 @@ int conf_status_search_first_spk_node(Pframe_type type)
 		if(sinfo->sockfd)
 		{
 			if((sinfo->ts < ts) &&
-					(sinfo->seat != WIFI_MEETING_CON_SE_CHARIMAN))
+					(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN))
 			{
 				ts = sinfo->ts;
 			}
@@ -206,7 +241,7 @@ int conf_status_search_last_spk_node(Pframe_type type)
 		if(sinfo->sockfd)
 		{
 			if((sinfo->ts > ts) &&
-					(sinfo->seat != WIFI_MEETING_CON_SE_CHARIMAN))
+					(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN))
 			{
 				ts = sinfo->ts;
 			}
@@ -258,7 +293,7 @@ int conf_status_refresh_spk_node(Pframe_type type)
 	case WIFI_MEETING_EVENT_SPK_REQ_SPK:
 		conf_status_add_spk_node(type);
 		break;
-	case WIFI_MEETING_EVENT_SPK_REQ_CLOSE:
+	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
 		conf_status_delete_spk_node(type->fd);
 		break;
 	}
@@ -357,9 +392,9 @@ int dmanage_get_communication_heart(Pframe_type type)
 			if(!hinfo->status)
 			{
 				type->fd = hinfo->sockfd;
-				ret = conf_status_check_chariman_legal(type);
+				ret = conf_status_check_chairman_legal(type);
 				if(ret)
-					type->con_data.seat = WIFI_MEETING_CON_SE_CHARIMAN;
+					type->con_data.seat = WIFI_MEETING_CON_SE_CHAIRMAN;
 				break;
 			}
 
@@ -386,7 +421,7 @@ int dmanage_process_communication_heart(const unsigned char* msg,Pframe_type typ
 
 	int ret,pos,status;
 
-	pos = status =0;
+	pos = status = 0;
 
 	switch(type->msg_type)
 	{
@@ -397,7 +432,7 @@ int dmanage_process_communication_heart(const unsigned char* msg,Pframe_type typ
 		/*
 		 * 查找连接信息中，是否有该设备存在
 		 */
-		ret = conf_status_check_connect_legal(type);
+		ret = conf_status_check_client_connect_legal(type);
 		if(ret)
 		{
 			tmp_node = node_queue->sys_list[CONNECT_HEART]->next;
@@ -577,40 +612,43 @@ int dmanage_delete_info(int fd)
 {
 	int tmp = 0;
 	int ret = 0;
-	dmanage_delete_heart_list(fd);
 
-	dmanage_delete_connected_list(fd);
-
-	dmanage_delete_conference_list(fd);
-
-	/*
-	 * 下线消息告知主机或上位机
-	 */
-	//上报上位机部分
-	frame_type tmp_type;
-	memset(&tmp_type,0,sizeof(frame_type));
-	tmp_type.msg_type = OFFLINE_REQ;
-	tmp_type.dev_type = UNIT_CTRL;
-	tmp_type.fd = fd;
-
-	tmp_type.evt_data.status = WIFI_MEETING_EVENT_SPK_REQ_CLOSE;
-	ret = conf_status_refresh_spk_node(&tmp_type);
-	if(!ret)
+	if(conf_status_get_pc_staus() != fd)
 	{
-		tmp=conf_status_get_cspk_num();
-		if(tmp)
+		/*
+		 * 下线消息告知主机或上位机
+		 */
+		//上报上位机部分
+		frame_type tmp_type;
+		memset(&tmp_type,0,sizeof(frame_type));
+		tmp_type.msg_type = OFFLINE_REQ;
+		tmp_type.dev_type = UNIT_CTRL;
+		tmp_type.data_type = EVENT_DATA;
+		tmp_type.fd = fd;
+
+		tmp_type.evt_data.status = WIFI_MEETING_EVENT_SPK_CLOSE_MIC;
+		ret = conf_status_refresh_spk_node(&tmp_type);
+		if(!ret)
 		{
-			tmp--;
-			conf_status_set_cspk_num(tmp);
+			tmp=conf_status_get_cspk_num();
+			if(tmp)
+			{
+				tmp--;
+				conf_status_set_cspk_num(tmp);
+			}
+			if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
+			{
+				conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
+			}
 		}
-		if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHARIMAN)
-		{
-			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
-		}
+
+		tcp_ctrl_msg_send_to(&tmp_type,NULL,WIFI_MEETING_EVENT_OFFLINE_REQ);
+
+		dmanage_delete_heart_list(fd);
+
+		dmanage_delete_conference_list(fd);
 	}
-
-
-	tcp_ctrl_msg_send_to(&tmp_type,NULL,WIFI_MEETING_EVENT_OFFLINE_REQ);
+	dmanage_delete_connected_list(fd);
 
 	return SUCCESS;
 }

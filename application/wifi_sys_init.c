@@ -176,7 +176,12 @@ int wifi_conference_sys_init()
 		 printf("uart_snd_effect_init failed\n");
 		 goto ERR;
 	}
-
+	ret = sys_video_uart_init();
+	if (ret != 0)
+	{
+		 printf("sys_video_uart_init failed\n");
+		 goto ERR;
+	}
 	/*
 	 * 设备发现之UDP广播初始化
 	 */
@@ -251,28 +256,29 @@ ERR:
 
 }
 
-//int main(void)
-//{
-//	pthread_t ctrl_tcps;
-//	int ret = 0;
-//	host_info net_info;
-//	void *retval;
-//	//首先检测网络是否启动
-//	ret = host_info_get_network_info(&net_info);
-//	if(ret == ERROR){
-//		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
-//	}
-//	ret = wifi_conference_sys_init();
-//	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
-//
-//	//测试线程
-//	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
-//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
-//
-//	pthread_join(ctrl_tcps, &retval);
-//	exit(0);
-//
-//    return SUCCESS;
-//}
+
+int main(void)
+{
+	pthread_t ctrl_tcps;
+	int ret = 0;
+	host_info net_info;
+	void *retval;
+	//首先检测网络是否启动
+	ret = host_info_get_network_info(&net_info);
+	if(ret == ERROR){
+		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
+	}
+	ret = wifi_conference_sys_init();
+	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
+
+	//测试线程
+	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
+	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
+
+	pthread_join(ctrl_tcps, &retval);
+	exit(0);
+
+    return SUCCESS;
+}
 
 

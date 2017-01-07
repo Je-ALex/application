@@ -271,10 +271,11 @@ typedef enum {
  */
 typedef enum {
 
-	WIFI_MEETING_CON_SUBJ_ELE  = 1,
+	WIFI_MEETING_CON_SUBJ_NORMAL = 0,
+	WIFI_MEETING_CON_SUBJ_ELE,
 	WIFI_MEETING_CON_SUBJ_VOTE,
 	WIFI_MEETING_CON_SUBJ_SCORE,
-	WIFI_MEETING_CON_SUBJ_NORMAL,
+
 }subject_attribute;
 
 /*
@@ -305,6 +306,7 @@ typedef enum {
 	WIFI_MEETING_EVT_SPK_NUM,
 	WIFI_MEETING_EVT_AD_PORT,
 	WIFI_MEETING_EVT_UNIT_ELECTRICITY,
+	WIFI_MEETING_EVT_SYS_TIME,
 
 }event_name_type;
 
@@ -315,7 +317,9 @@ typedef enum {
 }event_power;
 
 typedef enum {
-	WIFI_MEETING_EVT_MIC_FIFO = 1,
+
+	WIFI_MEETING_EVT_MIC_CHAIRMAN = 1,
+	WIFI_MEETING_EVT_MIC_FIFO,
 	WIFI_MEETING_EVT_MIC_STAD,
 	WIFI_MEETING_EVT_MIC_FREE,
 }event_mic;
@@ -335,7 +339,11 @@ typedef enum {
 	WIFI_MEETING_EVT_SPK_VETO_SND,
 	WIFI_MEETING_EVT_SPK_REQ_SND,
 	WIFI_MEETING_EVT_SPK_REQ_SPK,
-	WIFI_MEETING_EVT_SPK_REQ_CLOSE,
+	WIFI_MEETING_EVT_SPK_CLOSE_MIC,
+	WIFI_MEETING_EVT_SPK_CLOSE_REQ,
+	WIFI_MEETING_EVT_SPK_CLOSE_SND,
+	WIFI_MEETING_EVT_SPK_CHAIRMAN_ONLY,
+
 }event_speak;
 
 typedef enum {
@@ -437,7 +445,7 @@ typedef enum {
  */
 typedef enum {
 
-	WIFI_MEETING_CON_SE_CHARIMAN = 1,
+	WIFI_MEETING_CON_SE_CHAIRMAN = 1,
 	WIFI_MEETING_CON_SE_GUEST,
 	WIFI_MEETING_CON_SE_ATTEND,
 
@@ -507,7 +515,7 @@ typedef struct{
 
 	//议题名称和议题属性
 
-	unsigned char subj[10][128];
+	unsigned char subj[100][128];
 	unsigned char subj_prop;
 
 	vote_result v_result;
@@ -661,6 +669,7 @@ typedef struct {
 	//音频状态信息
 	volatile unsigned char mic_mode;
 	volatile unsigned char snd_effect;
+	volatile unsigned char snd_brdcast;
 	//设置的发言人数
 	volatile unsigned char spk_number;
 	//当前发言的人数

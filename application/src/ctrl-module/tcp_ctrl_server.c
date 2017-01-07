@@ -156,7 +156,7 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* value, int* len
 	 */
 	if(tmp_type->msg_type != ONLINE_REQ)
 	{
-		status = conf_status_check_connect_legal(tmp_type);
+		status = conf_status_check_client_connect_legal(tmp_type);
 
 		if(status < 1)
 		{
@@ -257,7 +257,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
         pthread_exit(0);
     }
 
-	wait_event = calloc(1000,sizeof(struct epoll_event));
+	wait_event = calloc(255,sizeof(struct epoll_event));
 
 
 	while(1)
@@ -506,6 +506,7 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 	{
 		if(!conf_status_get_connected_len())
 		{
+//			sys_uart_video_set(1,1);
 			sleep(1);
 			continue;
 		}else{
@@ -622,6 +623,7 @@ void* control_tcp_send(void* p)
 		printf("11 网络信息\n");
 		printf("12 关于本机\n");
 		printf("13 关机\n");
+		printf("14 摄像跟踪\n");
 		printf("######################################\n");
 
 		scanf("%d",&s);
@@ -686,10 +688,11 @@ void* control_tcp_send(void* p)
 				unit_info_set_device_power_off();
 				break;
 			case 14:
-				printf("snd_effect\n");
+				printf("sys_uart_video_set\n");
 				printf("s=%d,input the value\n",s);
 				scanf("%d",&value);
-				conf_status_set_snd_effect(value);
+				scanf("%d",&id);
+				sys_uart_video_set(id,value);
 				break;
 			case 15:
 				printf("subject set\n");

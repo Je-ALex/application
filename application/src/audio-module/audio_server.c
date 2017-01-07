@@ -459,7 +459,7 @@ static void* audio_recv_thread(void* p)
  * 混音模块
  *
  */
-static void* audio_data_mix_thread(void* data)
+static void* audio_data_mix_thread(void* p)
 {
 	struct timeval start,stop;
 	timetime diff;
@@ -477,6 +477,29 @@ static void* audio_data_mix_thread(void* data)
 
 	j=0;
 	pthread_detach(pthread_self());
+
+	Paudio_frame data[RS_NUM];
+	for(i=0;i<RS_NUM;i++)
+	{
+		data[i] = malloc(sizeof(audio_frame));
+		if(data[i] == NULL)
+		{
+			printf("data failed\n");
+			pthread_exit(0);
+		}
+	}
+
+	unsigned char* buffer[RS_NUM];
+	for(i=0;i<RS_NUM;i++)
+	{
+		buffer[i] = malloc(playback.chunk_bytes);
+		if(buffer[i] == NULL)
+		{
+			printf("buffer failed\n");
+			pthread_exit(0);
+		}
+	}
+	i = 0;
 	while(1)
     {
 
@@ -515,10 +538,20 @@ static void* audio_data_mix_thread(void* data)
 			audio_module_data_write(&playback,frame_len);
 			j=0;
 
-			/*
-			 * 送入发送队列
-			 */
-//			audio_enqueue(squeue,playback.data_buf);
+			if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
+			{
+				memcpy(buffer[i],playback.data_buf,length);
+				/*
+				 * 送入发送队列
+				 */
+				data[i]->msg = buffer[i];
+				data[i]->len = length;
+				audio_enqueue(squeue,data[i]);
+
+				i++;
+				if(i==RS_NUM)
+					i=0;
+			}
 
 			if(sys_debug_get_switch())
 			{
@@ -547,7 +580,7 @@ static void* audio_send_thread(void* p)
     Paudio_frame send_msg;
 
 	printf("%s,%d\n",__func__,__LINE__);
-
+	pthread_detach(pthread_self());
 	/*
 	 * 创建socke套接字
 	 */
@@ -590,26 +623,26 @@ static void* audio_send_thread(void* p)
 
 		send_msg = audio_dequeue(squeue);
 
-		ret = sendto(sock,send_msg->msg,send_msg->len,0,
-				(struct sockaddr*)&addr_serv,sizeof(addr_serv));
+		if(send_msg != NULL)
+		{
+			ret = sendto(sock,send_msg->msg,send_msg->len,0,
+					(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 
-		if(ret < 0){
-			printf("sendto fail\r\n");
-			close(sock);
-			pthread_exit(0);
-		}else{
+			if(ret < 0){
+				printf("sendto fail\r\n");
+				close(sock);
+				pthread_exit(0);
+			}else{
 
-			{
-//				for(i=0;i<len;i++)
-//				{
-//					printf("%02X ",msg[i]);
-//				}
-//				printf("send ok\n");
+	//				for(i=0;i<len;i++)
+	//				{
+	//					printf("%02X ",msg[i]);
+	//				}
+	//				printf("send ok\n");
+
 			}
-
 		}
-		sleep(1);
-
+		usleep(2);
 	}
 	close(sock);
 	pthread_exit(0);
@@ -727,11 +760,11 @@ int wifi_sys_audio_init()
 	/*
 	 * 语音发送线程
 	 */
-//	ret = pthread_create(&mix_th, NULL, audio_send_thread,NULL);
-//	if (ret != 0)
-//	{
-//		perror ("audio_send_thread error");
-//	}
+	ret = pthread_create(&mix_th, NULL, audio_send_thread,NULL);
+	if (ret != 0)
+	{
+		perror ("audio_send_thread error");
+	}
 
 
 //	pthread_join(th_a[0], &retval);

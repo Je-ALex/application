@@ -59,6 +59,23 @@ typedef struct{
 	int to_usec;
 }timeout,*Ptimeout;
 
+int uart_snd_effect_init();
+int uart_snd_effect_set(int value);
+
+int sys_uart_video_set(unsigned short id,int value);
+int sys_video_uart_init();
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /*
@@ -77,8 +94,7 @@ int sys_uart_read_data(Pudev pdev,char* msg,int bytes,Ptimeout time_out);
 
 int sys_uart_write_data(Pudev pdev,char* msg,int len);
 
-int uart_snd_effect_init();
-int uart_snd_effect_set(int value);
+
 
 
 

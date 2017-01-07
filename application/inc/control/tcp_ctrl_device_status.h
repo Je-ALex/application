@@ -12,6 +12,12 @@
 #include "tcp_ctrl_api.h"
 #include "tcp_ctrl_list.h"
 #include "sys_uart_init.h"
+
+
+#define DBG_ON 1
+#define DBG_OFF 0
+
+
 /*
  * 主机音效设置
  * 采用为管理分别从bit[0-2]表示状态
@@ -119,14 +125,14 @@ int conf_status_get_connected_len();
 int conf_status_get_conference_len();
 
 /*
- * conf_status_check_client_legal
+ * conf_status_check_client_conf_legal
  * 检查数据包来源合法性，会议表中是否有此设备
  * 并将此设备的席位赋值给临时变量
  *
  * @Pframe_type
  *
  */
-int conf_status_check_client_legal(Pframe_type frame_type);
+int conf_status_check_client_conf_legal(Pframe_type frame_type);
 
 /*
  * conf_status_check_chariman_legal
@@ -135,16 +141,16 @@ int conf_status_check_client_legal(Pframe_type frame_type);
  * @Pframe_type
  *
  */
-int conf_status_check_chariman_legal(Pframe_type frame_type);
+int conf_status_check_chairman_legal(Pframe_type frame_type);
 
 /*
- * conf_status_check_connect_legal
+ * conf_status_check_client_connect_legal
  * 检查连接信息中，设备的合法性
  *
  * @Pframe_type
  *
  */
-int conf_status_check_connect_legal(Pframe_type frame_type);
+int conf_status_check_client_connect_legal(Pframe_type frame_type);
 
 /*
  * conf_status_check_chariman_staus
@@ -173,7 +179,7 @@ int conf_status_find_did_sockfd_sock(Pframe_type frame_type);
  * @Pframe_type
  *
  */
-int conf_status_find_chariman_sockfd(Pframe_type frame_type);
+int conf_status_find_chairman_sockfd(Pframe_type frame_type);
 
 /*
  * conf_status_find_max_id
@@ -228,12 +234,14 @@ int conf_status_set_current_subject(unsigned char num);
  */
 int conf_status_get_current_subject();
 
+int conf_status_set_subject_property(unsigned char num,unsigned char prop);
+
 /*
  * conf_status_get_subject_property
  * 会议中投票议题的状态
  *
  */
-int conf_status_get_subject_property(unsigned char* num);
+int conf_status_get_subject_property(unsigned char num);
 
 /*
  * cof_info_vote_result_status
@@ -251,7 +259,7 @@ int conf_status_save_vote_result(int value);
  *
  *
  */
-int conf_status_get_vote_result(unsigned char* num,unsigned short* value);
+int conf_status_get_vote_result(unsigned char num,unsigned short* value);
 
 /*
  * conf_status_save_vote_result
@@ -269,8 +277,10 @@ int conf_status_save_elec_result(unsigned short value);
  * @value投票结果
  *
  */
-int conf_status_get_elec_result(unsigned char* num,unsigned short value);
+int conf_status_get_elec_result(unsigned char num,unsigned short value);
 
+
+int conf_status_set_elec_totalp(unsigned char num,unsigned char pep);
 /*
  * conf_status_get_elec_totalp
  * 议题中被选举总人数
@@ -278,7 +288,7 @@ int conf_status_get_elec_result(unsigned char* num,unsigned short value);
  * @value投票结果
  *
  */
-int conf_status_get_elec_totalp(unsigned char* num);
+int conf_status_get_elec_totalp(unsigned char num);
 
 /*
  * conf_status_save_score_result
@@ -377,6 +387,9 @@ int conf_status_set_cspk_num(int value);
  */
 int conf_status_get_cspk_num();
 
+int conf_status_set_snd_brd(int value);
+int conf_status_get_snd_brd();
+
 /*
  * conf_status_set_snd_effect
  * DSP音效设置
@@ -443,12 +456,12 @@ int conf_status_set_pc_staus(int value);
 int conf_status_get_pc_staus();
 
 
+int conf_status_send_vote_result();
 
 
+int conf_status_send_elec_result();
 
-
-
-
+int conf_status_send_score_result();
 
 
 

@@ -12,7 +12,7 @@
 #include "tcp_ctrl_server.h"
 
 
-
+int tcp_ctrl_uevent_spk_port(Pframe_type frame_type);
 
 int tcp_ctrl_data_char_to_int(int* value,char* buf);
 

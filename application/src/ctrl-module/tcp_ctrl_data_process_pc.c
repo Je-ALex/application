@@ -34,7 +34,7 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 	int ret = 0;
 	int str_len = 0;
 	int value = 0;
-
+	int num = 0;
 
 	/*
 	 * 上位机下发会议参数
@@ -83,15 +83,26 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 
 	 }else if(msg[tc_index] == WIFI_MEETING_CON_SUBJ){
 
-			/*
-			 * 下发给会议单元
-			 */
-		 	value = WIFI_MEETING_CONF_PC_CMD_ALL;
-		 	frame_type->evt_data.status = value;
-			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-			ret = tcp_ctrl_module_edit_info(frame_type,msg);
-			if(ret)
-				return ERROR;
+		/*
+		* 保存议题属性到全局变量
+		*/
+		num = msg[2];
+		value = msg[3];
+		conf_status_set_subject_property(num,value);
+
+		if(value == WIFI_MEETING_CON_SUBJ_ELE)
+		{
+			value = msg[4];
+			conf_status_set_elec_totalp(num,value);
+		}
+		/*
+		 * 下发给会议单元
+		 */
+		value = WIFI_MEETING_CONF_PC_CMD_ALL;
+		frame_type->evt_data.status = value;
+		ret = tcp_ctrl_module_edit_info(frame_type,msg);
+		if(ret)
+			return ERROR;
 	 }
 
 	/*
@@ -164,12 +175,11 @@ static int tcp_ctrl_pc_write_msg_evt(const unsigned char* msg,Pframe_type frame_
 		conf_status_set_spk_num(frame_type->evt_data.value);
 		break;
 	case WIFI_MEETING_EVT_SSID:
+	case WIFI_MEETING_EVT_SYS_TIME:
 		frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_ALL;
-
 		ret = tcp_ctrl_module_edit_info(frame_type,msg);
 		if(ret)
 			return ERROR;
-
 		break;
 	default:
 //		frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_SIGNAL;
@@ -297,14 +307,134 @@ static int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 	return SUCCESS;
 }
 
+
+static int tcp_ctrl_pc_request_spk(const unsigned char* msg,Pframe_type frame_type)
+{
+	int pos = 0;
+
+	switch(frame_type->evt_data.value)
+	{
+	/*
+	 * 主机收到主席单元的允许指令，目标地址为具体允许的单元机ID，源地址为主席单元
+	 * 主机下发允许指令，修改源地址为主机，目标地址不变
+	 */
+	case WIFI_MEETING_EVT_SPK_ALLOW:
+	{
+		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_ALLOW;
+		pos = conf_status_find_did_sockfd_sock(frame_type);
+		if(pos > 0)
+		{
+			//变换为控制类消息下个给单元机
+			frame_type->msg_type = WRITE_MSG;
+			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+			tcp_ctrl_module_edit_info(frame_type,msg);
+			//设置单元音频端口信息
+			if(conf_status_check_client_connect_legal(frame_type))
+			{
+				tcp_ctrl_uevent_spk_port(frame_type);
+			}
+		}else{
+			printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+		break;
+	}
+	case WIFI_MEETING_EVT_SPK_VETO:
+	{
+		pos = conf_status_find_did_sockfd_sock(frame_type);
+		if(pos > 0)
+		{
+			//变换为控制类消息下个给单元机
+			frame_type->msg_type = WRITE_MSG;
+			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+			tcp_ctrl_module_edit_info(frame_type,msg);
+
+		}else{
+			printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+		break;
+	}
+	case WIFI_MEETING_EVT_SPK_ALOW_SND:
+		break;
+	case WIFI_MEETING_EVT_SPK_VETO_SND:
+		break;
+	case WIFI_MEETING_EVT_SPK_REQ_SND:
+		break;
+	case WIFI_MEETING_EVT_SPK_REQ_SPK:
+		break;
+	case WIFI_MEETING_EVT_SPK_CLOSE_MIC:
+		break;
+	default:
+		printf("there is not legal value\n");
+		return ERROR;
+	}
+
+
+	return SUCCESS;
+
+}
+
+
+static int tcp_ctrl_pc_request_subject(Pframe_type frame_type,const unsigned char* msg)
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			frame_type->evt_data.value);
+
+	//议题号保存到全局变量
+	conf_status_set_current_subject(frame_type->evt_data.value);
+
+	frame_type->msg_type = WRITE_MSG;
+	frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_ALL;
+	tcp_ctrl_module_edit_info(frame_type,msg);
+
+	return SUCCESS;
+
+}
+
+static int tcp_ctrl_pc_request_conf_manage(Pframe_type frame_type,const unsigned char* msg)
+{
+
+	int value = 0;
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			frame_type->evt_data.value);
+
+	switch(frame_type->evt_data.value)
+	{
+	case WIFI_MEETING_EVT_CON_MAG_START:
+		value = WIFI_MEETING_EVENT_CON_MAG_START;
+		break;
+	case WIFI_MEETING_EVT_CON_MAG_END:
+		value = WIFI_MEETING_EVENT_CON_MAG_END;
+		break;
+
+	}
+
+	if(value == WIFI_MEETING_EVENT_CON_MAG_END ||
+			value == WIFI_MEETING_EVENT_CON_MAG_START)
+	{
+		//变换为控制类消息下个给单元机
+		frame_type->msg_type = WRITE_MSG;
+		frame_type->dev_type = HOST_CTRL;
+		frame_type->evt_data.status = value;
+		tcp_ctrl_module_edit_info(frame_type,msg);
+		conf_status_set_conf_staus(value);
+
+	}
+
+
+	return SUCCESS;
+
+
+}
 /*
  * tcp_ctrl_pc_request_msg_evt
  * 上位机下发请求类消息
  */
 static int tcp_ctrl_pc_request_msg_evt(const unsigned char* msg,Pframe_type frame_type)
 {
-	pclient_node tmp = NULL;
-	Pclient_info tmp_info;
+
 	int pos = 0;
 	int value = 0;
 	int ret = 0;
@@ -322,48 +452,45 @@ static int tcp_ctrl_pc_request_msg_evt(const unsigned char* msg,Pframe_type fram
 			value = WIFI_MEETING_EVENT_PC_CMD_ALL;
 		}
 		break;
+	case WIFI_MEETING_EVT_SUB:
+		tcp_ctrl_pc_request_subject(frame_type,msg);
+		break;
 	case WIFI_MEETING_EVT_CHECKIN:
 	case WIFI_MEETING_EVT_VOT:
-	case WIFI_MEETING_EVT_SUB:
 	case WIFI_MEETING_EVT_ELECTION:
 	case WIFI_MEETING_EVT_SCORE:
-	case WIFI_MEETING_EVT_CON_MAG:
 		value = WIFI_MEETING_EVENT_PC_CMD_ALL;
 		break;
+	case WIFI_MEETING_EVT_CON_MAG:
+		tcp_ctrl_pc_request_conf_manage(frame_type,msg);
+		break;
+	case WIFI_MEETING_EVT_SPK:
+		tcp_ctrl_pc_request_spk(msg,frame_type);
+		break;
 	}
+
 
 	if(value == WIFI_MEETING_EVENT_PC_CMD_ALL)
 	{
 		frame_type->msg_type = WRITE_MSG;
-		frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_ALL;
+		frame_type->evt_data.status = value;
 		ret = tcp_ctrl_module_edit_info(frame_type,msg);
 		if(ret)
 			return ERROR;
-	}else{
+	}else if(value == WIFI_MEETING_EVENT_PC_CMD_SIGNAL){
+
 		/*
 		 * 找到上位机需要下发消息的目标地址的
 		 * 在上位机下发指令的时候，目标地址为单元机的fd
 		 * 通过木匾地址找出是否存在此单元机
 		 */
-		tmp = node_queue->sys_list[CONNECT_LIST]->next;
-		while(tmp!=NULL)
-		{
-			tmp_info = tmp->data;
-			if(frame_type->d_id == tmp_info->client_fd)
-			{
-				frame_type->fd = tmp_info->client_fd;
-				pos++;
-				break;
-			}
-			tmp=tmp->next;
-		}
+		pos = conf_status_find_did_sockfd_sock(frame_type);
 		if(pos > 0)
 		{
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
-			frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_SIGNAL;
-//	todo fix		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-			frame_type->s_id = 0;
+			frame_type->evt_data.status = value;
+			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
 			ret = tcp_ctrl_module_edit_info(frame_type,msg);
 			if(ret)
 				return ERROR;
@@ -372,6 +499,8 @@ static int tcp_ctrl_pc_request_msg_evt(const unsigned char* msg,Pframe_type fram
 			return ERROR;
 		}
 	}
+
+
 
 	return SUCCESS;
 }
@@ -388,10 +517,11 @@ static int tcp_ctrl_pc_request_msg_con(const unsigned char* msg,Pframe_type fram
 
 	int ret = 0;
 	int pos = 0;
+
 	/*
 	 * 找到主席单元
 	 */
-	pos = conf_status_find_chariman_sockfd(frame_type);
+	pos = conf_status_find_chairman_sockfd(frame_type);
 	if(pos > 0)
 	{
 		frame_type->name_type[0] = msg[0];
@@ -402,6 +532,7 @@ static int tcp_ctrl_pc_request_msg_con(const unsigned char* msg,Pframe_type fram
 		case WIFI_MEETING_CON_SCORE:
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->evt_data.status = WIFI_MEETING_CONF_PC_CMD_SIGNAL;
+			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
 			ret = tcp_ctrl_module_edit_info(frame_type,msg);
 			if(ret)
 				return ERROR;

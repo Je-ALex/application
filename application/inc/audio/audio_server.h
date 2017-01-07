@@ -61,8 +61,7 @@ typedef long long 		off64_t;
 #define 	LOG_NAME 	"audio.log"
 #define 	MAX_SPK_NUM 	8
 #define 	DEF_SPK_NUM 	4
-#define 	DEF_MIC_MODE 	1
-
+#define 	DEF_MIC_MODE 	2
 /*
  * timeofday
  */

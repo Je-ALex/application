@@ -278,13 +278,8 @@ static int tcp_ctrl_edit_conference_content(Pframe_type type,unsigned char* buf)
 				buf[tmp_index++] = type->name_type[0];
 				buf[tmp_index++] = type->code_type[0];
 
-				for(i=0;i<conf_status_get_elec_totalp(NULL);i++)
+				for(i=1;i<=conf_status_get_elec_totalp(0);i++)
 				{
-//					buf[tmp_index++] = i;
-//					tcp_ctrl_data_char2short(node_queue->con_status->sub_list[node_queue->con_status->sub_num].ele_result.ele_id[i],data);
-//					memcpy(&buf[tmp_index],data,sizeof(short));
-//					tmp_index = tmp_index + sizeof(short);
-
 					buf[tmp_index++] = i;
 					tcp_ctrl_data_short2char(type->con_data.elec_rsult.ele_id[i],data);
 					memcpy(&buf[tmp_index],data,sizeof(short));

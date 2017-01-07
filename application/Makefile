@@ -198,7 +198,8 @@ TEST_SOURCE = wifi_sys_init.c \
 			src/audio-module/audio_params_init.c \
 			src/audio-module/audio_ring_buf.c \
 			src/uart/sys_uart_init.c \
-			src/uart/sys_snd_uart.c
+			src/uart/sys_snd_uart.c \
+			src/uart/sys_video_uart.c
 
 .PHONY: libso bin arm-bin clean
 

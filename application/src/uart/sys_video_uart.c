@@ -22,7 +22,7 @@ int gpio_pull_high()
 	    return -1;
 	}
 	fclose(fp);
-	return 0;
+	return SUCCESS;
 }
 
 int gpio_pull_low()
@@ -38,21 +38,25 @@ int gpio_pull_low()
 	    return -1;
 	}
 	fclose(fp);
-	return 0;
+	return SUCCESS;
 }
 
 int sys_uart_video_set(unsigned short id,int value)
 {
 	int ret = 0;
+	char buf[3] = {0xb0,0x00,0x00};
 
-//	char buf[3] = {0xb0,0x00,0x00};
-//
-//	buf[1] = value;
-//	buf[2] = id;
-	char buf[2] = {0xfd,0xdd};
-	gpio_pull_high();
-	ret = sys_uart_write_data(&pdev,buf,sizeof(buf));
-	gpio_pull_low();
+	buf[1] = value;
+	buf[2] = id;
+
+	if(conf_status_get_camera_track())
+	{
+		gpio_pull_high();
+		usleep(100);
+		ret = sys_uart_write_data(&pdev,buf,sizeof(buf));
+		gpio_pull_low();
+	}
+
 
 	return ret;
 }

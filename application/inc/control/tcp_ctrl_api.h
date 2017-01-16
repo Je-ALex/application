@@ -504,12 +504,36 @@ int conf_info_send_elec_result();
 int conf_info_send_score_result();
 
 
+/*********************
+ * TODO 系统扩展功能
+ *********************/
 
 
 
+/*
+ * sys_exp_set_camera_track
+ *
+ * in:
+ * @value 1是打开 0是关闭
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_set_camera_track(int value);
 
 
-
+/*
+ * sys_exp_get_camera_track
+ *
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_get_camera_track();
 
 
 

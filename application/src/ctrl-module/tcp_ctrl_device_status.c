@@ -1047,8 +1047,9 @@ int conf_status_set_snd_brd(int value)
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
-	return node_queue->con_status->snd_brdcast;
+	node_queue->con_status->snd_brdcast = value;
 
+	return SUCCESS;
 }
 
 /*
@@ -1070,7 +1071,6 @@ int conf_status_get_snd_brd()
  *      AFC  ANC0  ANC1
  *              ANC2
  * bit[0-2] 共有8个状态
- *
  *
  * @value AFC(0/1)，ANC(0/1/2/3)
  *
@@ -1108,6 +1108,26 @@ int conf_status_get_snd_effect()
 
 	return node_queue->con_status->snd_effect;
 
+}
+
+/*
+ * conf_status_set_camera_track
+ * 设置摄像跟踪设置
+ */
+int conf_status_set_camera_track(int value)
+{
+	node_queue->con_status->camera_track = value;
+
+	return SUCCESS;
+}
+
+/*
+ * conf_status_get_camera_track
+ * 摄像跟踪获取
+ */
+int conf_status_get_camera_track()
+{
+	return node_queue->con_status->camera_track;
 }
 
 /*

@@ -83,6 +83,22 @@ void* audio_dequeue(Paudio_queue queue)
 }
 
 /*
+ * audio_dequeue
+ * 队列复位
+ * @队列句柄
+ */
+int audio_queue_reset(Paudio_queue queue)
+{
+
+    queue->head = 0;
+    queue->tail = 0;
+
+	printf("%s-%s-%d，head=%d,tail=%d\n",__FILE__,__func__,__LINE__,
+			queue->head, queue->tail);
+    return SUCCESS;
+}
+
+/*
  * 判断队列是否为空
  */
 int audio_queue_empty(Paudio_queue queue)

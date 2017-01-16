@@ -85,7 +85,6 @@ int SNDWAV_PrepareWAVParams(PWAVContainer wav)
 	uint16_t channels = DEFAULT_CHANNELS;
 	uint16_t sample_rate = DEFAULT_SAMPLE_RATE;
 	uint16_t sample_length = DEFAULT_SAMPLE_LENGTH;
-	uint32_t duration_time = DEFAULT_DURATION_TIME;
 
 	wav->header.magic = WAV_RIFF;
 	wav->header.type = WAV_WAVE;
@@ -102,8 +101,6 @@ int SNDWAV_PrepareWAVParams(PWAVContainer wav)
 	wav->format.blocks_align = LE_SHORT(channels * sample_length / 8);
 	wav->format.bytes_p_second = LE_INT((uint16_t)(wav->format.blocks_align) * sample_rate);
 
-	wav->chunk.length = LE_INT(duration_time * (uint32_t)(wav->format.bytes_p_second));
-	wav->header.length = LE_INT((uint32_t)(wav->chunk.length) + sizeof(wav->chunk) + sizeof(wav->format) + sizeof(wav->header) - 8);
 
 	return 0;
 }
@@ -111,7 +108,7 @@ int SNDWAV_PrepareWAVParams(PWAVContainer wav)
 void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContainer wav,
 		int fd,int port)
 {
-	off64_t rest;
+
 	size_t c, frame_size;
 	struct timeval start,stop;
 	timetime diff;
@@ -119,14 +116,6 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 	int send_num;
 	int n;
 
-//	if (WAV_WriteHeader(fd, wav) < 0) {
-//		exit(-1);
-//	}
-	/*
-	 * tcp send data
-	 */
-//	sockfd = tcp_client(port);
-//	sockfd = udp_client();
 	struct sockaddr_in addr_server;
 
 	sockfd = socket(AF_INET,SOCK_DGRAM,0);
@@ -150,19 +139,12 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 	if(nb == -1)
 	{
 		printf("set socket error...\n");
-		return -1;
+		return ;
 	}
-
-	rest = wav->chunk.length;
 	while (1) {
-//		printf("rest %lld\n",rest);
 
-//		c = (rest <= (off64_t)sndpcm->chunk_bytes) ? (size_t)rest : sndpcm->chunk_bytes;
-//		printf("c %zu\n",c);
-//		c = sndpcm->chunk_bytes;
 		frame_size = sndpcm->chunk_bytes * 8 / sndpcm->bits_per_frame;
-//		printf("frame_size %zu\n",frame_size);
-//		gettimeofday(&start,0);
+
 		if (audio_module_data_read(sndpcm, NULL, frame_size) != frame_size)
 			break;
 
@@ -180,12 +162,6 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 //		}
 
 
-
-//	    char send_buf[]="00000000";
-//        send_num = send(sockfd,send_buf,sizeof(send_buf),0);
-
-//	    send_num = send(sockfd,sndpcm->data_buf,c,0);
-
 		 send_num = sendto(sockfd,sndpcm->data_buf,sndpcm->chunk_bytes,0,
 				 (struct sockaddr*)&addr_server,sizeof(struct sockaddr_in));
 
@@ -201,9 +177,6 @@ void SNDWAV_Record(snd_data_format *sndpcm, snd_data_format *sndpcm_p,PWAVContai
 //		printf("send_num = %d\n",send_num);
 //		printf("Total time : %d s,%d ms,%d us\n",(int)diff.time.tv_sec,diff.ms,(int)diff.time.tv_usec);
 
-
-//		usleep(1000000);
-	    rest -= c;
 	}
     close(sockfd);
 }
@@ -241,6 +214,7 @@ static void* audio_tcp_thread(void* p)
 		fprintf(stderr, "Error set_snd_pcm_params/n");
 		goto Err;
 	}
+
 	/*
 	 * play part
 	 */
@@ -392,6 +366,7 @@ Err:
 	if (record.handle) snd_pcm_close(record.handle);
 	return -1;
 }
+
 int main(int argc, char *argv[])
 {
 	pthread_t  th_a= 0;
@@ -400,40 +375,18 @@ int main(int argc, char *argv[])
 	int i = 0;
 	printf("audio %s \n",__func__);
 
-	/*
-	 * 创建两个线程
-	 * 1
-	 * 2
-	 */
+
 	int port = atoi(argv[1]);
-//	for(i=0;i<2;i++)
-//	{
-		ret = pthread_create(&th_a, NULL, audio_tcp_thread, (void*)port);
-		if (ret != 0)
-		{
-		 perror ("creat audio thread error");
-		}
-//	}
-//		ret = pthread_create(&th_a, NULL, audio_tcp_thread2, NULL);
-		if (ret != 0)
-		{
-		 perror ("creat audio thread error");
-		}
-//		ret = pthread_create(&th_a, NULL, audio_tcp_mix,NULL);
-		if (ret != 0)
-		{
-		 perror ("creat audio thread error");
-		}
-//		ret = pthread_create(&th_a, NULL, audio_tcp_play,NULL);
-		if (ret != 0)
-		{
-		 perror ("creat audio thread error");
-		}
+
+	ret = pthread_create(&th_a, NULL, audio_tcp_thread, (void*)port);
+	if (ret != 0)
+	{
+	 perror ("creat audio thread error");
+	}
+
 	pthread_join(th_a, &retval);
 
 	return 0;
-
-
 }
 
 

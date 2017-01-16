@@ -776,6 +776,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 		case WIFI_MEETING_EVENT_SPK_REQ_SPK:
 		case WIFI_MEETING_EVENT_SPK_ALOW_SND:
 		case WIFI_MEETING_EVENT_SPK_VETO_SND:
+		case WIFI_MEETING_EVENT_SPK_CLOSE_REQ:
 		//上位机下发数据
 		case WIFI_MEETING_EVENT_PC_CMD_SIGNAL:
 		case WIFI_MEETING_CONF_PC_CMD_SIGNAL:

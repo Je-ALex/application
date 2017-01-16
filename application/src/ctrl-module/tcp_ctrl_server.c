@@ -502,11 +502,11 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 	memset(&type,0,sizeof(frame_type));
 
 	pthread_detach(pthread_self());
+
 	while(1)
 	{
 		if(!conf_status_get_connected_len())
 		{
-//			sys_uart_video_set(1,1);
 			sleep(1);
 			continue;
 		}else{

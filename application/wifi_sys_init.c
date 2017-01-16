@@ -148,7 +148,9 @@ int wifi_conference_sys_init()
 	int ret;
 	void *retval;
 
-	printf("%s-%s-%d-%s-%s\n",__FILE__,__func__,__LINE__,__DATE__,__TIME__);
+
+	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,__DATE__,__TIME__,
+			VERSION);
 
 	/*
 	 * 系统互斥锁和信号量的初始化
@@ -235,7 +237,7 @@ int wifi_conference_sys_init()
 		 printf("wifi_sys_audio_init failed\n");
 		 goto ERR;
 	}
-//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
+
 
 //	pthread_join(ctrl_tcps, &retval);
 
@@ -257,28 +259,28 @@ ERR:
 }
 
 
-int main(void)
-{
-	pthread_t ctrl_tcps;
-	int ret = 0;
-	host_info net_info;
-	void *retval;
-	//首先检测网络是否启动
-	ret = host_info_get_network_info(&net_info);
-	if(ret == ERROR){
-		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
-	}
-	ret = wifi_conference_sys_init();
-	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
-
-	//测试线程
-	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
-	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
-
-	pthread_join(ctrl_tcps, &retval);
-	exit(0);
-
-    return SUCCESS;
-}
+//int main(void)
+//{
+//	pthread_t ctrl_tcps;
+//	int ret = 0;
+//	host_info net_info;
+//	void *retval;
+//	//首先检测网络是否启动
+//	ret = host_info_get_network_info(&net_info);
+//	if(ret == ERROR){
+//		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
+//	}
+//	ret = wifi_conference_sys_init();
+//	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
+//
+//	//测试线程
+//	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
+//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
+//
+//	pthread_join(ctrl_tcps, &retval);
+//
+//
+//    return SUCCESS;
+//}
 
 

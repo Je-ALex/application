@@ -10,6 +10,7 @@
 
 #include "audio_server.h"
 
+int set_params(Psnd_data_format sndpcm, PWAVContainer wav);
 
 int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav);
 

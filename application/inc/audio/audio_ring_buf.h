@@ -28,6 +28,7 @@ void* audio_dequeue(Paudio_queue queue);
 
 int audio_queue_empty(Paudio_queue queue);
 int audio_queue_full(Paudio_queue queue);
+int audio_queue_reset(Paudio_queue queue);
 
 void audio_queue_free(Paudio_queue queue);
 

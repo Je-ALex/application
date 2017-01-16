@@ -181,14 +181,9 @@ int host_info_get_network_info(Phost_info ninfo)
  */
 int host_info_get_factory_info(Phost_info pinfo)
 {
-
-	char* version = "v0.0.1";
-	char* model = "DS-WF620M";
-	char* product = "四川湖山电器有限责任公司";
-
-    strcpy(pinfo->version,version);
-    strcpy(pinfo->host_model,model);
-    strcpy(pinfo->factory_info,product);
+    strcpy(pinfo->version,VERSION);
+    strcpy(pinfo->host_model,MODEL);
+    strcpy(pinfo->factory_info,PRODUCT);
 
 	return SUCCESS;
 
@@ -236,7 +231,6 @@ int unit_info_get_connected_info(char* name)
  */
 int unit_info_get_running_status(Prun_status data)
 {
-
 	int ret;
 
 	ret = tcp_ctrl_report_dequeue(data);
@@ -382,6 +376,8 @@ int conf_info_set_spk_num(int num)
 	int ret;
 	ret=conf_status_set_spk_num(num);
 
+	printf("%s-%s-%d，%d\n",__FILE__,__func__,__LINE__,ret);
+
 	return ret;
 }
 
@@ -395,8 +391,12 @@ int conf_info_set_spk_num(int num)
  */
 int conf_info_get_spk_num()
 {
+	int ret = 0;
 
-	return conf_status_get_spk_num();
+	ret = conf_status_get_spk_num();
+
+	printf("%s-%s-%d，%d\n",__FILE__,__func__,__LINE__,ret);
+	return ret;
 }
 
 /*
@@ -649,6 +649,57 @@ int conf_info_send_score_result()
 
 	return ret;
 }
+
+/*********************
+ * TODO 系统扩展功能
+ *********************/
+
+/*
+ * sys_exp_set_camera_track
+ *
+ * in:
+ * @value
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_set_camera_track(int value)
+{
+	int ret;
+
+	ret = conf_status_set_camera_track(value);
+
+	return ret;
+}
+
+/*
+ * sys_exp_get_camera_track
+ *
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_get_camera_track()
+{
+	int ret;
+
+	ret = conf_status_get_camera_track();
+
+	return ret;
+}
+
+
+
+
+
+
+
+
+
 
 
 /***************************************

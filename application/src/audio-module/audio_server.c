@@ -63,8 +63,9 @@ static int audio_set_swparams(snd_data_format *sndpcm, snd_pcm_sw_params_t *swpa
  */
 static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 {
+	int err;
 	char *devicename = "hw:0,0";
-
+	snd_pcm_sw_params_t *swparams = NULL;
 	if (snd_output_stdio_attach(&capt->log, stderr, 0) < 0) {
 		 printf("Error snd_output_stdio_attach\n");
 		 return ERROR;
@@ -82,6 +83,16 @@ static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 		printf("Error set_snd_pcm_params\n");
 		return ERROR;
 	}
+
+//    if ((err = audio_set_swparams(capt, swparams)) < 0) {
+//        printf("Setting of swparams failed: %s\n", snd_strerror(err));
+//            return ERROR;
+//    }
+//	if (set_params(capt, wav) < 0) {
+//		printf("Error set_snd_pcm_params\n");
+//		return ERROR;
+//	}
+
 	snd_pcm_dump(capt->handle, capt->log);
 
 	return SUCCESS;
@@ -185,10 +196,7 @@ static void audio_data_mix(unsigned char** sourseFile,unsigned char* objectFile,
 
 			*(short*)(objectFile+i*2)=(short)output;
 		}
-	}
-
-	if(DEFAULT_SAMPLE_LENGTH == 24)
-	{
+	}else if(DEFAULT_SAMPLE_LENGTH == 24){
 		/*
 		 * 24bit 混音
 		 */
@@ -273,8 +281,8 @@ static int audio_udp_init(int port)
 		printf("bind error...\n");
 	}
 
-	int nZero=0;
-	setsockopt(socket_fd,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof(int));
+//	int nZero=0;
+//	setsockopt(socket_fd,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof(int));
 
 	return socket_fd;
 }
@@ -336,7 +344,7 @@ static void* audio_data_local_capture(void* p)
 //		playback.data_buf = capture.data_buf;
 //		audio_module_data_write(&playback, frame_size);
 
-		usleep(2);
+		usleep(20);
 	}
 
 
@@ -352,9 +360,8 @@ static void* audio_data_local_capture(void* p)
 static void* audio_recv_thread(void* p)
 {
 
-	struct timeval start,stop;
-	timetime diff;
-
+//	struct timeval start,stop;
+//	timetime diff;
 
 	int i;
 	int socket_fd;
@@ -404,41 +411,61 @@ static void* audio_recv_thread(void* p)
 	i=0;
     while(1){
 
-		if(sys_debug_get_switch())
-		{
+//		if(sys_debug_get_switch())
+//		{
+//
+//			gettimeofday(&start,0);
+//		}
 
-			gettimeofday(&start,0);
-		}
 		playback.recv_num = recvfrom(socket_fd,buffer[i],playback.chunk_bytes,
 								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
 
-		if(conf_status_get_spk_num() - queue_num + 1)
-		{
-			data[i]->msg = buffer[i];
-			data[i]->len = playback.recv_num;
-//	    	printf("%d:recv_num = %d\n",port,playback.recv_num);
-			audio_enqueue(rqueue[queue_num],data[i]);
+//		playback.recv_num = recvfrom(socket_fd,playback.data_buf,playback.chunk_bytes,
+//								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
 
-			i++;
-			if(i==RS_NUM)
-				i=0;
-//			sem_post(&sem.audio_recv_sem[queue_num]);
+		if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
+		{
+			if(conf_status_get_spk_num() - queue_num + 1)
+			{
+				data[i]->msg = buffer[i];
+				data[i]->len = playback.recv_num;
+//		    	printf("%d:recv_num = %d\n",port,playback.recv_num);
+				audio_enqueue(rqueue[queue_num],data[i]);
+
+				i++;
+				if(i==RS_NUM)
+					i=0;
+//				sem_post(&sem.audio_recv_sem[queue_num]);
+			}
+		}else{
+			if(conf_status_get_spk_num() - queue_num + 2)
+			{
+				data[i]->msg = buffer[i];
+				data[i]->len = playback.recv_num;
+//		    	printf("%d:recv_num = %d\n",port,playback.recv_num);
+				audio_enqueue(rqueue[queue_num],data[i]);
+
+				i++;
+				if(i==RS_NUM)
+					i=0;
+//				sem_post(&sem.audio_recv_sem[queue_num]);
+			}
 		}
+
 
 //		playback.recv_num = playback.recv_num * 8 / playback.bits_per_frame;
-//		playback.data_buf = buffer[i];
 //		audio_module_data_write(&playback, playback.recv_num);
 
+//		if(sys_debug_get_switch())
+//		{
+//			gettimeofday(&stop,0);
+//			time_substract(&diff,&start,&stop);
+//			printf("%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
+//					diff.ms,(int)diff.time.tv_usec);
+////			fprintf(file,"%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
+////								diff.ms,(int)diff.time.tv_usec);
+//		}
 
-		if(sys_debug_get_switch())
-		{
-			gettimeofday(&stop,0);
-			time_substract(&diff,&start,&stop);
-			printf("%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
-					diff.ms,(int)diff.time.tv_usec);
-//			fprintf(file,"%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
-//								diff.ms,(int)diff.time.tv_usec);
-		}
     }
 
 	for(i=0;i<RS_NUM;i++)
@@ -461,8 +488,9 @@ static void* audio_recv_thread(void* p)
  */
 static void* audio_data_mix_thread(void* p)
 {
-	struct timeval start,stop;
-	timetime diff;
+
+//	struct timeval start,stop;
+//	timetime diff;
 
     Paudio_frame tmp[9];
 
@@ -499,20 +527,20 @@ static void* audio_data_mix_thread(void* p)
 			pthread_exit(0);
 		}
 	}
-	i = 0;
+
 	while(1)
     {
 
-		if(sys_debug_get_switch())
+//		if(sys_debug_get_switch())
+//		{
+//
+//			gettimeofday(&start,0);
+//		}
+
+		for(i=0;i<=conf_status_get_spk_num();i++)
 		{
-
-			gettimeofday(&start,0);
-		}
-
-    	for(i=0;i<=conf_status_get_spk_num();i++)
-    	{
 //    		sem_wait(&sem.audio_recv_sem[i]);
-    		tmp[i] = audio_dequeue(rqueue[i]);
+			tmp[i] = audio_dequeue(rqueue[i]);
 			if(tmp[i] != NULL)
 			{
 				recvbuf[j] = tmp[i]->msg;
@@ -526,40 +554,41 @@ static void* audio_data_mix_thread(void* p)
 			}
 			else{
 				//printf("queue[%d] %s-%s-%d queue empty\n",i,__FILE__,__func__,__LINE__);
-
 			}
-    	}
+		}
 
 		if(j)
 		{
 			audio_data_mix(recvbuf,playback.data_buf,j,length);
 
 			frame_len = length * 8 / playback.bits_per_frame;
+
 			audio_module_data_write(&playback,frame_len);
 			j=0;
 
-			if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
-			{
-				memcpy(buffer[i],playback.data_buf,length);
-				/*
-				 * 送入发送队列
-				 */
-				data[i]->msg = buffer[i];
-				data[i]->len = length;
-				audio_enqueue(squeue,data[i]);
+//			if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
+//			{
+//				memcpy(buffer[i],playback.data_buf,length);
+//				/*
+//				 * 送入发送队列
+//				 */
+//				data[i]->msg = buffer[i];
+//				data[i]->len = length;
+//				audio_enqueue(squeue,data[i]);
+//
+//				i++;
+//				if(i==RS_NUM)
+//					i=0;
+//			}
+//
+//			if(sys_debug_get_switch())
+//			{
+//				gettimeofday(&stop,0);
+//				time_substract(&diff,&start,&stop);
+//				printf("audio_data_mix-%d s,%d ms,%d us\n",(int)diff.time.tv_sec,
+//						diff.ms,(int)diff.time.tv_usec);
+//			}
 
-				i++;
-				if(i==RS_NUM)
-					i=0;
-			}
-
-			if(sys_debug_get_switch())
-			{
-				gettimeofday(&stop,0);
-				time_substract(&diff,&start,&stop);
-				printf("audio_data_mix-%d s,%d ms,%d us\n",(int)diff.time.tv_sec,
-						diff.ms,(int)diff.time.tv_usec);
-			}
 		}
 		usleep(1);
     }
@@ -620,29 +649,34 @@ static void* audio_send_thread(void* p)
 
 	while(1){
 
-
-		send_msg = audio_dequeue(squeue);
-
-		if(send_msg != NULL)
+		if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
 		{
-			ret = sendto(sock,send_msg->msg,send_msg->len,0,
-					(struct sockaddr*)&addr_serv,sizeof(addr_serv));
+			send_msg = audio_dequeue(squeue);
 
-			if(ret < 0){
-				printf("sendto fail\r\n");
-				close(sock);
-				pthread_exit(0);
-			}else{
+			if(send_msg != NULL)
+			{
+				ret = sendto(sock,send_msg->msg,send_msg->len,0,
+						(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 
-	//				for(i=0;i<len;i++)
-	//				{
-	//					printf("%02X ",msg[i]);
-	//				}
-	//				printf("send ok\n");
+				if(ret < 0){
+					printf("sendto fail\r\n");
+					close(sock);
+					pthread_exit(0);
+				}else{
 
+		//				for(i=0;i<len;i++)
+		//				{
+		//					printf("%02X ",msg[i]);
+		//				}
+		//				printf("send ok\n");
+
+				}
 			}
+			usleep(10);
+		}else{
+			msleep(2);
 		}
-		usleep(2);
+
 	}
 	close(sock);
 	pthread_exit(0);

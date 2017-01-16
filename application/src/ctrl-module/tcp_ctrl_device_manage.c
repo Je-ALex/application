@@ -10,16 +10,117 @@
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_manage.h"
 #include "sys_uart_init.h"
+#include "audio_ring_buf.h"
 
 extern Pglobal_info node_queue;
+extern Paudio_queue* rqueue;
 
 unsigned int spk_ts = 0;
 
 /*
  * 关闭最后发言的设置
  */
+int conf_status_compare_port()
+{
+	pclient_node tmp_node;
+	Pas_port sinfo;
+	int max_num = 0,max_port = 0;
+	int cmax_port = 0;
+
+	max_num = conf_status_get_spk_num();
+	max_port = max_num*2+AUDIO_RECV_PORT;
+
+	/*
+	 * 取出链表中当前最大端口
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd)
+		{
+			if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+			{
+				if(sinfo->asport > cmax_port)
+					cmax_port = sinfo->asport;
+			}
+		}
+		tmp_node=tmp_node->next;
+	}
+
+	if(cmax_port < max_port)
+	{
+		return SUCCESS;
+	}else{
+		return cmax_port;
+	}
+
+	return SUCCESS;
+}
+/*
+ * 关闭最后发言的设置
+ */
+int conf_status_search_not_use_spk_port(Pframe_type type)
+{
+	pclient_node tmp_node;
+	Pas_port sinfo;
+
+	int i,j;
+	int tmp_port = 0;
+	int tmp_size = 0;
+	int port[7][2] = {
+			{2,0},
+			{4,0},
+			{6,0},
+			{8,0},
+			{10,0},
+			{12,0},
+			{14,0}
+	};
+
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	tmp_size = node_queue->sys_list[CONFERENCE_SPK]->size;
+
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd)
+		{
+			if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+			{
+				tmp_port = sinfo->asport - AUDIO_RECV_PORT;
+				for(j=0;j<7;j++)
+				{
+					if(tmp_port == port[j][0])
+					{
+						printf("%s-%s-%d port=%d\n",__FILE__,__func__,
+								__LINE__,port[j][0]);
+						port[j][1] = tmp_port;
+					}
+				}
+			}
+		}
+		tmp_node=tmp_node->next;
+	}
+	for(i=0;i<conf_status_get_spk_num();i++)
+	{
+		if(!port[i][1])
+		{
+			type->spk_port = port[i][0] + AUDIO_RECV_PORT;
+			break;
+		}
+	}
+
+	return SUCCESS;
+}
+
+
+/*
+ * 关闭最后发言的设置
+ */
 int conf_status_close_last_spk_client(Pframe_type type)
 {
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 查询会议中排位，关闭时间戳最大的单元
 	 * 将端口下发给新申请的单元
@@ -31,8 +132,6 @@ int conf_status_close_last_spk_client(Pframe_type type)
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
-	sys_uart_video_set(type->d_id,0);
-
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
 
@@ -42,6 +141,7 @@ int conf_status_close_last_spk_client(Pframe_type type)
 
 int conf_status_close_first_spk_client(Pframe_type type)
 {
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 查询会议中排位，关闭时间戳最小的单元
 	 * 将端口下发给新申请的单元
@@ -52,8 +152,6 @@ int conf_status_close_first_spk_client(Pframe_type type)
 
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-
-	sys_uart_video_set(type->d_id,0);
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
@@ -98,7 +196,7 @@ int conf_status_delete_spk_node(int fd)
 	Pas_port sinfo;
 
 	int pos,status;
-
+	int num = 0;
 	pos = status =0;
 
 	/*
@@ -110,6 +208,12 @@ int conf_status_delete_spk_node(int fd)
 		sinfo = tmp_node->data;
 		if(sinfo->sockfd == fd)
 		{
+			/*
+			 * 复位音频接收队列
+			 */
+			num = (sinfo->asport -AUDIO_RECV_PORT)/2 + 1;
+			audio_queue_reset(rqueue[num]);
+
 			status++;
 			break;
 		}
@@ -124,7 +228,7 @@ int conf_status_delete_spk_node(int fd)
 		sinfo = del->data;
 
 		printf("%s-%s-%d,remove %d in spk list\n",__FILE__,__func__,__LINE__,
-				sinfo->sockfd);
+				sinfo->asport);
 
 		free(sinfo);
 		free(del);
@@ -287,19 +391,20 @@ int conf_status_search_last_spk_node(Pframe_type type)
  */
 int conf_status_refresh_spk_node(Pframe_type type)
 {
+	int ret = 0;
 	switch(type->evt_data.status)
 	{
 	case WIFI_MEETING_EVENT_SPK_ALLOW:
 	case WIFI_MEETING_EVENT_SPK_REQ_SPK:
-		conf_status_add_spk_node(type);
+		ret = conf_status_add_spk_node(type);
 		break;
 	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
-		conf_status_delete_spk_node(type->fd);
+		ret = conf_status_delete_spk_node(type->fd);
 		break;
 	}
 
 
-	return SUCCESS;
+	return ret;
 }
 
 
@@ -467,7 +572,6 @@ int dmanage_process_communication_heart(const unsigned char* msg,Pframe_type typ
 
 		if(type->msg_type == ONLINE_HEART)
 		{
-
 			type->d_id = type->s_id;
 			type->s_id = 0;
 			type->evt_data.status = WIFI_MEETING_EVENT_DEVICE_HEART;
@@ -542,7 +646,7 @@ int dmanage_delete_connected_list(int fd)
 		cinfo = tmp->data;
 		if(cinfo->client_fd > 0)
 		{
-			printf("%s-%s-%d,add %s in txt\nn",__FILE__,__func__,__LINE__,
+			printf("%s-%s-%d,add %s in txt\n",__FILE__,__func__,__LINE__,
 					inet_ntoa(cinfo->cli_addr.sin_addr));
 			ret = fwrite(cinfo,sizeof(client_info),1,file);
 			perror("fwrite");
@@ -849,6 +953,13 @@ int dmanage_add_info(const unsigned char* msg,Pframe_type type)
 			 * 发送至本地上报队列
 			 */
 			tcp_ctrl_msg_send_to(type,msg,WIFI_MEETING_EVENT_ONLINE_REQ);
+
+			/*
+			 * 上线管理优化
+			 * 1、单元管理，判断系统当前状态，初始状态，签到状态，会议进行状态等等
+			 *
+			 */
+
 		}
 //	}
 

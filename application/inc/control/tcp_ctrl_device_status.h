@@ -417,6 +417,9 @@ int conf_status_set_snd_effect(int value);
  */
 int conf_status_get_snd_effect();
 
+int conf_status_set_camera_track(int value);
+
+int conf_status_get_camera_track();
 
 /*
  * conf_status_set_conf_staus

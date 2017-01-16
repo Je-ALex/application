@@ -31,7 +31,9 @@
 #define TCP_DBG 0
 #define CONNECT_FILE "connection.info"
 
-
+#define VERSION		"0.0.1"
+#define	MODEL		"DS-WF620M"
+#define PRODUCT		"四川湖山电器有限责任公司"
 
 #define CTRL_TCP_PORT 		8080
 #define CTRL_BROADCAST_PORT 50001
@@ -674,6 +676,8 @@ typedef struct {
 	volatile unsigned char spk_number;
 	//当前发言的人数
 	volatile unsigned char current_spk;
+	//摄像跟踪状态开关
+	volatile unsigned char camera_track;
 	//主席发言状态
 	volatile int chirman_t;
 

@@ -10,9 +10,9 @@
 
 
 
+int conf_status_compare_port();
 
-
-
+int conf_status_search_not_use_spk_port(Pframe_type type);
 
 int conf_status_close_last_spk_client(Pframe_type type);
 

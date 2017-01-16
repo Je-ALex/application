@@ -443,8 +443,8 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				tmp = conf_status_get_cspk_num();
 				tmp++;
 				conf_status_set_cspk_num(tmp);
-				conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHAIRMAN);
 			}
+			conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHAIRMAN);
 			frame_type->fd = tmp_fd;
 			frame_type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
 
@@ -479,7 +479,6 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				/*
 				 * 查找申请者是否重复申请，若是，则直接下发原来原来的端口，并删除原来信息
 				 */
-
 				tmp_num = conf_status_get_cspk_num();
 
 				if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
@@ -487,36 +486,66 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 					tmp_num--;
 				}
 
-				switch(tmp_num)
-				{
-				case 0:
-				case 1:
-				case 2:
-				case 3:
-				case 4:
-				case 5:
-				case 6:
-				case 7:
-					tmp_port = tmp_port+tmp_num*2;
-					//当前发言人数需要告知全局变量
-					if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
-					{
-						tmp++;
-						conf_status_set_cspk_num(tmp);
-					}
-					break;
-				default:
-				{
-					frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
-					frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+				/*
+				 * 判断发言端口状态，是否有单元自己关闭，然后新上线的单元，需要使用下线单元的端口号
+				 * 1、判断当前端口是否已达最大值
+				 * 2、端口中已有最大值，则查找空闲端口，直接进行端口下发操作
+				 * 3、端口中没有最大值，则后续一次添加
+				 */
+				conf_status_search_not_use_spk_port(frame_type);
+				tmp_port = frame_type->spk_port;
 
-					tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-					tcp_ctrl_module_edit_info(frame_type,NULL);
-					printf("%s-%s-%d error\n",__FILE__,__func__,__LINE__);
-					return ERROR;
+				//当前发言人数需要告知全局变量
+				if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
+				{
+					tmp++;
+					conf_status_set_cspk_num(tmp);
 				}
 
-				}
+//				if((tmp = conf_status_compare_port()))
+//				{
+//					printf("%s-%s-%d tmp=%d\n",__FILE__,__func__,
+//							__LINE__,tmp);
+//					conf_status_search_not_use_spk_port(frame_type);
+//					tmp_port = frame_type->spk_port;
+//
+//					//当前发言人数需要告知全局变量
+//					if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
+//					{
+//						tmp++;
+//						conf_status_set_cspk_num(tmp);
+//					}
+//				}else{
+//					switch(tmp_num)
+//					{
+//					case 0:
+//					case 1:
+//					case 2:
+//					case 3:
+//					case 4:
+//					case 5:
+//					case 6:
+//					case 7:
+//						tmp_port = tmp_port+tmp_num*2;
+//						//当前发言人数需要告知全局变量
+//						if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
+//						{
+//							tmp++;
+//							conf_status_set_cspk_num(tmp);
+//						}
+//						break;
+//					default:
+//					{
+//						frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
+//						frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+//
+//						tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+//						tcp_ctrl_module_edit_info(frame_type,NULL);
+//						printf("%s-%s-%d error\n",__FILE__,__func__,__LINE__);
+//						return ERROR;
+//					}
+//				}
+//				}
 			}
 		}
 		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
@@ -554,7 +583,8 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 
 	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
 
-		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+//		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
+		sys_uart_video_set(frame_type->d_id,0);
 		tmp=conf_status_get_cspk_num();
 		if(tmp)
 		{
@@ -566,8 +596,6 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		{
 			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
 		}
-		sys_uart_video_set(frame_type->d_id,0);
-
 		conf_status_refresh_spk_node(frame_type);
 		break;
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY:
@@ -577,7 +605,6 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 	}
 
 	}
-
 
 	return SUCCESS;
 }
@@ -958,8 +985,7 @@ int tcp_ctrl_uevent_request_service(Pframe_type frame_type,const unsigned char* 
  */
 int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* msg)
 {
-//	pclient_node tmp = NULL;
-//	Pconference_list con_list;
+
 	int value = 0;
 	int pos = 0;
 
@@ -1006,6 +1032,8 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->dev_type = HOST_CTRL;
 			frame_type->evt_data.status = value;
+			conf_status_set_conf_staus(value);
+
 			tcp_ctrl_module_edit_info(frame_type,msg);
 		}else{
 			printf("the checkin command is not chariman send\n");
@@ -1014,7 +1042,6 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 
 	}
 
-
 	frame_type->fd = tmp_fd;
 	frame_type->msg_type = tmp_msgt;
 	if(value > 0)
@@ -1022,7 +1049,6 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 		tcp_ctrl_msg_send_to(frame_type,msg,value);
 
 	}
-
 
 	return SUCCESS;
 }

@@ -27,6 +27,8 @@ typedef enum{
 	WIFI_MEETING_EVENT_ONLINE_REQ = 1,
 	//宣告离线
 	WIFI_MEETING_EVENT_OFFLINE_REQ,
+	//设备心跳
+	WIFI_MEETING_EVENT_DEVICE_HEART,
 	//电源开、关
 	WIFI_MEETING_EVENT_POWER_ON,
 	WIFI_MEETING_EVENT_POWER_OFF,
@@ -42,7 +44,10 @@ typedef enum{
 	WIFI_MEETING_EVENT_SPK_VETO_SND,
 	WIFI_MEETING_EVENT_SPK_REQ_SND,
 	WIFI_MEETING_EVENT_SPK_REQ_SPK,
-	WIFI_MEETING_EVENT_SPK_REQ_CLOSE,
+	WIFI_MEETING_EVENT_SPK_CLOSE_MIC,
+	WIFI_MEETING_EVENT_SPK_CLOSE_REQ,
+	WIFI_MEETING_EVENT_SPK_CLOSE_SND,
+	WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY,
 	//投票管理
 	WIFI_MEETING_EVENT_VOTE_START,
 	WIFI_MEETING_EVENT_VOTE_END,
@@ -87,6 +92,9 @@ typedef enum{
 	WIFI_MEETING_EVENT_CON_MAG_START,
 	WIFI_MEETING_EVENT_CON_MAG_END,
 
+	//单元电量状态
+	WIFI_MEETING_EVENT_UNIT_ELECTRICITY,
+
 	//上位机下发的指令
 	//事件类数据
 	WIFI_MEETING_EVENT_PC_CMD_SIGNAL,
@@ -102,7 +110,10 @@ typedef enum{
 	WIFI_MEETING_CONF_WREP_ERR,
 	WIFI_MEETING_CONF_RREP,
 
-	//议题管理,议题号偏移量，需将value减去偏移量
+	//网络异常
+	WIFI_MEETING_EVENT_NET_ERROR,
+
+	//todo 议题管理,议题号偏移量，需将value减去偏移量,此定义必须放在最后
 	WIFI_MEETING_EVENT_SUBJECT_OFFSET,
 
 }ALL_STATUS;
@@ -429,8 +440,22 @@ int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
  */
 int conf_info_get_the_conference_params(int fd);
 
+
 /*
- * 保留
+ * conf_info_get_checkin_total
+ * 获取会议中签到应到人数
+ *
+ * in/out:
+ * @NULL
+ *
+ * 返回值：
+ * @会议中应到人数
+ *
+ */
+int conf_info_get_checkin_total();
+
+
+/*
  * conf_info_send_vote_result
  * 下发投票结果，单主机的情况下，此接口基本用不上，
  * 投票结果由上位机统计，通过主机下发给单元机
@@ -477,6 +502,82 @@ int conf_info_send_elec_result();
  * @SUCCESS(0)
  */
 int conf_info_send_score_result();
+
+
+/*********************
+ * TODO 系统扩展功能
+ *********************/
+
+
+
+/*
+ * sys_exp_set_camera_track
+ *
+ * in:
+ * @value 1是打开 0是关闭
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_set_camera_track(int value);
+
+
+/*
+ * sys_exp_get_camera_track
+ *
+ *
+ * 返回值：
+ * @ERROR
+ * @SUCCESS(0)
+ *
+ */
+int sys_exp_get_camera_track();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

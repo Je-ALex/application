@@ -566,20 +566,20 @@ static void* audio_data_mix_thread(void* p)
 			audio_module_data_write(&playback,frame_len);
 			j=0;
 
-//			if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
-//			{
-//				memcpy(buffer[i],playback.data_buf,length);
-//				/*
-//				 * 送入发送队列
-//				 */
-//				data[i]->msg = buffer[i];
-//				data[i]->len = length;
-//				audio_enqueue(squeue,data[i]);
-//
-//				i++;
-//				if(i==RS_NUM)
-//					i=0;
-//			}
+			if(conf_status_get_snd_brd() == WIFI_MEETING_EVENT_SPK_REQ_SND)
+			{
+				memcpy(buffer[i],playback.data_buf,length);
+				/*
+				 * 送入发送队列
+				 */
+				data[i]->msg = buffer[i];
+				data[i]->len = length;
+				audio_enqueue(squeue,data[i]);
+
+				i++;
+				if(i==RS_NUM)
+					i=0;
+			}
 //
 //			if(sys_debug_get_switch())
 //			{
@@ -658,19 +658,20 @@ static void* audio_send_thread(void* p)
 				ret = sendto(sock,send_msg->msg,send_msg->len,0,
 						(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 
-				if(ret < 0){
-					printf("sendto fail\r\n");
-					close(sock);
-					pthread_exit(0);
-				}else{
+//				if(ret < 0){
+//					printf("sendto fail\r\n");
+//					close(sock);
+//					pthread_exit(0);
+//				}else{
+////
+////						for(i=0;i<len;i++)
+////						{
+////							printf("%02X ",msg[i]);
+////						}
+////						printf("send ok\n");
+//
+//				}
 
-		//				for(i=0;i<len;i++)
-		//				{
-		//					printf("%02X ",msg[i]);
-		//				}
-		//				printf("send ok\n");
-
-				}
 			}
 			usleep(10);
 		}else{

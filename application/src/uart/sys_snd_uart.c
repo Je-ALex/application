@@ -27,7 +27,7 @@ AFC非直通    A5AC0F000100000000000010
 
 */
 
-udev pdev;
+udev pdev_snd;
 #define SND_MODE 	9
 #define NUM 		12
 
@@ -138,7 +138,7 @@ int uart_snd_effect_set(int value)
 			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_AFC_ON],NUM);
 			break;
 		}
-		ret = sys_uart_write_data(&pdev,buf,NUM);
+		ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 	}
 
 
@@ -150,6 +150,7 @@ int uart_snd_effect_set(int value)
 	if(anc_mode != (value & WIFI_MEETING_EVT_SEFC_ANC_MODE))
 	{
 		anc_mode = value & WIFI_MEETING_EVT_SEFC_ANC_MODE;
+
 		if(anc_mode == WIFI_MEETING_EVT_SEFC_VALUE_OFF)
 		{
 			anc_mode = WIFI_MEETING_EVT_SEFC_ANC_OFF;
@@ -161,44 +162,83 @@ int uart_snd_effect_set(int value)
 			anc_mode = WIFI_MEETING_EVT_SEFC_ANC_THREE;
 		}
 
+//		switch(anc_mode)
+//		{
+//		case WIFI_MEETING_EVT_SEFC_ANC_OFF:
+//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ONE],NUM);
+//			break;
+//		case WIFI_MEETING_EVT_SEFC_ANC_ON:
+//		case WIFI_MEETING_EVT_SEFC_ANC_ONE:
+//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ON],NUM);
+//			break;
+//		case WIFI_MEETING_EVT_SEFC_ANC_TWO:
+//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_TWO],NUM);
+//			break;
+//		case WIFI_MEETING_EVT_SEFC_ANC_THREE:
+//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_THREE],NUM);
+//			break;
+//		default:
+//			printf("not legal value\n");
+//			return ERROR;
+//		}
+//
+//		if(anc_mode == WIFI_MEETING_EVT_SEFC_ANC_OFF)
+//		{
+//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+//
+//			msleep(50);
+//			memset(buf,0,sizeof(buf));
+//
+//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_OFF],NUM);
+//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+//		}else{
+//
+//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+//		}
 		switch(anc_mode)
 		{
 		case WIFI_MEETING_EVT_SEFC_ANC_OFF:
 			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ONE],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+			msleep(50);
+			memset(buf,0,sizeof(buf));
+			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_OFF],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 			break;
 		case WIFI_MEETING_EVT_SEFC_ANC_ON:
 		case WIFI_MEETING_EVT_SEFC_ANC_ONE:
 			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ON],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+			msleep(50);
+			memset(buf,0,sizeof(buf));
+			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ONE],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 			break;
 		case WIFI_MEETING_EVT_SEFC_ANC_TWO:
+			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ON],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+			msleep(50);
+			memset(buf,0,sizeof(buf));
 			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_TWO],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 			break;
 		case WIFI_MEETING_EVT_SEFC_ANC_THREE:
+			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ON],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
+			msleep(50);
+			memset(buf,0,sizeof(buf));
 			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_THREE],NUM);
+			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 			break;
 		default:
 			printf("not legal value\n");
 			return ERROR;
 		}
 
-		if(anc_mode == WIFI_MEETING_EVT_SEFC_ANC_OFF)
-		{
-			ret = sys_uart_write_data(&pdev,buf,NUM);
-
-			msleep(50);
-			memset(buf,0,sizeof(buf));
-
-			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_OFF],NUM);
-			ret = sys_uart_write_data(&pdev,buf,NUM);
-		}else{
-
-			ret = sys_uart_write_data(&pdev,buf,NUM);
-		}
-
 	}
 	old_mode = value;
 
-	sem_post(&pdev.uart_sem);
+	sem_post(&pdev_snd.uart_sem);
 
 	return ret;
 }
@@ -215,13 +255,14 @@ void* uart_snd_effect_get(void* p)
 	pthread_detach(pthread_self());
 	while(1)
 	{
-		sem_wait(&pdev.uart_sem);
+		sem_wait(&pdev_snd.uart_sem);
 //		pthread_mutex_lock(&pdev.umutex);
-		ret = sys_uart_read_data(&pdev,buf,NUM,&time_out);
+		ret = sys_uart_read_data(&pdev_snd,buf,NUM,&time_out);
 //		pthread_mutex_unlock(&pdev.umutex);
 
 		if(ret)
 		{
+			printf("uart recv:\n");
 			for(i=0;i<ret;i++)
 				printf("0x%02x ",buf[i]);
 			printf("\n");
@@ -243,15 +284,15 @@ int uart_snd_effect_init()
 	int ret = 0;
 	char buf[24] = {0};
 
-	pdev.dev = "/dev/ttymxc3";
+	pdev_snd.dev = "/dev/ttymxc3";
 
-	pdev.params.baudrate = UART_B_57600;
-	pdev.params.cs = UART_CS_8;
-	pdev.params.stop = UART_STOP_ONE;
-	pdev.params.parity = UART_PAR_NONE;
+	pdev_snd.params.baudrate = UART_B_57600;
+	pdev_snd.params.cs = UART_CS_8;
+	pdev_snd.params.stop = UART_STOP_ONE;
+	pdev_snd.params.parity = UART_PAR_NONE;
 
 
-	ret = sys_uart_init(&pdev);
+	ret = sys_uart_init(&pdev_snd);
 	if(ret)
 	{
 		printf("sys_uart_init failed\n");
@@ -259,7 +300,7 @@ int uart_snd_effect_init()
 	}
 	memcpy(buf,init_on,NUM);
 
-	ret = sys_uart_write_data(&pdev,buf,NUM);
+	ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 
 
 	pthread_create(&snd_uart,NULL,uart_snd_effect_get,NULL);

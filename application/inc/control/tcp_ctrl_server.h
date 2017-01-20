@@ -27,31 +27,51 @@
 #include <sys/stat.h>
 
 
-
-#define TCP_DBG 0
-#define CONNECT_FILE "connection.info"
-
+/*
+ * 设备系统参数
+ */
 #define VERSION		"0.0.1"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
-#define CTRL_TCP_PORT 		8080
+#define TCP_DBG 0
+#define CONNECT_FILE "connection.info"
+
+
+/*
+ * socket相关端口信息
+ */
 #define CTRL_BROADCAST_PORT 50001
+
+#define CTRL_TCP_PORT 		8080
 #define	AUDIO_RECV_PORT 	9000
 #define	AUDIO_SEND_PORT 	9090
+
+
+
+
+#define DEVICE_HEART 5
+
+#define msleep(x) usleep(x*1000)
+
 
 #define MSG_TYPE 		0xF0 //消息类型
 #define DATA_TYPE 		0x0C //数据类型
 #define MACHINE_TYPE 	0x03 //设备类型
 
+/*
+ * 会议类相关宏定义
+ */
+
+#define PC_ID 			0xFFFF
+#define HOST_ID 		0x0
+
 #define ELE_NUM 		32
-#define SUBJECT_OFFSET 	20
-#define PC_ID 	0xFFFF
-#define HOST_ID 0x0
-#define DEVICE_HEART 5
+#define NAME_LEN			64
+#define CONF_NAME_LEN		128
 
-#define msleep(x) usleep(x*1000)
-
+#define SUBJECT_NUM			50
+#define SUBJECT_NAME_LEN	128
 
 /*
  * 系统调度所用到的互斥锁和信号量
@@ -192,6 +212,7 @@ typedef enum{
 	ONLINE_HEART,
 
 }Message_Type;
+
 /*
  * 0x01	上位机
  * 0x02	主机数据
@@ -309,6 +330,7 @@ typedef enum {
 	WIFI_MEETING_EVT_AD_PORT,
 	WIFI_MEETING_EVT_UNIT_ELECTRICITY,
 	WIFI_MEETING_EVT_SYS_TIME,
+	WIFI_MEETING_EVT_HOST_STATUS,
 
 }event_name_type;
 
@@ -348,34 +370,6 @@ typedef enum {
 
 }event_speak;
 
-typedef enum {
-
-	WIFI_MEETING_EVT_SEFC_AFC_MODE = 0X01,
-	WIFI_MEETING_EVT_SEFC_ANC_MODE = 0X0e,
-
-
-	WIFI_MEETING_EVT_SEFC_VALUE_ON = 0X01,
-	WIFI_MEETING_EVT_SEFC_VALUE_OFF = 0X00,
-
-	WIFI_MEETING_EVT_SEFC_AFC_BIT = 0X01,
-	WIFI_MEETING_EVT_SEFC_ANC_BIT_ONE = 0X02,
-	WIFI_MEETING_EVT_SEFC_ANC_BIT_TWO = 0X04,
-	WIFI_MEETING_EVT_SEFC_ANC_BIT_THREE = 0X08,
-
-	WIFI_MEETING_EVT_SEFC_NO_REPLY = 0,
-	WIFI_MEETING_EVT_SEFC_NEED_REPLY,
-
-	WIFI_MEETING_EVT_SEFC_AFC_OFF ,
-	WIFI_MEETING_EVT_SEFC_AFC_ON ,
-
-	WIFI_MEETING_EVT_SEFC_ANC_OFF ,
-	WIFI_MEETING_EVT_SEFC_ANC_ON ,
-
-	WIFI_MEETING_EVT_SEFC_ANC_ONE ,
-	WIFI_MEETING_EVT_SEFC_ANC_TWO ,
-	WIFI_MEETING_EVT_SEFC_ANC_THREE ,
-
-}event_snd_effect;
 
 typedef enum {
 
@@ -426,6 +420,9 @@ typedef enum {
 	WIFI_MEETING_EVT_CON_MAG_END,
 }conference_manage;
 
+/*
+ * 主机上发送单元参数给上位机编码
+ */
 typedef enum {
 
 	WIFI_MEETING_EVT_RP_TO_PC_FD = 1,
@@ -433,7 +430,18 @@ typedef enum {
 	WIFI_MEETING_EVT_RP_TO_PC_IP,
 	WIFI_MEETING_EVT_RP_TO_PC_SEAT,
 	WIFI_MEETING_EVT_RP_TO_PC_POWER,
-}host_to_pc;
+}report_uinfo_to_pc;
+
+/*
+ * 主机基本信息相关
+ */
+typedef enum {
+
+	WIFI_MEETING_EVT_HOST_MIC = 1,
+	WIFI_MEETING_EVT_HOST_SPK,
+	WIFI_MEETING_EVT_HOST_SND,
+
+}report_hinfo_to_pc;
 
 typedef enum {
 
@@ -456,7 +464,6 @@ typedef enum {
 
 /*
  * 网络信息参数
- * 英文加数字
  */
 typedef struct {
 
@@ -510,14 +517,15 @@ typedef struct{
 
 /*
  * 议题内容
- * 会议名称，议题名称
+ * 议题名称
  * 议题的类型，投票表决等属性
  */
 typedef struct{
 
 	//议题名称和议题属性
+//	unsigned char subj[SUBJECT_NUM][SUBJECT_NAME_LEN];
 
-	unsigned char subj[100][128];
+	unsigned char subj[SUBJECT_NAME_LEN];
 	unsigned char subj_prop;
 
 	vote_result v_result;
@@ -528,7 +536,10 @@ typedef struct{
 
 
 /*
- * 事件数据
+ * 单元相关的事件型数据
+ * 主要是单元的网络参数
+ * 事件相关的值
+ * 单元电量信息
  */
 typedef struct {
 
@@ -536,14 +547,13 @@ typedef struct {
 	unsigned char value;
 	//上报状态信息
 	unsigned char status;
-
 	unsigned char electricity;
 
 }event_data;
 
 
 /*
- * 会议类参数
+ * 单元会议参数
  * 主要是描述每个单元机的属性状态
  */
 typedef struct {
@@ -555,23 +565,19 @@ typedef struct {
 	unsigned char seat;
 	unsigned char sub_num;
 	//会议参数
-	char name[64];
-	char conf_name[128];
-	char subj[50][128];
+	char name[NAME_LEN];
+	char conf_name[CONF_NAME_LEN];
+	char subj[SUBJECT_NUM][SUBJECT_NAME_LEN];
 
+	/*
+	 * 保存单个单元的议题结果
+	 */
 	vote_result v_result;
 	election_result elec_rsult;
 	score_result src_result;
 
 }signal_unit_data;
 
-/*
- * 会议类参数
- * 主要是描述会议的属性状态
- */
-typedef struct{
-
-}Cfcontents,*PCfcontents;
 
 /*
  * 收发数据的帧信息
@@ -592,10 +598,8 @@ typedef struct {
 	unsigned char name_type[2];
 	unsigned char code_type[2];
 
-	unsigned short spk_port;
-	unsigned short brd_port;
-
-	volatile char heart;
+	unsigned short spk_port;	//发言端口
+	unsigned short brd_port;	//音频广播端口
 
 	event_data evt_data;
 	signal_unit_data con_data;
@@ -604,6 +608,8 @@ typedef struct {
 
 
 /*
+ * 心跳状态链表信息
+ * 保存套接字号
  * 心跳状态
  */
 typedef struct {
@@ -614,23 +620,23 @@ typedef struct {
 }connect_heart,*Pconnect_heart;
 
 /*
- * 发言管理
- *
+ * 发言设备的端口管理
+ * 主要是套接字号
+ * 席别号 音频端口号 时间戳
  */
 typedef struct {
 
 	int sockfd;
 	int seat;
 	int asport;
+
 	unsigned int ts;
 
 }as_port,*Pas_port;
 
 /*
  * 会议信息链表
- * 主要有fd和事件类、会议类内容
- * 主要是搜索对比消息，进行消息的判断
- * 保存在链表中的信息，涉及到对单元机设置参数时才会修改
+ * 保存单元的id等信息
  */
 typedef struct {
 
@@ -639,18 +645,16 @@ typedef struct {
 
 }conference_list,*Pconference_list;
 
-
 /*
- * 会议中单元机的状态
- * 如单元机的投票等信息
+ * 提议公布结果内容
  */
 typedef struct {
 
-	vote_result v_result;
-	election_result ele_result;
-	score_result scr_result;
+	//当前议题结果
+	unsigned char conf_result[CONF_NAME_LEN];
+	unsigned char len;
 
-}conference_ustaus,*Pconference_ustaus;
+}conf_pc_result;
 
 /*
  * 会议动态全局变量
@@ -660,13 +664,18 @@ typedef struct {
  */
 typedef struct {
 
+	//上位机标记
 	volatile int pc_status;
+	//会议状态
 	volatile unsigned char confer_status;
 
-	unsigned char conf_name[128];
+	//会议名称
+	unsigned char conf_name[CONF_NAME_LEN];
+	//议题表
+	subject_info sub_list[SUBJECT_NUM];
+	//当前议题
 	volatile unsigned char sub_num;
-	subject_info sub_list[10];
-
+	conf_pc_result cresult;
 
 	//音频状态信息
 	volatile unsigned char mic_mode;
@@ -683,7 +692,6 @@ typedef struct {
 
 	//DEBUG
 	unsigned char debug_sw;
-
 
 	net_info network;
 

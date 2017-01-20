@@ -474,6 +474,8 @@ ERR_SET_PARAMS:
 	return ERROR;
 }
 
+
+/*
 int set_params(Psnd_data_format sndpcm, PWAVContainer wav)
 {
 	snd_pcm_hw_params_t *params;
@@ -507,7 +509,7 @@ int set_params(Psnd_data_format sndpcm, PWAVContainer wav)
 //		error(_("Access type not available"));
 		return ERROR;
 	}
-	/*获取本地设置的format length*/
+	获取本地设置的format length
 	if (audio_get_format(wav, &format) < 0) {
 		printf("Error get_snd_pcm_format\n");
 		return ERROR;
@@ -601,7 +603,7 @@ int set_params(Psnd_data_format sndpcm, PWAVContainer wav)
 
 	err = snd_pcm_sw_params_set_avail_min(sndpcm->handle, swparams, n);
 
-	/* round up to closest transfer boundary */
+	 round up to closest transfer boundary
 	n = sndpcm->buffer_size;
 	if (start_delay <= 0) {
 		start_threshold = n + (double) rate * start_delay / 1000000;
@@ -629,7 +631,7 @@ int set_params(Psnd_data_format sndpcm, PWAVContainer wav)
 	sndpcm->bits_per_frame = sndpcm->bits_per_sample * LE_SHORT(wav->format.channels);
 	sndpcm->chunk_bytes = sndpcm->period_size * sndpcm->bits_per_frame / 8;
 
-	/* alloc mem save the block*/
+	 alloc mem save the block
 //	sndpcm->data_buf = (uint8_t *)realloc(sndpcm->data_buf,sndpcm->chunk_bytes);
 	sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
 	if (!sndpcm->data_buf) {
@@ -648,6 +650,7 @@ int set_params(Psnd_data_format sndpcm, PWAVContainer wav)
 
 	return SUCCESS;
 }
+*/
 
 
 

@@ -147,7 +147,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 #endif
 	if(buf[4] != 0x87)
 	{
-		printf("receive from %d：",*fd);
+		printf("receive from %d:",*fd);
 		for(i=0;i<length;i++)
 		{
 			printf("%x ",buf[i]);
@@ -263,7 +263,6 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
  */
 int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value)
 {
-
 	pclient_node tmp = NULL;
 	Pclient_info pinfo;
 	struct sockaddr_in cli_addr;
@@ -356,7 +355,6 @@ static int tcp_ctrl_uevent_request_pwr(Pframe_type frame_type,const unsigned cha
 	{
 		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 				frame_type->evt_data.value);
-
 	}
 
 	tmp_fd = frame_type->fd;
@@ -413,7 +411,7 @@ static int tcp_ctrl_uevent_request_pwr(Pframe_type frame_type,const unsigned cha
 int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 {
 	int tmp = 0;
-	int tmp_num,tmp_port = 0;
+	int tmp_port = 0;
 
 	int tmp_fd = frame_type->fd;
 
@@ -470,27 +468,10 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				frame_type->fd = tmp_fd;
 				frame_type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
 
-
 			}else{
-
-				//列席单元是从9002端口开始
-				tmp_port = AUDIO_RECV_PORT+2;
-
-				/*
-				 * 查找申请者是否重复申请，若是，则直接下发原来原来的端口，并删除原来信息
-				 */
-				tmp_num = conf_status_get_cspk_num();
-
-				if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
-				{
-					tmp_num--;
-				}
 
 				/*
 				 * 判断发言端口状态，是否有单元自己关闭，然后新上线的单元，需要使用下线单元的端口号
-				 * 1、判断当前端口是否已达最大值
-				 * 2、端口中已有最大值，则查找空闲端口，直接进行端口下发操作
-				 * 3、端口中没有最大值，则后续一次添加
 				 */
 				conf_status_search_not_use_spk_port(frame_type);
 				tmp_port = frame_type->spk_port;
@@ -502,50 +483,6 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 					conf_status_set_cspk_num(tmp);
 				}
 
-//				if((tmp = conf_status_compare_port()))
-//				{
-//					printf("%s-%s-%d tmp=%d\n",__FILE__,__func__,
-//							__LINE__,tmp);
-//					conf_status_search_not_use_spk_port(frame_type);
-//					tmp_port = frame_type->spk_port;
-//
-//					//当前发言人数需要告知全局变量
-//					if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
-//					{
-//						tmp++;
-//						conf_status_set_cspk_num(tmp);
-//					}
-//				}else{
-//					switch(tmp_num)
-//					{
-//					case 0:
-//					case 1:
-//					case 2:
-//					case 3:
-//					case 4:
-//					case 5:
-//					case 6:
-//					case 7:
-//						tmp_port = tmp_port+tmp_num*2;
-//						//当前发言人数需要告知全局变量
-//						if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
-//						{
-//							tmp++;
-//							conf_status_set_cspk_num(tmp);
-//						}
-//						break;
-//					default:
-//					{
-//						frame_type->name_type[0] = WIFI_MEETING_EVT_SPK;
-//						frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-//
-//						tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-//						tcp_ctrl_module_edit_info(frame_type,NULL);
-//						printf("%s-%s-%d error\n",__FILE__,__func__,__LINE__);
-//						return ERROR;
-//					}
-//				}
-//				}
 			}
 		}
 		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
@@ -558,7 +495,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		 */
 		frame_type->spk_port = tmp_port;
 
-		conf_status_refresh_spk_node(frame_type);
+		dmanage_refresh_spk_node(frame_type);
 
 		tcp_ctrl_module_edit_info(frame_type,NULL);
 		break;
@@ -596,7 +533,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		{
 			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
 		}
-		conf_status_refresh_spk_node(frame_type);
+		dmanage_refresh_spk_node(frame_type);
 		break;
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY:
 	{
@@ -1109,7 +1046,8 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 	}
 
 	//开始和结束的时候需要告知列席
-	if(value == WIFI_MEETING_EVENT_VOTE_START || value == WIFI_MEETING_EVENT_VOTE_END)
+	if(value == WIFI_MEETING_EVENT_VOTE_START ||
+			value == WIFI_MEETING_EVENT_VOTE_END)
 	{
 		/*
 		 * 检查是否是主席单元下发的指令
@@ -1185,7 +1123,7 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
 	default:
 		//fixme 选举人编号，设置对应编号值累加
 		if((frame_type->evt_data.value - WIFI_MEETING_EVT_ELECTION_RESULT)
-				< conf_status_get_elec_totalp(0))
+				<= conf_status_get_elec_totalp(0))
 		{
 			value = frame_type->evt_data.value - WIFI_MEETING_EVT_ELECTION_RESULT;
 			conf_status_save_elec_result(value);
@@ -1195,12 +1133,12 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
 	}
 
 	//开始和结束的时候需要告知列席单元
-	if(value == WIFI_MEETING_CONF_ELECTION_START || value == WIFI_MEETING_CONF_ELECTION_END)
+	if(value == WIFI_MEETING_CONF_ELECTION_START ||
+			value == WIFI_MEETING_CONF_ELECTION_END)
 	{
 		/*
 		 * 检查是否是主席单元下发的指令
 		 */
-
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
@@ -1241,8 +1179,6 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
  */
 int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* msg)
 {
-
-
 	int tmp_fd = 0;
 	int tmp_msgt = 0;
 
@@ -1269,15 +1205,16 @@ int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* ms
 		break;
 	default:
 		//fixme 计分议题,不能超过编号人数
-		if(conf_status_get_score_totalp() < node_queue->sys_list[CONFERENCE_LIST]->size)
-		{
+//		if(conf_status_get_score_totalp() < node_queue->sys_list[CONFERENCE_LIST]->size)
+//		{
 			conf_status_save_score_result(frame_type->evt_data.value);
 			value = WIFI_MEETING_CONF_SCORE_UNDERWAY;
-		}
+//		}
 		break;
 	}
 
-	if(value == WIFI_MEETING_CONF_SCORE_START || value == WIFI_MEETING_CONF_SCORE_END)
+	if(value == WIFI_MEETING_CONF_SCORE_START ||
+			value == WIFI_MEETING_CONF_SCORE_END)
 	{
 		/*
 		 * 检查是否是主席单元下发的指令
@@ -1285,6 +1222,10 @@ int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* ms
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
+			if(value == WIFI_MEETING_CONF_SCORE_END)
+			{
+				conf_status_calc_score_result();
+			}
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->evt_data.status = value;
@@ -1782,7 +1723,6 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 			value = WIFI_MEETING_EVENT_MIC_FREE;
 			break;
 		}
-
 		break;
 	}
 	/*
@@ -1800,7 +1740,6 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 			break;
 
 		}
-
 		break;
 	}
 	/*
@@ -1826,7 +1765,6 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 			value = WIFI_MEETING_EVENT_SPK_REQ_SPK;
 			break;
 		}
-
 		break;
 	}
 	/*
@@ -1855,7 +1793,6 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 			value = WIFI_MEETING_EVENT_VOTE_TIMEOUT;
 			break;
 		}
-
 		break;
 	}
 	/*
@@ -1863,8 +1800,7 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 	 */
 	case WIFI_MEETING_EVT_SUB:
 	{
-		value = frame_type->evt_data.value + SUBJECT_OFFSET;
-
+		value = frame_type->evt_data.value + WIFI_MEETING_EVENT_SUBJECT_OFFSET;
 		break;
 	}
 
@@ -1875,7 +1811,6 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 	case WIFI_MEETING_EVT_KEY:
 	{
 		value = WIFI_MEETING_EVENT_SSID_KEY;
-
 		break;
 	}
 	/*

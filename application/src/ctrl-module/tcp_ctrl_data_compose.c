@@ -443,7 +443,7 @@ int tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 
 				tmp_index = tmp_index+strlen(type->evt_data.unet_info.key);
 			}
-		break;
+			break;
 		}
 		case WIFI_MEETING_EVT_RP_TO_PC:
 		{
@@ -556,7 +556,20 @@ int tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 			tmp_index = tmp_index + sizeof(short);
 			break;
 		}
+		case WIFI_MEETING_EVT_HOST_STATUS:
+		{
+			buf[tmp_index++] = type->name_type[0];
+			buf[tmp_index++] = type->code_type[0];
 
+			buf[tmp_index++] = WIFI_MEETING_EVT_HOST_MIC;
+			buf[tmp_index++] = conf_info_get_mic_mode();
+			buf[tmp_index++] = WIFI_MEETING_EVT_HOST_SPK;
+			buf[tmp_index++] = conf_status_get_spk_num();
+			buf[tmp_index++] = WIFI_MEETING_EVT_HOST_SND;
+			buf[tmp_index++] = conf_status_get_snd_effect();
+
+			break;
+		}
 		default:
 		{
 			buf[tmp_index++] = type->name_type[0];
@@ -769,7 +782,7 @@ int tcp_ctrl_module_edit_info(Pframe_type type,const unsigned char* msg)
 			if(pos == 0)
 				return ERROR;
 			break;
-			//以下只是进行单独的发送
+		//以下只是进行单独的发送
 		case WIFI_MEETING_EVENT_DEVICE_HEART:
 		case WIFI_MEETING_EVENT_SPK_ALLOW:
 		case WIFI_MEETING_EVENT_SPK_VETO:

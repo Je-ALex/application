@@ -283,8 +283,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				if (newfd < 0) {
 					perror("accept");
 					continue;
-				}
-				else
+				}else
 				{
 
 					ret = tcp_ctrl_set_noblock(newfd);
@@ -310,7 +309,8 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 				}
 
-			}else {
+			}else
+			{
 
 				pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 				len = recv(wait_event[n].data.fd, buf, sizeof(buf), 0);
@@ -342,8 +342,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 
 
 
-				}
-				else if(len == 0)//客户端关闭连接
+				}else if(len == 0)//客户端关闭连接
 				{
 					printf("client %d offline\n",wait_event[n].data.fd);
 					ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
@@ -360,14 +359,20 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 
 					close(wait_event[n].data.fd);
 					maxi--;
-				}
-				else
+				}else
 				{
-
 //					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
 //							&clilen);
 //					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
 //							ntohs(cli_addr.sin_port));
+
+//					printf("EPOLL %d:",wait_event[n].data.fd);
+//					for(i=0;i<len;i++)
+//					{
+//						printf("%x ",buf[i]);
+//					}
+//					printf("\n");
+
 					//通过返回值进行处理
 					pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
 					tcp_ctrl_tprecv_enqueue(&wait_event[n].data.fd,buf,&len);
@@ -428,7 +433,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 				}
 				printf("\n");
 			}
-
+			msleep(1);
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 			write(tmp->socket_fd,tmp->msg, tmp->len);
 			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
@@ -442,6 +447,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 
 		}
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_SQUEUE_MUTEX]);
+
 
 	}
 	free(tmp);
@@ -473,6 +479,7 @@ void* wifi_sys_ctrl_tcp_procs_data(void* p)
 
 		if(ret == 0)
 		{
+			msleep(1);
 			tmp = node->data;
 			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
 
@@ -486,7 +493,6 @@ void* wifi_sys_ctrl_tcp_procs_data(void* p)
 		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
 
 	}
-	free(tmp);
 
 }
 
@@ -508,6 +514,10 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 		if(!conf_status_get_connected_len())
 		{
 			sleep(1);
+//			conf_status_set_snd_effect(i);
+//			i++;
+//			if(i == 10)
+//				i =0;
 			continue;
 		}else{
 			sleep(5);

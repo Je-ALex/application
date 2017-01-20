@@ -9,9 +9,6 @@
 #define INC_CONTROL_TCP_CTRL_DEVICE_MANAGE_H_
 
 
-
-int conf_status_compare_port();
-
 int conf_status_search_not_use_spk_port(Pframe_type type);
 
 int conf_status_close_last_spk_client(Pframe_type type);
@@ -28,7 +25,7 @@ int conf_status_search_last_spk_node(Pframe_type type);
 
 int conf_status_search_first_spk_node(Pframe_type type);
 
-int conf_status_refresh_spk_node(Pframe_type type);
+int dmanage_refresh_spk_node(Pframe_type type);
 
 
 int dmanage_set_communication_heart(Pframe_type type);

@@ -17,57 +17,25 @@ extern Paudio_queue* rqueue;
 
 unsigned int spk_ts = 0;
 
+
 /*
- * 关闭最后发言的设置
+ * TODO
+ * 发言管理的设备音频端口管理
  */
-int conf_status_compare_port()
-{
-	pclient_node tmp_node;
-	Pas_port sinfo;
-	int max_num = 0,max_port = 0;
-	int cmax_port = 0;
-
-	max_num = conf_status_get_spk_num();
-	max_port = max_num*2+AUDIO_RECV_PORT;
-
-	/*
-	 * 取出链表中当前最大端口
-	 */
-	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-	while(tmp_node!=NULL)
-	{
-		sinfo = tmp_node->data;
-		if(sinfo->sockfd)
-		{
-			if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
-			{
-				if(sinfo->asport > cmax_port)
-					cmax_port = sinfo->asport;
-			}
-		}
-		tmp_node=tmp_node->next;
-	}
-
-	if(cmax_port < max_port)
-	{
-		return SUCCESS;
-	}else{
-		return cmax_port;
-	}
-
-	return SUCCESS;
-}
 /*
- * 关闭最后发言的设置
+ * conf_status_search_not_use_spk_port
+ * 查找音频没有使用的端口
+ * 轮询查找发言管理链表中的信息，筛选出没有使用的端口号
+ * 返回没有使用的端口号
+ *
  */
 int conf_status_search_not_use_spk_port(Pframe_type type)
 {
 	pclient_node tmp_node;
 	Pas_port sinfo;
 
-	int i,j;
+	int i;
 	int tmp_port = 0;
-	int tmp_size = 0;
 	int port[7][2] = {
 			{2,0},
 			{4,0},
@@ -79,7 +47,6 @@ int conf_status_search_not_use_spk_port(Pframe_type type)
 	};
 
 	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-	tmp_size = node_queue->sys_list[CONFERENCE_SPK]->size;
 
 	while(tmp_node!=NULL)
 	{
@@ -89,13 +56,13 @@ int conf_status_search_not_use_spk_port(Pframe_type type)
 			if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
 			{
 				tmp_port = sinfo->asport - AUDIO_RECV_PORT;
-				for(j=0;j<7;j++)
+				for(i=0;i<7;i++)
 				{
-					if(tmp_port == port[j][0])
+					if(tmp_port == port[i][0])
 					{
 						printf("%s-%s-%d port=%d\n",__FILE__,__func__,
-								__LINE__,port[j][0]);
-						port[j][1] = tmp_port;
+								__LINE__,port[i][0]);
+						port[i][1] = tmp_port;
 					}
 				}
 			}
@@ -116,15 +83,19 @@ int conf_status_search_not_use_spk_port(Pframe_type type)
 
 
 /*
- * 关闭最后发言的设置
+ * conf_status_close_last_spk_client
+ * 关闭最后发言的端口号
+ * 查找发言管理链表中，最后上线的设备
+ * 将关闭消息下发给即将关闭的单元
+ *
  */
 int conf_status_close_last_spk_client(Pframe_type type)
 {
+
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 查询会议中排位，关闭时间戳最大的单元
 	 * 将端口下发给新申请的单元
-	 *
 	 */
 	conf_status_search_last_spk_node(type);
 	conf_status_delete_spk_node(type->fd);
@@ -139,13 +110,21 @@ int conf_status_close_last_spk_client(Pframe_type type)
 
 }
 
+
+/*
+ * conf_status_close_first_spk_client
+ * 关闭发言管理链表中最先上线的设备
+ *
+ * 查找链表中最先上线的设备
+ * 将关闭消息下发给单元
+ *
+ */
 int conf_status_close_first_spk_client(Pframe_type type)
 {
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 查询会议中排位，关闭时间戳最小的单元
 	 * 将端口下发给新申请的单元
-	 *
 	 */
 	conf_status_search_first_spk_node(type);
 	conf_status_delete_spk_node(type->fd);
@@ -159,6 +138,13 @@ int conf_status_close_first_spk_client(Pframe_type type)
 	return SUCCESS;
 }
 
+/*
+ * conf_status_close_guest_spk_client
+ * 关闭列席单元的发言端口
+ *
+ * 查找发言链表中，所有的列席单元
+ * 下发关闭消息个单元
+ */
 int conf_status_close_guest_spk_client(Pframe_type type)
 {
 	pclient_node tmp_node;
@@ -189,6 +175,10 @@ int conf_status_close_guest_spk_client(Pframe_type type)
 }
 
 
+/*
+ * conf_status_delete_spk_node
+ * 关闭链表中的发言结点
+ */
 int conf_status_delete_spk_node(int fd)
 {
 	pclient_node tmp_node;
@@ -240,6 +230,10 @@ int conf_status_delete_spk_node(int fd)
 	return SUCCESS;
 }
 
+/*
+ * conf_status_add_spk_node
+ * 发言链表中增加发言结点
+ */
 int conf_status_add_spk_node(Pframe_type type)
 {
 	Pas_port sinfo;
@@ -381,7 +375,7 @@ int conf_status_search_last_spk_node(Pframe_type type)
 }
 
 /*
- * conf_status_refresh_spk_node
+ * dmanage_refresh_spk_node
  * 更新会议链表中的发言管理设备信息
  *
  * 返回值：
@@ -389,7 +383,7 @@ int conf_status_search_last_spk_node(Pframe_type type)
  * @SUCCESS
  *
  */
-int conf_status_refresh_spk_node(Pframe_type type)
+int dmanage_refresh_spk_node(Pframe_type type)
 {
 	int ret = 0;
 	switch(type->evt_data.status)
@@ -408,7 +402,15 @@ int conf_status_refresh_spk_node(Pframe_type type)
 }
 
 
+/*
+ * TODO
+ * 设备心跳管理
+ */
 
+/*
+ * dmanage_delete_heart_list
+ * 删除心跳链表中的设备信息
+ */
 int dmanage_delete_heart_list(int fd)
 {
 	pclient_node tmp_node;
@@ -584,6 +586,15 @@ int dmanage_process_communication_heart(const unsigned char* msg,Pframe_type typ
 }
 
 
+
+/*
+ * TODO
+ * 设备连接信息管理
+ */
+
+/*
+ *
+ */
 int dmanage_delete_connected_list(int fd)
 {
 
@@ -599,6 +610,7 @@ int dmanage_delete_connected_list(int fd)
 	int status = 0;
 	int pos = 0;
 
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 删除链接信息链表中的客户端
 	 */
@@ -626,8 +638,8 @@ int dmanage_delete_connected_list(int fd)
 	{
 		list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
 		pinfo = del->data;
-		printf("%s-%s-%d,remove %s in connected list\n",__FILE__,__func__,__LINE__,
-				inet_ntoa(pinfo->cli_addr.sin_addr));
+//		printf("%s-%s-%d,remove %s in connected list\n",__FILE__,__func__,__LINE__,
+//				inet_ntoa(pinfo->cli_addr.sin_addr));
 
 		free(pinfo);
 		free(del);
@@ -646,8 +658,8 @@ int dmanage_delete_connected_list(int fd)
 		cinfo = tmp->data;
 		if(cinfo->client_fd > 0)
 		{
-			printf("%s-%s-%d,add %s in txt\n",__FILE__,__func__,__LINE__,
-					inet_ntoa(cinfo->cli_addr.sin_addr));
+//			printf("%s-%s-%d,add %s in txt\n",__FILE__,__func__,__LINE__,
+//					inet_ntoa(cinfo->cli_addr.sin_addr));
 			ret = fwrite(cinfo,sizeof(client_info),1,file);
 			perror("fwrite");
 			if(ret != 1)
@@ -731,7 +743,7 @@ int dmanage_delete_info(int fd)
 		tmp_type.fd = fd;
 
 		tmp_type.evt_data.status = WIFI_MEETING_EVENT_SPK_CLOSE_MIC;
-		ret = conf_status_refresh_spk_node(&tmp_type);
+		ret = dmanage_refresh_spk_node(&tmp_type);
 		if(!ret)
 		{
 			tmp=conf_status_get_cspk_num();
@@ -1015,8 +1027,8 @@ int dmanage_refresh_connected_list(Pconference_list data_info)
 
 		free(cinfo);
 		free(del);
-		printf("%s-%s-%d,delete data in the connection list,then add it\n",
-				__FILE__,__func__,__LINE__);
+//		printf("%s-%s-%d,delete data in the connection list,then add it\n",
+//				__FILE__,__func__,__LINE__);
 
 		tcinfo->id = data_info->con_data.id;
 		tcinfo->seat = data_info->con_data.seat;
@@ -1040,8 +1052,8 @@ int dmanage_refresh_connected_list(Pconference_list data_info)
 			newinfo = tmp->data;
 			if(newinfo->client_fd > 0)
 			{
-				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
-						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
+//				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
+//						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
 
 				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
 				perror("fwrite");
@@ -1123,8 +1135,8 @@ int dmanage_refresh_conference_list(Pconference_list data_info)
 		status = 0;
 		free(finfo);
 		free(del);
-		printf("%s-%s-%d,delete data in the conference list,then add it\n",
-				__FILE__,__func__,__LINE__);
+//		printf("%s-%s-%d,delete data in the conference list,then add it\n",
+//				__FILE__,__func__,__LINE__);
 	}else{
 
 		printf("%s-%s-%d,there is no data in the conference list,add it\n",
@@ -1152,7 +1164,7 @@ int dmanage_refresh_info(const Pframe_type data_info)
 	/*
 	 * 更新到连接信息链表中
 	 */
-	ret = conf_status_refresh_spk_node(data_info);
+	ret = dmanage_refresh_spk_node(data_info);
 	if(ret)
 	{
 		printf("%s-%s-%d,dmanage_refresh_connected_list err\n",__FILE__,__func__,__LINE__);

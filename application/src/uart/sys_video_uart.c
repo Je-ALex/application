@@ -6,7 +6,7 @@
  */
 
 #include "sys_uart_init.h"
-udev pdev;
+udev pdev_video;
 
 
 int gpio_pull_high()
@@ -53,10 +53,9 @@ int sys_uart_video_set(unsigned short id,int value)
 	{
 		gpio_pull_high();
 		usleep(100);
-		ret = sys_uart_write_data(&pdev,buf,sizeof(buf));
+		ret = sys_uart_write_data(&pdev_video,buf,sizeof(buf));
 		gpio_pull_low();
 	}
-
 
 	return ret;
 }
@@ -69,15 +68,15 @@ int sys_video_uart_init()
 {
 	int ret = 0;
 
-	pdev.dev = "/dev/ttymxc1";
+	pdev_video.dev = "/dev/ttymxc1";
 
-	pdev.params.baudrate = UART_B_9600;
-	pdev.params.cs = UART_CS_8;
-	pdev.params.stop = UART_STOP_ONE;
-	pdev.params.parity = UART_PAR_NONE;
+	pdev_video.params.baudrate = UART_B_9600;
+	pdev_video.params.cs = UART_CS_8;
+	pdev_video.params.stop = UART_STOP_ONE;
+	pdev_video.params.parity = UART_PAR_NONE;
 
 
-	ret = sys_uart_init(&pdev);
+	ret = sys_uart_init(&pdev_video);
 	if(ret)
 	{
 		printf("sys_uart_init failed\n");

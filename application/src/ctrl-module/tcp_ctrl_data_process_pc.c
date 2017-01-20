@@ -231,7 +231,6 @@ static int tcp_ctrl_pc_write_msg(const unsigned char* msg,Pframe_type frame_type
 		}else if(frame_type->name_type[0] == WIFI_MEETING_CON_SUBJ){
 			tcp_ctrl_pc_write_msg_con(msg,frame_type);
 		}
-
 		break;
 	default:
 		printf("%s-%s-%d-not legal data type\n",__FILE__,__func__,__LINE__);
@@ -245,14 +244,23 @@ static int tcp_ctrl_pc_write_msg(const unsigned char* msg,Pframe_type frame_type
  * tcp_ctrl_pc_read_msg_evt_rep
  * 主机上报上位机查询指令
  *
- * 主要是单元机的属性信息，套接字号，id号，ip地址
+ * 1、单元相关的查询，主要是单元机的属性信息，套接字号，id号，ip地址
+ * 2、主机基本信息相关查询
  *
  */
 static int tcp_ctrl_pc_read_msg_evt_rep(Pframe_type frame_type)
 {
 	int ret = 0;
 
-	frame_type->name_type[0] = WIFI_MEETING_EVT_RP_TO_PC;
+	switch(frame_type->name_type[0])
+	{
+	case WIFI_MEETING_EVT_PC_GET_INFO:
+		frame_type->name_type[0] = WIFI_MEETING_EVT_RP_TO_PC;
+		break;
+	case WIFI_MEETING_EVT_HOST_STATUS:
+		frame_type->name_type[0] = WIFI_MEETING_EVT_HOST_STATUS;
+		break;
+	}
 	frame_type->code_type[0] = WIFI_MEETING_STRING;
 	frame_type->msg_type = R_REPLY_MSG;
 	frame_type->dev_type = HOST_CTRL;
@@ -279,6 +287,7 @@ static int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 	switch(frame_type->data_type)
 	{
 	case EVENT_DATA:
+	{
 		frame_type->name_type[0] = msg[0];
 		frame_type->code_type[0] = msg[1];
 		frame_type->evt_data.value = msg[2];
@@ -287,6 +296,7 @@ static int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 		{
 		//上位机查询连接信息,主机进行应答
 		case WIFI_MEETING_EVT_PC_GET_INFO:
+		case WIFI_MEETING_EVT_HOST_STATUS:
 			if(frame_type->evt_data.value == 0x01)
 			{
 				tcp_ctrl_pc_read_msg_evt_rep(frame_type);
@@ -294,9 +304,10 @@ static int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 				printf("%s-%s-%d not legal value\n",__FILE__,__func__,__LINE__);
 				return ERROR;
 			}
-			break;
 		}
 		break;
+	}
+
 	case CONFERENCE_DATA:
 		break;
 	default:
@@ -530,12 +541,19 @@ static int tcp_ctrl_pc_request_msg_con(const unsigned char* msg,Pframe_type fram
 		case WIFI_MEETING_CON_VOTE:
 		case WIFI_MEETING_CON_ELEC:
 		case WIFI_MEETING_CON_SCORE:
+			/*
+			 * 保存结果信息至主机
+			 */
+			conf_status_save_pc_conf_result(frame_type->data_len,msg);
+
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->evt_data.status = WIFI_MEETING_CONF_PC_CMD_SIGNAL;
 			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
 			ret = tcp_ctrl_module_edit_info(frame_type,msg);
 			if(ret)
 				return ERROR;
+
+
 			break;
 		default:
 			printf("%s-%s-%d not legal command\n",__FILE__,__func__,__LINE__);

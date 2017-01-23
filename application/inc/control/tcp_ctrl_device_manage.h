@@ -9,21 +9,21 @@
 #define INC_CONTROL_TCP_CTRL_DEVICE_MANAGE_H_
 
 
-int conf_status_search_not_use_spk_port(Pframe_type type);
+int dmanage_search_not_use_spk_port(Pframe_type type);
 
-int conf_status_close_last_spk_client(Pframe_type type);
+int dmanage_close_last_spk_client(Pframe_type type);
 
-int conf_status_close_first_spk_client(Pframe_type type);
+int dmanage_close_first_spk_client(Pframe_type type);
 
-int conf_status_close_guest_spk_client(Pframe_type type);
+int dmanage_close_guest_spk_client(Pframe_type type);
 
-int conf_status_delete_spk_node(int fd);
+int dmanage_delete_spk_node(int fd);
 
-int conf_status_add_spk_node(Pframe_type type);
+int dmanage_add_spk_node(Pframe_type type);
 
-int conf_status_search_last_spk_node(Pframe_type type);
+int dmanage_search_last_spk_node(Pframe_type type);
 
-int conf_status_search_first_spk_node(Pframe_type type);
+int dmanage_search_first_spk_node(Pframe_type type);
 
 int dmanage_refresh_spk_node(Pframe_type type);
 

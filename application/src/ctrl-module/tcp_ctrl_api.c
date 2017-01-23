@@ -55,10 +55,21 @@ static int config_event_frame_info(Pframe_type type,unsigned char value){
  */
 int host_info_reset_factory_mode()
 {
-	pclient_node tmp = NULL;
-	Pclient_info pinfo;
+//	pclient_node tmp = NULL;
+//	Pclient_info pinfo;
 
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
+	char command[128];
+	FILE *fp=NULL;
+	snprintf(command,sizeof(command),"reboot");
+	fp=popen(command,"r");
+	if(fp==NULL)
+    {
+	    printf("reboot error\n");
+	    return -1;
+	}
+	fclose(fp);
 
 //	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 //	while(tmp != NULL)
@@ -189,8 +200,61 @@ int host_info_get_factory_info(Phost_info pinfo)
 
 }
 
+/*
+ * host_info_set_system_power
+ * 设置主机电源
+ *
+ * in: 1是重启  2是关机
+ *
+ * return:
+ * @ERROR
+ * @SUCCESS(0)
+ */
+int host_info_set_system_power(int mode)
+{
+	char command[64];
+	FILE *fp=NULL;
 
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
+	if(mode == 1)
+	{
+		snprintf(command,sizeof(command),"reboot");
+	}else if(mode == 2){
+		snprintf(command,sizeof(command),"shoutdown");
+	}
+
+	fp=popen(command,"r");
+	if(fp==NULL)
+    {
+	    printf("reboot error\n");
+	    return -1;
+	}
+	fclose(fp);
+
+	return SUCCESS;
+
+}
+
+/*
+ * host_info_get_system_time
+ * 获取系统时间
+ *
+ * return:
+ * @ERROR
+ * @SUCCESS(0)
+ */
+int host_info_get_system_time(char* value)
+{
+	int ret = 0;
+
+	ret = conf_status_get_sys_timestamp();
+
+	value[0] = ret/3600;
+	value[1] = (ret%3600)/60;
+
+	return SUCCESS;
+}
 /******************
  * TODO 单元机管理模块
  ******************/
@@ -209,11 +273,16 @@ int host_info_get_factory_info(Phost_info pinfo)
  */
 int unit_info_get_connected_info(char* name)
 {
+	int ret = 0;
 
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	strcpy(name,CONNECT_FILE);
 
-	return node_queue->sys_list[CONNECT_LIST]->size;
+	ret = conf_status_get_connected_len();
+
+	printf("%s-%s-%d-connect size=%d\n",__FILE__,__func__,__LINE__,ret);
+
+	return ret;
 
 }
 
@@ -356,6 +425,10 @@ int conf_info_get_mic_mode()
 
 	mode = conf_status_get_mic_mode() - WIFI_MEETING_EVT_MIC_CHAIRMAN;
 
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			mode);
+
 	return mode;
 }
 
@@ -486,12 +559,17 @@ int conf_info_get_snd_effect()
 int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
 		char* pname,char* cname)
 {
-
+	struct sockaddr_in cli_addr;
+	int clilen = sizeof(cli_addr);
 	frame_type data_info;
 	int ret = 0;
 
 	memset(&data_info,0,sizeof(frame_type));
-	printf("%s-%s-%d ,fd=%d,id=%d\n",__FILE__,__func__,__LINE__,fd,id);
+
+	getpeername(fd,(struct sockaddr*)&cli_addr,
+			(socklen_t*)&clilen);
+
+	printf("%s-%s-%d ,ip=%s,id=%d\n",__FILE__,__func__,__LINE__,inet_ntoa(cli_addr.sin_addr),id);
 
 	data_info.fd = fd;
 	data_info.con_data.id = id;
@@ -576,7 +654,7 @@ int conf_info_get_checkin_total()
 
 	ret = conf_status_get_conference_len();
 
-	printf("%s-%s-%d,checkin=%d\n",__FILE__,__func__,__LINE__,ret);
+//	printf("%s-%s-%d,checkin=%d\n",__FILE__,__func__,__LINE__,ret);
 
 	return ret;
 }

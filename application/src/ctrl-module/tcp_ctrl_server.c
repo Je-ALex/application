@@ -257,7 +257,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
         pthread_exit(0);
     }
 
-	wait_event = calloc(255,sizeof(struct epoll_event));
+	wait_event = calloc(1024,sizeof(struct epoll_event));
 
 
 	while(1)
@@ -422,17 +422,20 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 		if(ret == 0)
 		{
 			tmp = node->data;
-
-			if(tmp->msg[4] != 0x87)
-			{
-				printf("%s-tmp->socket_fd[%d] : \n",
-						__func__,tmp->socket_fd);
-				for(i=0;i<tmp->len;i++)
+//			if(sys_debug_get_switch())
+//			{
+				if(tmp->msg[4] != 0x87)
 				{
-					printf("%x ",tmp->msg[i]);
+					printf("%s-tmp->socket_fd[%d] : \n",
+							__func__,tmp->socket_fd);
+					for(i=0;i<tmp->len;i++)
+					{
+						printf("%x ",tmp->msg[i]);
+					}
+					printf("\n");
 				}
-				printf("\n");
-			}
+//			}
+
 			msleep(1);
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 			write(tmp->socket_fd,tmp->msg, tmp->len);
@@ -518,8 +521,10 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 //			i++;
 //			if(i == 10)
 //				i =0;
+			conf_status_set_sys_timestamp(1);
 			continue;
 		}else{
+			conf_status_set_sys_timestamp(5);
 			sleep(5);
 			dmanage_get_communication_heart(&type);
 			if(type.fd)
@@ -537,7 +542,9 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 
 }
 
-
+/*
+ * TODO 测试用
+ */
 
 void read_file(char* fname)
 {

@@ -8,6 +8,7 @@
 
 #include "tcp_ctrl_device_status.h"
 #include "tcp_ctrl_data_compose.h"
+#include "tcp_ctrl_device_manage.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;
@@ -667,10 +668,32 @@ int conf_status_save_vote_result(int value)
 
 	sub_num = conf_status_get_current_subject();
 	printf("%s-%s-%d,sub_num=%d\n",__FILE__,__func__,__LINE__,sub_num);
-	//判断当前议题的属性
-	sub_prop = conf_status_get_subject_property(sub_num);
-	if(sub_prop == WIFI_MEETING_CON_SUBJ_VOTE)
+	if(conf_status_get_pc_staus() > 0)
 	{
+		//判断当前议题的属性
+		sub_prop = conf_status_get_subject_property(sub_num);
+		if(sub_prop == WIFI_MEETING_CON_SUBJ_VOTE)
+		{
+			switch(value)
+			{
+			case WIFI_MEETING_EVENT_VOTE_ASSENT:
+				node_queue->con_status->sub_list[sub_num].v_result.assent++;
+				break;
+			case WIFI_MEETING_EVENT_VOTE_NAY:
+				node_queue->con_status->sub_list[sub_num].v_result.nay++;
+				break;
+			case WIFI_MEETING_EVENT_VOTE_WAIVER:
+				node_queue->con_status->sub_list[sub_num].v_result.waiver++;
+				break;
+			case WIFI_MEETING_EVENT_VOTE_TIMEOUT:
+				node_queue->con_status->sub_list[sub_num].v_result.timeout++;
+				break;
+			}
+		}else{
+			printf("%s-%s-%d the subject is not vote subject\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+	}else{
 		switch(value)
 		{
 		case WIFI_MEETING_EVENT_VOTE_ASSENT:
@@ -686,10 +709,8 @@ int conf_status_save_vote_result(int value)
 			node_queue->con_status->sub_list[sub_num].v_result.timeout++;
 			break;
 		}
-	}else{
-		printf("%s-%s-%d the subject is not vote subject\n",__FILE__,__func__,__LINE__);
-		return ERROR;
 	}
+
 
 	return SUCCESS;
 }
@@ -865,16 +886,22 @@ int conf_status_save_score_result(unsigned char value)
 	unsigned char sub_num = conf_status_get_current_subject();
 
 	int sub_prop = 0;
-
-	//判断当前议题的属性
-	sub_prop = conf_status_get_subject_property(sub_num);
-	if(sub_prop == WIFI_MEETING_CON_SUBJ_SCORE)
+	if(conf_status_get_pc_staus() > 0)
 	{
+		//判断当前议题的属性
+		sub_prop = conf_status_get_subject_property(sub_num);
+		if(sub_prop == WIFI_MEETING_CON_SUBJ_SCORE)
+		{
+			node_queue->con_status->sub_list[sub_num].scr_result.score += value;
+			node_queue->con_status->sub_list[sub_num].scr_result.num_peop++;
+		}else{
+			printf("%s-%s-%d the subject is not score subject\n",__FILE__,__func__,__LINE__);
+			return ERROR;
+		}
+
+	}else{
 		node_queue->con_status->sub_list[sub_num].scr_result.score += value;
 		node_queue->con_status->sub_list[sub_num].scr_result.num_peop++;
-	}else{
-		printf("%s-%s-%d the subject is not score subject\n",__FILE__,__func__,__LINE__);
-		return ERROR;
 	}
 
 	return SUCCESS;
@@ -1020,8 +1047,9 @@ int conf_status_get_mic_mode()
 
 	mode = node_queue->con_status->mic_mode;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			mode);
+//	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+//			mode);
+
 	return mode;
 }
 
@@ -1039,6 +1067,7 @@ int conf_status_set_spk_num(int value)
 
 	node_queue->con_status->spk_number = value;
 
+
 	return SUCCESS;
 }
 
@@ -1055,6 +1084,44 @@ int conf_status_get_spk_num()
 	return node_queue->con_status->spk_number;
 }
 
+int conf_status_get_spk_offset()
+{
+	int value = 0;
+
+	if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
+	{
+		value = node_queue->con_status->spk_number ;
+	}else{
+		value = node_queue->con_status->spk_number + WIFI_MEETING_CON_SE_CHAIRMAN;
+	}
+
+	return value;
+
+}
+
+int conf_status_set_spk_buf_offset(int num,int value)
+{
+	node_queue->con_status->spk_offset[num] = value;
+
+	return SUCCESS;
+}
+int conf_status_get_spk_buf_offset(int num)
+{
+
+	return node_queue->con_status->spk_offset[num];
+
+}
+int conf_status_set_spk_timestamp(int num,int value)
+{
+	node_queue->con_status->spk_ts[num] = value;
+
+	return SUCCESS;
+}
+int conf_status_get_spk_timestamp(int num)
+{
+	return node_queue->con_status->spk_ts[num];
+}
+
 /*
  * conf_status_set_cspk_num
  * 会议当前发言人数设置
@@ -1066,6 +1133,7 @@ int conf_status_set_cspk_num(int value)
 {
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
+
 	node_queue->con_status->current_spk = value;
 
 	return SUCCESS;
@@ -1080,8 +1148,8 @@ int conf_status_set_cspk_num(int value)
 int conf_status_get_cspk_num()
 {
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			node_queue->con_status->current_spk);
+//	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+//			node_queue->con_status->current_spk);
 
 	return node_queue->con_status->current_spk;
 }
@@ -1095,10 +1163,18 @@ int conf_status_get_cspk_num()
  */
 int conf_status_set_snd_brd(int value)
 {
+
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
-	node_queue->con_status->snd_brdcast = value;
+	if(value == WIFI_MEETING_EVENT_SPK_REQ_SND)
+	{
+		node_queue->con_status->snd_brdcast++;
+
+	}else if(value == WIFI_MEETING_EVENT_SPK_CLOSE_SND)
+	{
+		node_queue->con_status->snd_brdcast--;
+	}
 
 	return SUCCESS;
 }
@@ -1184,17 +1260,24 @@ int conf_status_get_camera_track()
 /*
  * conf_status_set_conf_staus
  * 设置会议进程状态
+ * 1、会议签到状态
+ * 2、会议是否开始
  *
  * @value
  *
  */
 int conf_status_set_conf_staus(int value)
 {
+	pclient_node tmp = NULL;
+	Pclient_info cinfo;
+	conference_list cfinfo;
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
 	node_queue->con_status->confer_status = value;
+
+	memset(&cfinfo,0,sizeof(conference_list));
 
 	/*
 	 * 会议结束需要将会议信息相关的参数情况
@@ -1203,6 +1286,23 @@ int conf_status_set_conf_staus(int value)
 	if(value == WIFI_MEETING_EVENT_CON_MAG_END)
 	{
 		memset(node_queue->con_status->sub_list,0,SUBJECT_NUM*sizeof(subject_info));
+
+		tmp = node_queue->sys_list[CONNECT_LIST]->next;
+		while(tmp!=NULL)
+		{
+			cinfo = tmp->data;
+			if(cinfo->client_name != PC_CTRL)
+			{
+				cfinfo.fd = cinfo->client_fd;
+				cfinfo.con_data.id = cinfo->id;
+				cfinfo.con_data.seat = WIFI_MEETING_CON_SE_ATTEND;
+
+				dmanage_refresh_connected_list(&cfinfo);
+				msleep(1);
+			}
+
+			tmp = tmp->next;
+		}
 
 	}
 
@@ -1222,6 +1322,77 @@ int conf_status_get_conf_staus()
 			node_queue->con_status->confer_status);
 
 	return node_queue->con_status->confer_status;
+}
+
+int conf_status_set_sys_time(Pframe_type frame_type,const unsigned char* msg)
+{
+	node_queue->con_status->sys_time[0] = msg[0];
+	node_queue->con_status->sys_time[1] = msg[1];
+	node_queue->con_status->sys_time[2] = msg[3];
+	node_queue->con_status->sys_time[3] = msg[5];
+
+	node_queue->con_status->sys_stime = node_queue->con_status->sys_time[2]*3600 +
+			node_queue->con_status->sys_time[3]*60;
+
+	tcp_ctrl_report_enqueue(frame_type,WIFI_MEETING_EVENT_UNIT_SYS_TIME);
+
+	return SUCCESS;
+}
+
+int conf_status_get_sys_time(unsigned char* msg)
+{
+	int ret = 0;
+	node_queue->con_status->sys_time[0] = WIFI_MEETING_EVT_SYS_TIME;
+	node_queue->con_status->sys_time[1] = WIFI_MEETING_SHORT;
+
+	ret = conf_status_get_sys_timestamp();
+
+
+	node_queue->con_status->sys_time[2] = ret/3600;
+	node_queue->con_status->sys_time[3] = (ret%3600)/60;
+
+	memcpy(msg,node_queue->con_status->sys_time,4);
+
+	return SUCCESS;
+}
+int conf_status_set_sys_timestamp(unsigned int value)
+{
+	node_queue->con_status->sys_stime += value;
+
+	return SUCCESS;
+}
+int conf_status_get_sys_timestamp()
+{
+	return node_queue->con_status->sys_stime;
+}
+
+/*
+ * conf_status_set_subjet_staus
+ * 设置会议议题状态
+ * 1、开始
+ * 2、结束
+ * 3、公布结果
+ *
+ * @value
+ *
+ */
+int conf_status_set_subjet_staus(int value)
+{
+
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
+
+	node_queue->con_status->suject_status = value;
+
+	return SUCCESS;
+}
+
+int conf_status_get_subjet_staus()
+{
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->suject_status);
+
+	return node_queue->con_status->suject_status;
 }
 
 /*
@@ -1278,7 +1449,7 @@ int conf_status_send_vote_result()
 		data_info.data_type = CONFERENCE_DATA;
 		data_info.dev_type = HOST_CTRL;
 
-		if(conf_status_get_pc_staus())
+		if(conf_status_get_pc_staus()>0)
 		{
 			data_info.evt_data.status = WIFI_MEETING_CONF_SCORE_RESULT;
 			ret = conf_status_get_pc_conf_result(msg);
@@ -1328,7 +1499,7 @@ int conf_status_send_elec_result()
 		data_info.data_type = CONFERENCE_DATA;
 		data_info.dev_type = HOST_CTRL;
 
-		if(conf_status_get_pc_staus())
+		if(conf_status_get_pc_staus()>0)
 		{
 			data_info.evt_data.status = WIFI_MEETING_CONF_ELECTION_RESULT;
 			ret = conf_status_get_pc_conf_result(msg);
@@ -1365,7 +1536,7 @@ int conf_status_send_score_result()
 {
 	score_result result;
 	unsigned char msg[64] = {0};
-	int i,ret = 0;
+	int ret = 0;
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -1384,7 +1555,7 @@ int conf_status_send_score_result()
 		data_info.data_type = CONFERENCE_DATA;
 		data_info.dev_type = HOST_CTRL;
 
-		if(conf_status_get_pc_staus())
+		if(conf_status_get_pc_staus()>0)
 		{
 			data_info.evt_data.status = WIFI_MEETING_CONF_SCORE_RESULT;
 			ret = conf_status_get_pc_conf_result(msg);

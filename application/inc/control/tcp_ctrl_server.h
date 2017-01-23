@@ -376,6 +376,8 @@ typedef enum {
 	WIFI_MEETING_EVT_SER_WATER = 1,
 	WIFI_MEETING_EVT_SER_PEN,
 	WIFI_MEETING_EVT_SER_PAPER,
+	WIFI_MEETING_EVT_SER_TEA,
+	WIFI_MEETING_EVT_SER_TEC,
 
 }event_service;
 
@@ -668,7 +670,8 @@ typedef struct {
 	volatile int pc_status;
 	//会议状态
 	volatile unsigned char confer_status;
-
+	//议题状态
+	volatile unsigned char suject_status;
 	//会议名称
 	unsigned char conf_name[CONF_NAME_LEN];
 	//议题表
@@ -683,8 +686,11 @@ typedef struct {
 	volatile unsigned char snd_brdcast;
 	//设置的发言人数
 	volatile unsigned char spk_number;
+
 	//当前发言的人数
 	volatile unsigned char current_spk;
+	volatile unsigned char spk_offset[8];
+	volatile unsigned int	spk_ts[8];
 	//摄像跟踪状态开关
 	volatile unsigned char camera_track;
 	//主席发言状态
@@ -692,6 +698,11 @@ typedef struct {
 
 	//DEBUG
 	unsigned char debug_sw;
+
+	//系统时间
+	unsigned char sys_time[4];
+	//系统时间秒
+	unsigned int sys_stime;
 
 	net_info network;
 

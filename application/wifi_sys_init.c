@@ -146,7 +146,7 @@ int wifi_conference_sys_init()
 	pthread_t ctrl_procs;
 	pthread_t ctrl_heart;
 	int ret;
-	void *retval;
+//	void *retval;
 
 
 	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,__DATE__,__TIME__,

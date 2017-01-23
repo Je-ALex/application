@@ -145,15 +145,20 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	}
 	printf("\n");
 #endif
-	if(buf[4] != 0x87)
-	{
-		printf("receive from %d:",*fd);
-		for(i=0;i<length;i++)
+
+//	if(sys_debug_get_switch())
+//	{
+		if(buf[4] != 0x87)
 		{
-			printf("%x ",buf[i]);
+			printf("receive from %d:",*fd);
+			for(i=0;i<length;i++)
+			{
+				printf("%x ",buf[i]);
+			}
+			printf("\n");
 		}
-		printf("\n");
-	}
+//	}
+
 
 	/*
 	 * 验证数据头是否正确buf[0]~buf[3]
@@ -435,7 +440,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 			 */
 			if(conf_status_get_cspk_num() == conf_status_get_spk_num())
 			{
-				conf_status_close_last_spk_client(frame_type);
+				dmanage_close_last_spk_client(frame_type);
 			}else{
 
 				tmp = conf_status_get_cspk_num();
@@ -460,7 +465,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				/*
 				 * 人数已满，需要进行管理，关闭最早上线单元
 				 */
-				conf_status_close_first_spk_client(frame_type);
+				dmanage_close_first_spk_client(frame_type);
 				/*
 				 * 更新发言链表，下发端口信息
 				 */
@@ -473,7 +478,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 				/*
 				 * 判断发言端口状态，是否有单元自己关闭，然后新上线的单元，需要使用下线单元的端口号
 				 */
-				conf_status_search_not_use_spk_port(frame_type);
+				dmanage_search_not_use_spk_port(frame_type);
 				tmp_port = frame_type->spk_port;
 
 				//当前发言人数需要告知全局变量
@@ -517,7 +522,11 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		tcp_ctrl_module_edit_info(frame_type,NULL);
 		break;
 	}
-
+	case WIFI_MEETING_EVENT_SPK_CLOSE_SND:
+	{
+		conf_status_set_snd_brd(WIFI_MEETING_EVENT_SPK_CLOSE_SND);
+		break;
+	}
 	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
 
 //		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
@@ -537,7 +546,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type frame_type)
 		break;
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY:
 	{
-		conf_status_close_guest_spk_client(frame_type);
+		dmanage_close_guest_spk_client(frame_type);
 		break;
 	}
 
@@ -705,6 +714,7 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 		break;
 	}
 	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
+	case WIFI_MEETING_EVENT_SPK_CLOSE_SND:
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY:
 	{
 		tcp_ctrl_uevent_spk_port(frame_type);
@@ -725,9 +735,6 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 		}
 		break;
 	}
-	case WIFI_MEETING_EVENT_SPK_CLOSE_SND:
-		conf_status_set_snd_brd(WIFI_MEETING_EVENT_SPK_CLOSE_SND);
-		break;
 
 	}
 
@@ -790,6 +797,9 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 	case WIFI_MEETING_EVT_SPK_CLOSE_REQ:
 		value = WIFI_MEETING_EVENT_SPK_CLOSE_REQ;
 		break;
+	case WIFI_MEETING_EVT_SPK_CLOSE_SND:
+		value = WIFI_MEETING_EVENT_SPK_CLOSE_SND;
+		break;
 	case WIFI_MEETING_EVT_SPK_CHAIRMAN_ONLY:
 		value = WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY;
 		break;
@@ -836,8 +846,11 @@ int tcp_ctrl_uevent_request_subject(Pframe_type frame_type,const unsigned char* 
 	tmp_fd = frame_type->fd;
 	tmp_msgt = frame_type->msg_type;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	/*
 	 * 判断消息是否是主席单元发送
@@ -887,8 +900,11 @@ int tcp_ctrl_uevent_request_service(Pframe_type frame_type,const unsigned char* 
 
 	int value = 0;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 
 	switch(frame_type->evt_data.value)
@@ -901,6 +917,12 @@ int tcp_ctrl_uevent_request_service(Pframe_type frame_type,const unsigned char* 
 		break;
 	case WIFI_MEETING_EVT_SER_PAPER:
 		value = WIFI_MEETING_EVENT_SERVICE_PAPER;
+		break;
+	case WIFI_MEETING_EVT_SER_TEA:
+		value = WIFI_MEETING_EVENT_SERVICE_TEA;
+		break;
+	case WIFI_MEETING_EVT_SER_TEC:
+		value = WIFI_MEETING_EVENT_SERVICE_OTHERS;
 		break;
 	default:
 		printf("there is not legal value\n");
@@ -933,8 +955,11 @@ int tcp_ctrl_uevent_request_checkin(Pframe_type frame_type,const unsigned char* 
 	tmp_fd = frame_type->fd;
 	tmp_msgt = frame_type->msg_type;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	/*
 	 * 开始签到和结束签到的指令需要下发给所有单元
@@ -1008,8 +1033,11 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 	int tmp_fd = 0;
 	int tmp_msgt = 0;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	tmp_fd = frame_type->fd;
 	tmp_msgt = frame_type->msg_type;
@@ -1055,6 +1083,7 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
+			conf_status_set_subjet_staus(value);
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->evt_data.status = value;
@@ -1067,6 +1096,7 @@ int tcp_ctrl_uevent_request_vote(Pframe_type frame_type,const unsigned char* msg
 		}
 	}else if(value == WIFI_MEETING_EVENT_VOTE_RESULT)
 	{
+		conf_status_set_subjet_staus(value);
 		conf_status_send_vote_result();
 
 	}else if(value > WIFI_MEETING_EVENT_VOTE_RESULT){
@@ -1102,8 +1132,11 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
 	int pos = 0;
 	int value = 0;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	tmp_fd = frame_type->fd;
 	tmp_msgt = frame_type->msg_type;
@@ -1142,6 +1175,7 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
+			conf_status_set_subjet_staus(value);
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->evt_data.status = value;
@@ -1153,6 +1187,7 @@ int tcp_ctrl_uevent_request_election(Pframe_type frame_type,const unsigned char*
 		}
 	}else if( value == WIFI_MEETING_CONF_ELECTION_RESULT)
 	{
+		conf_status_set_subjet_staus(value);
 		//收到结束指令后，延时1ms下发选举结果
 		conf_status_send_elec_result();
 	}
@@ -1185,8 +1220,11 @@ int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* ms
 	int pos = 0;
 	int value = 0;
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	tmp_fd = frame_type->fd;
 	tmp_msgt = frame_type->msg_type;
@@ -1222,8 +1260,10 @@ int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* ms
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
+			conf_status_set_subjet_staus(value);
 			if(value == WIFI_MEETING_CONF_SCORE_END)
 			{
+
 				conf_status_calc_score_result();
 			}
 			//变换为控制类消息下个给单元机
@@ -1238,6 +1278,7 @@ int tcp_ctrl_uevent_request_score(Pframe_type frame_type,const unsigned char* ms
 
 	}else if(value == WIFI_MEETING_CONF_SCORE_RESULT)
 	{
+		conf_status_set_subjet_staus(value);
 		conf_status_send_score_result();
 	}
 
@@ -1270,8 +1311,11 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 	int tmp_fd = 0;
 
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+	if(sys_debug_get_switch())
+	{
+		printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+				frame_type->evt_data.value);
+	}
 
 	//保存初始源地址信息
 	tmp_fd = frame_type->fd;
@@ -1295,12 +1339,12 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 		pos = conf_status_check_chairman_legal(frame_type);
 		if(pos > 0)
 		{
+			conf_status_set_conf_staus(value);
 			//变换为控制类消息下个给单元机
 			frame_type->msg_type = WRITE_MSG;
 			frame_type->dev_type = HOST_CTRL;
 			frame_type->evt_data.status = value;
 			tcp_ctrl_module_edit_info(frame_type,msg);
-			conf_status_set_conf_staus(value);
 
 		}else{
 			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
@@ -1309,6 +1353,7 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 	}
 
 	frame_type->fd = tmp_fd;
+	frame_type->dev_type = UNIT_CTRL;
 	frame_type->msg_type = tmp_msgt;
 	if(value > 0)
 	{
@@ -1495,17 +1540,9 @@ int tcp_ctrl_unit_reply_conference(const unsigned char* msg,Pframe_type frame_ty
 
 	int ret = 0;
 	int str_len = 0;
-
 	int value = 0;
 
-	printf("%s-%s-%d ",__FILE__,__func__,__LINE__);
-
-	int i;
-	for(i=0;i<frame_type->data_len;i++)
-	{
-		printf("0x%02x ",msg[i]);
-	}
-	printf("\n");
+//	printf("%s-%s-%d ",__FILE__,__func__,__LINE__);
 
 	/*
 	 * 赋值id和席别
@@ -1667,8 +1704,8 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 	frame_type->code_type[0] = msg[1];
 	frame_type->evt_data.value = msg[2];
 
-	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
-			frame_type->evt_data.value);
+//	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+//			frame_type->evt_data.value);
 	/*
 	 * 赋值id和席别
 	 * 在上报qt时需要

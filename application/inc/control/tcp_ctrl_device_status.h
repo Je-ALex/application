@@ -157,11 +157,16 @@ int conf_status_set_spk_num(int value);
 
 int conf_status_get_spk_num();
 
+int conf_status_set_spk_offset(int value);
+int conf_status_get_spk_offset();
 
+int conf_status_set_spk_buf_offset(int num,int value);
+int conf_status_get_spk_buf_offset(int num);
+
+int conf_status_set_spk_timestamp(int num,int value);
+int conf_status_get_spk_timestamp(int num);
 
 int conf_status_set_cspk_num(int value);
-
-
 int conf_status_get_cspk_num();
 
 int conf_status_set_snd_brd(int value);
@@ -178,13 +183,18 @@ int conf_status_get_camera_track();
 
 
 int conf_status_set_conf_staus(int value);
-
-
 int conf_status_get_conf_staus();
 
+int conf_status_set_sys_time(Pframe_type frame_type,const unsigned char* msg);
+int conf_status_get_sys_time(unsigned char* msg);
+
+int conf_status_set_sys_timestamp(unsigned int value);
+int conf_status_get_sys_timestamp();
+
+int conf_status_set_subjet_staus(int value);
+int conf_status_get_subjet_staus();
+
 int conf_status_set_pc_staus(int value);
-
-
 int conf_status_get_pc_staus();
 
 

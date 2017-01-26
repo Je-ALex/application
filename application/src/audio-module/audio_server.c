@@ -69,10 +69,12 @@ static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 //	int err;
 	char *devicename = "hw:0,0";
 //	snd_pcm_sw_params_t *swparams = NULL;
-	if (snd_output_stdio_attach(&capt->log, stderr, 0) < 0) {
-		 printf("Error snd_output_stdio_attach\n");
-		 return ERROR;
-	 }
+
+
+//	if (snd_output_stdio_attach(&capt->log, stderr, 0) < 0) {
+//		 printf("Error snd_output_stdio_attach\n");
+//		 return ERROR;
+//	 }
 
 	/*
 	 * 打开pcm设备
@@ -96,7 +98,7 @@ static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 //		return ERROR;
 //	}
 
-	snd_pcm_dump(capt->handle, capt->log);
+//	snd_pcm_dump(capt->handle, capt->log);
 
 	return SUCCESS;
 }
@@ -118,10 +120,10 @@ static int audio_snd_init(Psnd_data_format play,PWAVContainer wav)
 	snd_pcm_sw_params_t *swparams = NULL;
 
 
-	if (snd_output_stdio_attach(&play->log, stderr, 0) < 0) {
-		 printf("Error snd_output_stdio_attach\n");
-		 return ERROR;
-	 }
+//	if (snd_output_stdio_attach(&play->log, stderr, 0) < 0) {
+//		 printf("Error snd_output_stdio_attach\n");
+//		 return ERROR;
+//	 }
 	/*
 	 * 打开pcm设备
 	 */
@@ -138,7 +140,7 @@ static int audio_snd_init(Psnd_data_format play,PWAVContainer wav)
         printf("Setting of swparams failed: %s\n", snd_strerror(err));
             return ERROR;
     }
-	snd_pcm_dump(play->handle, play->log);
+//	snd_pcm_dump(play->handle, play->log);
 
 	return SUCCESS;
 }
@@ -418,7 +420,7 @@ static void* audio_recv_thread(void* p)
 	unsigned char* buffer[RS_NUM];
 	for(i=0;i<RS_NUM;i++)
 	{
-		buffer[i] = malloc(playback.chunk_bytes*2);
+		buffer[i] = malloc(playback.chunk_bytes+12);
 		if(buffer[i] == NULL)
 		{
 			printf("buffer failed\n");
@@ -428,7 +430,7 @@ static void* audio_recv_thread(void* p)
 
 	i=j=0;
 
-	unsigned int i_ts = 0;
+	unsigned int i_ts = {0};
     while(1){
 
 //
@@ -482,7 +484,7 @@ static void* audio_recv_thread(void* p)
 //		}
 
 
-		playback.recv_num = recvfrom(socket_fd,buffer[i],1024,
+		playback.recv_num = recvfrom(socket_fd,buffer[i],playback.chunk_bytes+12,
 								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
 
 		if(conf_status_get_spk_offset() - queue_num + 1)
@@ -497,13 +499,10 @@ static void* audio_recv_thread(void* p)
 				if(buffer[i][0] == 'D' && buffer[i][1] == 'S' &&
 					buffer[i][2] == 'D' && buffer[i][3] == 'S')
 				{
-//					memcpy(ts,&buffer[i][4],4);
 					tcp_ctrl_data_char2int(&i_ts,&buffer[i][4]);
 
 					if(i_ts > conf_status_get_spk_timestamp(queue_num))
 					{
-//						memcpy(buffer[i],&buffer[i][12],playback.recv_num - 12);
-
 						data[i]->msg = &buffer[i][12];
 						data[i]->len = playback.recv_num - 12;
 		//		    	printf("%d:recv_num = %d\n",port,playback.recv_num);
@@ -519,9 +518,6 @@ static void* audio_recv_thread(void* p)
 			if(i==RS_NUM)
 				i=0;
 		}
-
-
-
     }
 
 	for(i=0;i<RS_NUM;i++)

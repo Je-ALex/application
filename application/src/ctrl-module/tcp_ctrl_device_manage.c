@@ -98,13 +98,17 @@ int dmanage_close_last_spk_client(Pframe_type type)
 	 * 将端口下发给新申请的单元
 	 */
 	dmanage_search_last_spk_node(type);
-	dmanage_delete_spk_node(type->fd);
 
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
+
+//	dmanage_delete_spk_node(type->fd);
+
+
+
 
 	return SUCCESS;
 
@@ -127,13 +131,14 @@ int dmanage_close_first_spk_client(Pframe_type type)
 	 * 将端口下发给新申请的单元
 	 */
 	dmanage_search_first_spk_node(type);
-	dmanage_delete_spk_node(type->fd);
 
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	tcp_ctrl_module_edit_info(type,NULL);
+
+//	dmanage_delete_spk_node(type->fd);
 
 	return SUCCESS;
 }
@@ -149,6 +154,7 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 {
 	pclient_node tmp_node;
 	Pas_port sinfo;
+	int tmp = 0;
 
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
@@ -162,14 +168,25 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 		if(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
 		{
 			tcp_ctrl_source_dest_setting(-1,sinfo->sockfd,type);
+			type->fd = sinfo->sockfd;
 			tcp_ctrl_module_edit_info(type,NULL);
 
 			dmanage_delete_spk_node(sinfo->sockfd);
+
+			tmp=conf_status_get_cspk_num();
+			if(tmp)
+			{
+				tmp--;
+				conf_status_set_cspk_num(tmp);
+			}
+
 			msleep(1);
 		}
 		tmp_node=tmp_node->next;
 
 	}
+
+	conf_status_set_spk_num(WIFI_MEETING_EVT_MIC_CHAIRMAN);
 
 	return SUCCESS;
 }
@@ -201,7 +218,7 @@ int dmanage_delete_spk_node(int fd)
 			/*
 			 * 复位音频接收队列
 			 */
-			num = (sinfo->asport -AUDIO_RECV_PORT)/2 + 1;
+			num = ((sinfo->asport -AUDIO_RECV_PORT)/2 + 1);
 			audio_queue_reset(rqueue[num]);
 			conf_status_set_spk_buf_offset(num,0);
 			conf_status_set_spk_timestamp(num,0);
@@ -665,13 +682,17 @@ int dmanage_refresh_connected_list(Pconference_list data_info)
 			newinfo = tmp->data;
 			if(newinfo->client_fd > 0)
 			{
-				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
-						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
+//				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
+//						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
 
 				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
 //				perror("fwrite");
 				if(ret != 1)
+				{
+					printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
+							__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
 					return ERROR;
+				}
 
 			}
 			tmp = tmp->next;
@@ -801,7 +822,8 @@ int dmanage_refresh_info(const Pframe_type data_info)
 	ret = dmanage_refresh_connected_list(confer_info);
 	if(ret)
 	{
-		printf("%s-%s-%d,dmanage_refresh_connected_list err\n",__FILE__,__func__,__LINE__);
+		printf("%s-%s-%d,dmanage_refresh_connected_list id=%d,err\n",__FILE__,__func__,__LINE__,
+				confer_info->con_data.id);
 		free(confer_info);
 		return ERROR;
 	}
@@ -1113,7 +1135,7 @@ int dmanage_add_connected_info(Pframe_type type)
 }
 
 
-/*
+/* FIXME
  * dmanage_sync_conference_status
  * 设备会议状态同步
  * 1、签到状态 是否开始会议

@@ -36,6 +36,7 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 	int value = 0;
 	int num = 0;
 
+	unsigned char tmp_msg[3] = {0};
 	/*
 	 * 上位机下发会议参数
 	 * ID,席别,单元姓名,会议名称，议题数量
@@ -103,6 +104,22 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 		ret = tcp_ctrl_module_edit_info(frame_type,msg);
 		if(ret)
 			return ERROR;
+		if((num == conf_status_get_total_subject())
+				&& conf_status_get_conf_staus() == WIFI_MEETING_EVENT_CON_MAG_START)
+		{
+
+			msleep(10);
+			tmp_msg[0] = WIFI_MEETING_EVT_CON_MAG;
+			tmp_msg[1] = WIFI_MEETING_CHAR;
+			tmp_msg[2] = WIFI_MEETING_EVT_CON_MAG_START;
+			frame_type->data_len = 3;
+			frame_type->msg_type = WRITE_MSG;
+			frame_type->dev_type = HOST_CTRL;
+			frame_type->data_type = EVENT_DATA;
+			tcp_ctrl_module_edit_info(frame_type,tmp_msg);
+
+		}
+
 	 }
 
 	/*
@@ -115,6 +132,7 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 				frame_type->con_data.id,frame_type->con_data.seat,
 				frame_type->con_data.name,frame_type->con_data.conf_name,
 				frame_type->con_data.sub_num);
+		conf_status_set_total_subject(frame_type->con_data.sub_num);
 		/*
 		 * 更新链表的内容
 		 */
@@ -555,12 +573,12 @@ static int tcp_ctrl_pc_request_conf_manage(Pframe_type frame_type,const unsigned
 	if(value == WIFI_MEETING_EVENT_CON_MAG_END ||
 			value == WIFI_MEETING_EVENT_CON_MAG_START)
 	{
-		conf_status_set_conf_staus(value);
 		//变换为控制类消息下个给单元机
 		frame_type->msg_type = WRITE_MSG;
 		frame_type->dev_type = HOST_CTRL;
 		frame_type->evt_data.status = value;
 		tcp_ctrl_module_edit_info(frame_type,msg);
+		conf_status_set_conf_staus(value);
 
 
 	}
@@ -696,7 +714,10 @@ static int tcp_ctrl_pc_request_msg_con(const unsigned char* msg,Pframe_type fram
 			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
 			ret = tcp_ctrl_module_edit_info(frame_type,msg);
 			if(ret)
+			{
+				printf("%s-%s-%d not legal command\n",__FILE__,__func__,__LINE__);
 				return ERROR;
+			}
 			break;
 		default:
 			printf("%s-%s-%d not legal command\n",__FILE__,__func__,__LINE__);
@@ -745,7 +766,7 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 	int tmp_type = frame_type->msg_type;
 	int name_type = handlbuf[0];
 
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	frame_type->name_type[0] = handlbuf[0];
 
@@ -769,13 +790,12 @@ int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type)
 
 	if(tmp_type != READ_MSG){
 
-		printf("%s-%s-%d report to pc\n",__FILE__,__func__,__LINE__);
+//		printf("%s-%s-%d report to pc\n",__FILE__,__func__,__LINE__);
 		frame_type->fd = tmp_fd;
 		frame_type->data_type = EVENT_DATA;
 		frame_type->msg_type = tmp_type;
 
 //		frame_type->msg_type = W_REPLY_MSG;
-//
 //		if(tmp_type == ONLINE_REQ)
 //			frame_type->msg_type = ONLINE_REQ;
 

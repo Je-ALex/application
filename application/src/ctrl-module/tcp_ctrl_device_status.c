@@ -583,7 +583,18 @@ int conf_status_compare_id(int value)
 	return pos;
 }
 
+int conf_status_set_total_subject(unsigned char num)
+{
+	node_queue->con_status->total_sub = num;
 
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			node_queue->con_status->total_sub);
+	return SUCCESS;
+}
+int conf_status_get_total_subject()
+{
+	return node_queue->con_status->total_sub;
+}
 
 /*
  * conf_status_set_current_subject
@@ -1122,6 +1133,8 @@ int conf_status_get_spk_timestamp(int num)
 	return node_queue->con_status->spk_ts[num];
 }
 
+
+
 /*
  * conf_status_set_cspk_num
  * 会议当前发言人数设置
@@ -1268,16 +1281,21 @@ int conf_status_get_camera_track()
  */
 int conf_status_set_conf_staus(int value)
 {
+
+	int pos = 0;
+	FILE* cfile;
+	int ret = 0;
+
 	pclient_node tmp = NULL;
+	pclient_node del = NULL;
 	Pclient_info cinfo;
-	conference_list cfinfo;
+	Pclient_info tcinfo;
+	Pclient_info newinfo;
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
 	node_queue->con_status->confer_status = value;
-
-	memset(&cfinfo,0,sizeof(conference_list));
 
 	/*
 	 * 会议结束需要将会议信息相关的参数情况
@@ -1291,19 +1309,51 @@ int conf_status_set_conf_staus(int value)
 		while(tmp!=NULL)
 		{
 			cinfo = tmp->data;
-			if(cinfo->client_name != PC_CTRL)
+			if(cinfo->client_name != PC_CTRL
+					&& cinfo->client_fd > 0)
 			{
-				cfinfo.fd = cinfo->client_fd;
-				cfinfo.con_data.id = cinfo->id;
-				cfinfo.con_data.seat = WIFI_MEETING_CON_SE_ATTEND;
+				tcinfo = (Pclient_info)malloc(sizeof(client_info));
+				memset(tcinfo,0,sizeof(client_info));
 
-				dmanage_refresh_connected_list(&cfinfo);
+				list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
+				cinfo = del->data;
+				memcpy(tcinfo,cinfo,sizeof(client_info));
+
+				free(cinfo);
+				free(del);
+
+				tcinfo->seat = WIFI_MEETING_CON_SE_ATTEND;
+				list_add(node_queue->sys_list[CONNECT_LIST],tcinfo);
+
+				pos++;
 				msleep(1);
 			}
 
 			tmp = tmp->next;
 		}
 
+		cfile = fopen(CONNECT_FILE,"w+");
+		/*
+		 * 更新文本文件
+		 */
+		tmp = node_queue->sys_list[CONNECT_LIST]->next;
+		while(tmp != NULL)
+		{
+			newinfo = tmp->data;
+			if(newinfo->client_fd > 0)
+			{
+				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
+						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
+
+				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
+//				perror("fwrite");
+				if(ret != 1)
+					return ERROR;
+			}
+			tmp = tmp->next;
+			usleep(100);
+		}
+		fclose(cfile);
 	}
 
 	return SUCCESS;

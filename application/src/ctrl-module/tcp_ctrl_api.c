@@ -654,7 +654,7 @@ int conf_info_get_checkin_total()
 
 	ret = conf_status_get_conference_len();
 
-//	printf("%s-%s-%d,checkin=%d\n",__FILE__,__func__,__LINE__,ret);
+	printf("%s-%s-%d,checkin=%d\n",__FILE__,__func__,__LINE__,ret);
 
 	return ret;
 }

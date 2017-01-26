@@ -30,7 +30,7 @@
 /*
  * 设备系统参数
  */
-#define VERSION		"0.0.1"
+#define VERSION		"V 1.0.0"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
@@ -366,7 +366,8 @@ typedef enum {
 	WIFI_MEETING_EVT_SPK_CLOSE_MIC,
 	WIFI_MEETING_EVT_SPK_CLOSE_REQ,
 	WIFI_MEETING_EVT_SPK_CLOSE_SND,
-	WIFI_MEETING_EVT_SPK_CHAIRMAN_ONLY,
+	WIFI_MEETING_EVT_SPK_CHAIRMAN_ONLY_ON,
+	WIFI_MEETING_EVT_SPK_CHAIRMAN_ONLY_OFF,
 
 }event_speak;
 
@@ -676,6 +677,8 @@ typedef struct {
 	unsigned char conf_name[CONF_NAME_LEN];
 	//议题表
 	subject_info sub_list[SUBJECT_NUM];
+	//议题总数
+	volatile unsigned char total_sub;
 	//当前议题
 	volatile unsigned char sub_num;
 	conf_pc_result cresult;
@@ -691,6 +694,8 @@ typedef struct {
 	volatile unsigned char current_spk;
 	volatile unsigned char spk_offset[8];
 	volatile unsigned int	spk_ts[8];
+	volatile unsigned int	spk_ts_flag[8];
+	volatile unsigned int	spk_now_fd;
 	//摄像跟踪状态开关
 	volatile unsigned char camera_track;
 	//主席发言状态

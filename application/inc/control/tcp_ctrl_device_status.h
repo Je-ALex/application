@@ -111,8 +111,10 @@ int conf_status_set_cmspk(int value);
 int conf_status_get_cmspk();
 
 int conf_status_set_current_subject(unsigned char num);
-
 int conf_status_get_current_subject();
+
+int conf_status_set_total_subject(unsigned char num);
+int conf_status_get_total_subject();
 
 int conf_status_set_subject_property(unsigned char num,unsigned char prop);
 

@@ -14,6 +14,7 @@
 
 extern Pglobal_info node_queue;
 extern Paudio_queue* rqueue;
+extern sys_info sys_in;
 
 unsigned int spk_ts = 0;
 
@@ -106,9 +107,6 @@ int dmanage_close_last_spk_client(Pframe_type type)
 	tcp_ctrl_module_edit_info(type,NULL);
 
 //	dmanage_delete_spk_node(type->fd);
-
-
-
 
 	return SUCCESS;
 
@@ -592,6 +590,7 @@ int dmanage_process_communication_heart(const unsigned char* msg,Pframe_type typ
 
 		if(type->msg_type == ONLINE_HEART)
 		{
+			type->dev_type = HOST_CTRL;
 			type->d_id = type->s_id;
 			type->s_id = 0;
 			type->evt_data.status = WIFI_MEETING_EVENT_DEVICE_HEART;
@@ -800,7 +799,7 @@ int dmanage_refresh_info(const Pframe_type data_info)
 	ret = dmanage_refresh_spk_node(data_info);
 	if(ret)
 	{
-		printf("%s-%s-%d,dmanage_refresh_connected_list err\n",__FILE__,__func__,__LINE__);
+		printf("%s-%s-%d,dmanage_refresh_spk_node err\n",__FILE__,__func__,__LINE__);
 		free(confer_info);
 		return ERROR;
 	}
@@ -819,7 +818,9 @@ int dmanage_refresh_info(const Pframe_type data_info)
 	/*
 	 * 更新到连接信息链表中
 	 */
+//	pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 	ret = dmanage_refresh_connected_list(confer_info);
+//	pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 	if(ret)
 	{
 		printf("%s-%s-%d,dmanage_refresh_connected_list id=%d,err\n",__FILE__,__func__,__LINE__,
@@ -827,6 +828,7 @@ int dmanage_refresh_info(const Pframe_type data_info)
 		free(confer_info);
 		return ERROR;
 	}
+
 	/*
 	 * 更新到会议信息链表中
 	 */
@@ -979,15 +981,30 @@ int dmanage_delete_info(int fd)
 {
 	int tmp = 0;
 	int ret = 0;
+	pclient_node ctmp = NULL;
+	Pclient_info cinfo;
+	//上报上位机部分
+	frame_type tmp_type;
+	memset(&tmp_type,0,sizeof(frame_type));
 
 	if(conf_status_get_pc_staus() != fd)
 	{
+		ctmp = node_queue->sys_list[CONNECT_LIST]->next;
+		while(ctmp!=NULL)
+		{
+			cinfo = ctmp->data;
+			if(cinfo->client_fd == fd)
+			{
+				tmp_type.con_data.id = cinfo->id;
+				tmp_type.con_data.seat = cinfo->seat;
+				break;
+			}
+			ctmp = ctmp->next;
+		}
 		/*
 		 * 下线消息告知主机或上位机
 		 */
-		//上报上位机部分
-		frame_type tmp_type;
-		memset(&tmp_type,0,sizeof(frame_type));
+
 		tmp_type.msg_type = OFFLINE_REQ;
 		tmp_type.dev_type = UNIT_CTRL;
 		tmp_type.data_type = EVENT_DATA;
@@ -1146,14 +1163,13 @@ int dmanage_add_connected_info(Pframe_type type)
 int dmanage_sync_conference_status(Pframe_type type)
 {
 	int ret = 0;
-	frame_type data_info;
 
+	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
 
 	data_info.data_type = EVENT_DATA;
 	data_info.dev_type = HOST_CTRL;
 	data_info.msg_type = WRITE_MSG;
-
 
 	/*
 	 * 签到状态，是否开始会议
@@ -1171,7 +1187,8 @@ int dmanage_sync_conference_status(Pframe_type type)
 		break;
 	}
 
-//	tcp_ctrl_module_edit_info(&data_info,NULL);
+	tcp_ctrl_module_edit_info(&data_info,NULL);
+
 	return SUCCESS;
 }
 
@@ -1289,7 +1306,6 @@ int dmanage_add_info(const unsigned char* msg,Pframe_type type)
 	tmp_did = type->s_id;
 
 	dmanage_add_connected_info(type);
-
 	/*
 	 * 消息上报
 	 *

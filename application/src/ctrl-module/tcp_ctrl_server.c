@@ -424,7 +424,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 			tmp = node->data;
 //			if(sys_debug_get_switch())
 //			{
-				if(tmp->msg[4] != 0x87)
+				if(tmp->msg[4] != 0x86)
 				{
 					printf("%s-tmp->socket_fd[%d] : \n",
 							__func__,tmp->socket_fd);

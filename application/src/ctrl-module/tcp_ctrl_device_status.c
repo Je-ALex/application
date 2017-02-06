@@ -1282,21 +1282,27 @@ int conf_status_get_camera_track()
 int conf_status_set_conf_staus(int value)
 {
 
-	int pos = 0;
-	FILE* cfile;
-	int ret = 0;
+//	FILE* cfile;
 
-	pclient_node tmp = NULL;
-	pclient_node del = NULL;
-	Pclient_info cinfo;
-	Pclient_info tcinfo;
-	Pclient_info newinfo;
+//	int ret = 0;
+//	int pos = 0;
+//	frame_type data_info;
+//	pclient_node tmp = NULL;
+//	Pclient_info cinfo;
+
+//	pclient_node tmpf = NULL;
+//	pclient_node del = NULL;
+//	Pclient_info cinfo;
+//	Pclient_info dinfo;
+//	Pclient_info tcinfo;
+//	Pclient_info newinfo;
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
 	node_queue->con_status->confer_status = value;
 
+//	memset(&data_info,0,sizeof(frame_type));
 	/*
 	 * 会议结束需要将会议信息相关的参数情况
 	 * 如投票 选举等结果参数
@@ -1305,6 +1311,8 @@ int conf_status_set_conf_staus(int value)
 	{
 		memset(node_queue->con_status->sub_list,0,SUBJECT_NUM*sizeof(subject_info));
 
+/*
+		pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 		tmp = node_queue->sys_list[CONNECT_LIST]->next;
 		while(tmp!=NULL)
 		{
@@ -1316,44 +1324,43 @@ int conf_status_set_conf_staus(int value)
 				memset(tcinfo,0,sizeof(client_info));
 
 				list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
-				cinfo = del->data;
-				memcpy(tcinfo,cinfo,sizeof(client_info));
+				dinfo = del->data;
+				memcpy(tcinfo,dinfo,sizeof(client_info));
 
-				free(cinfo);
+				free(dinfo);
 				free(del);
 
 				tcinfo->seat = WIFI_MEETING_CON_SE_ATTEND;
 				list_add(node_queue->sys_list[CONNECT_LIST],tcinfo);
 
-				pos++;
 				msleep(1);
 			}
-
+			pos++;
 			tmp = tmp->next;
 		}
+		pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 
 		cfile = fopen(CONNECT_FILE,"w+");
-		/*
-		 * 更新文本文件
-		 */
-		tmp = node_queue->sys_list[CONNECT_LIST]->next;
-		while(tmp != NULL)
+
+		tmpf = node_queue->sys_list[CONNECT_LIST]->next;
+		while(tmpf != NULL)
 		{
-			newinfo = tmp->data;
+			newinfo = tmpf->data;
 			if(newinfo->client_fd > 0)
 			{
 				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
 						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
+				newinfo->seat = WIFI_MEETING_CON_SE_ATTEND;
 
 				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
 //				perror("fwrite");
 				if(ret != 1)
 					return ERROR;
 			}
-			tmp = tmp->next;
+			tmpf = tmpf->next;
 			usleep(100);
 		}
-		fclose(cfile);
+		fclose(cfile);*/
 	}
 
 	return SUCCESS;

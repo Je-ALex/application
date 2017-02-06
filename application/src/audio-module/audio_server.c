@@ -388,7 +388,7 @@ static void* audio_recv_thread(void* p)
 	int fromLen = sizeof(fromAddr);
 	int socket_fd;
 
-	int i,j;
+	int i;
 	int port = (int)p;
 	int queue_num = port-AUDIO_RECV_PORT;
 
@@ -428,61 +428,11 @@ static void* audio_recv_thread(void* p)
 		}
 	}
 
-	i=j=0;
+	i=0;
 
-	unsigned int i_ts = {0};
-    while(1){
-
-//
-//		if(sys_debug_get_switch())
-//		{
-//
-//			gettimeofday(&start,0);
-//		}
-
-
-//		playback.recv_num = recvfrom(socket_fd,buffer[i],playback.chunk_bytes,
-//								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
-//
-////		playback.recv_num = recvfrom(socket_fd,playback.data_buf,playback.chunk_bytes,
-////								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
-//
-//
-//		if(conf_status_get_spk_offset() - queue_num + 1)
-//		{
-//			if(conf_status_get_spk_buf_offset(queue_num) < 9)
-//			{
-//				conf_status_set_spk_buf_offset(queue_num,i);
-//
-//			}else
-//			{
-//				data[i]->msg = buffer[i];
-//				data[i]->len = playback.recv_num;
-////		    	printf("%d:recv_num = %d\n",port,playback.recv_num);
-//				audio_enqueue(rqueue[queue_num],data[i]);
-//
-////				sem_post(&sem.audio_recv_sem[queue_num]);
-//			}
-//			i++;
-//			if(i==RS_NUM)
-//				i=0;
-//		}
-
-
-
-//		playback.recv_num = playback.recv_num * 8 / playback.bits_per_frame;
-//		audio_module_data_write(&playback, playback.recv_num);
-
-//		if(sys_debug_get_switch())
-//		{
-//			gettimeofday(&stop,0);
-//			time_substract(&diff,&start,&stop);
-//			printf("%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
-//					diff.ms,(int)diff.time.tv_usec);
-////			fprintf(file,"%d : %d s,%d ms,%d us\n",socket_fd,(int)diff.time.tv_sec,
-////								diff.ms,(int)diff.time.tv_usec);
-//		}
-
+	unsigned int i_ts = 0;
+    while(1)
+    {
 
 		playback.recv_num = recvfrom(socket_fd,buffer[i],playback.chunk_bytes+12,
 								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
@@ -495,7 +445,6 @@ static void* audio_recv_thread(void* p)
 
 			}else
 			{
-
 				if(buffer[i][0] == 'D' && buffer[i][1] == 'S' &&
 					buffer[i][2] == 'D' && buffer[i][3] == 'S')
 				{
@@ -507,9 +456,9 @@ static void* audio_recv_thread(void* p)
 						data[i]->len = playback.recv_num - 12;
 		//		    	printf("%d:recv_num = %d\n",port,playback.recv_num);
 						audio_enqueue(rqueue[queue_num],data[i]);
-
 						conf_status_set_spk_timestamp(queue_num,i_ts);
 					}
+
 				}
 
 //				sem_post(&sem.audio_recv_sem[queue_num]);
@@ -551,12 +500,12 @@ static void* audio_data_mix_thread(void* p)
     recvbuf = malloc(sizeof(unsigned char*)*(MAX_SPK_NUM+1));
 	memset(recvbuf,0,sizeof(unsigned char*)*(MAX_SPK_NUM+1));
 
-	volatile int i,j;
+	volatile int i,j,m;
 
 	volatile int length = 0;
 	volatile int frame_len = 0;
 
-	j=0;
+	j=m=0;
 	pthread_detach(pthread_self());
 
 	Paudio_frame data[RS_NUM];
@@ -608,7 +557,6 @@ static void* audio_data_mix_thread(void* p)
 				//printf("queue[%d] %s-%s-%d queue empty\n",i,__FILE__,__func__,__LINE__);
 			}
 		}
-
 		if(j)
 		{
 			audio_data_mix(recvbuf,playback.data_buf,j,length);
@@ -620,17 +568,17 @@ static void* audio_data_mix_thread(void* p)
 
 //			if(conf_status_get_snd_brd())
 //			{
-//				memcpy(buffer[i],playback.data_buf,length);
+//				memcpy(buffer[m],playback.data_buf,length);
 //				/*
 //				 * 送入发送队列
 //				 */
-//				data[i]->msg = buffer[i];
-//				data[i]->len = length;
-//				audio_enqueue(squeue,data[i]);
+//				data[m]->msg = buffer[m];
+//				data[m]->len = length;
+//				audio_enqueue(squeue,data[m]);
 //
-//				i++;
-//				if(i==RS_NUM)
-//					i=0;
+//				m++;
+//				if(m==RS_NUM)
+//					m=0;
 //			}
 
 //			if(sys_debug_get_switch())
@@ -726,7 +674,7 @@ static void* audio_send_thread(void* p)
 //				}
 
 			}
-			usleep(10);
+			usleep(1);
 		}else{
 			msleep(2);
 		}
@@ -745,7 +693,6 @@ static void* audio_send_thread(void* p)
  */
 int wifi_sys_audio_init()
 {
-
 
 //	void *retval;
 	int ret = 0;
@@ -848,7 +795,7 @@ int wifi_sys_audio_init()
 	/*
 	 * 语音发送线程
 	 */
-	ret = pthread_create(&mix_th, NULL, audio_send_thread,NULL);
+//	ret = pthread_create(&mix_th, NULL, audio_send_thread,NULL);
 	if (ret != 0)
 	{
 		perror ("audio_send_thread error");

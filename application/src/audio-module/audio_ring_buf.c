@@ -93,8 +93,9 @@ int audio_queue_reset(Paudio_queue queue)
     queue->head = 0;
     queue->tail = 0;
 
-	printf("%s-%s-%d，head=%d,tail=%d\n",__FILE__,__func__,__LINE__,
-			queue->head, queue->tail);
+//	printf("%s-%s-%d,head=%d,tail=%d\n",__FILE__,__func__,__LINE__,
+//			queue->head, queue->tail);
+
     return SUCCESS;
 }
 

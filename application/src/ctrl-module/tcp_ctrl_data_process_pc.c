@@ -10,8 +10,8 @@
 #include "tcp_ctrl_device_status.h"
 #include "tcp_ctrl_device_manage.h"
 
-extern Pglobal_info node_queue;
 extern sys_info sys_in;
+
 /***************
  *
  * PC PART START
@@ -339,7 +339,7 @@ static int tcp_ctrl_pc_read_msg(const unsigned char* msg,Pframe_type frame_type)
 }
 
 
-static int tcp_ctrl_pc_request_spk(const unsigned char* msg,Pframe_type frame_type)
+static int tcp_ctrl_pc_request_spk(Pframe_type frame_type,const unsigned char* msg)
 {
 	int pos = 0;
 
@@ -423,6 +423,33 @@ static int tcp_ctrl_pc_request_subject(Pframe_type frame_type,const unsigned cha
 	return SUCCESS;
 
 }
+
+
+static int tcp_ctrl_pc_request_sys_time(Pframe_type frame_type,const unsigned char* msg)
+{
+	int ret = 0;
+	unsigned char tmp_msg[4] = {0};
+
+	conf_status_set_sys_time(frame_type,msg);
+
+	tmp_msg[0] = msg[0];
+	tmp_msg[1] = msg[1];
+	tmp_msg[2] = msg[3];
+	tmp_msg[3] = msg[5];
+
+	frame_type->msg_type = WRITE_MSG;
+	frame_type->dev_type = HOST_CTRL;
+
+	frame_type->data_len = 4;
+
+	frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_ALL;
+	ret = tcp_ctrl_module_edit_info(frame_type,tmp_msg);
+	if(ret)
+		return ERROR;
+
+	return SUCCESS;
+}
+
 
 static int tcp_ctrl_pcevent_request_checkin(Pframe_type frame_type,const unsigned char* msg)
 {
@@ -580,7 +607,6 @@ static int tcp_ctrl_pc_request_conf_manage(Pframe_type frame_type,const unsigned
 		tcp_ctrl_module_edit_info(frame_type,msg);
 		conf_status_set_conf_staus(value);
 
-
 	}
 
 	return SUCCESS;
@@ -632,10 +658,10 @@ static int tcp_ctrl_pc_request_msg_evt(const unsigned char* msg,Pframe_type fram
 		tcp_ctrl_pc_request_conf_manage(frame_type,msg);
 		break;
 	case WIFI_MEETING_EVT_SPK:
-		tcp_ctrl_pc_request_spk(msg,frame_type);
+		tcp_ctrl_pc_request_spk(frame_type,msg);
 		break;
 	case WIFI_MEETING_EVT_SYS_TIME:
-		conf_status_set_sys_time(frame_type,msg);
+		tcp_ctrl_pc_request_sys_time(frame_type,msg);
 		break;
 	}
 

@@ -422,8 +422,8 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 		if(ret == 0)
 		{
 			tmp = node->data;
-//			if(sys_debug_get_switch())
-//			{
+			if(sys_debug_get_switch())
+			{
 				if(tmp->msg[4] != 0x86)
 				{
 					printf("%s-tmp->socket_fd[%d] : \n",
@@ -434,7 +434,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 					}
 					printf("\n");
 				}
-//			}
+			}
 
 			msleep(1);
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
@@ -514,7 +514,7 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 
 	while(1)
 	{
-		if(!conf_status_get_connected_len())
+		if(!conf_status_get_client_connect_len())
 		{
 			sleep(1);
 //			conf_status_set_snd_effect(i);
@@ -524,8 +524,8 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 			conf_status_set_sys_timestamp(1);
 			continue;
 		}else{
-			conf_status_set_sys_timestamp(5);
-			sleep(5);
+			conf_status_set_sys_timestamp(10);
+			sleep(10);
 			dmanage_get_communication_heart(&type);
 			if(type.fd)
 			{

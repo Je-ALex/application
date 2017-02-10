@@ -104,6 +104,7 @@ int dmanage_close_last_spk_client(Pframe_type type)
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+	sys_uart_video_set(type->d_id,0);
 	tcp_ctrl_module_edit_info(type,NULL);
 
 //	dmanage_delete_spk_node(type->fd);
@@ -130,10 +131,13 @@ int dmanage_close_first_spk_client(Pframe_type type)
 	 */
 	dmanage_search_first_spk_node(type);
 
+
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+	sys_uart_video_set(type->d_id,0);
+
 	tcp_ctrl_module_edit_info(type,NULL);
 
 //	dmanage_delete_spk_node(type->fd);
@@ -169,7 +173,7 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 			type->fd = sinfo->sockfd;
 			tcp_ctrl_module_edit_info(type,NULL);
 
-			dmanage_delete_spk_node(sinfo->sockfd);
+			//dmanage_delete_spk_node(sinfo->sockfd);
 
 			tmp=conf_status_get_cspk_num();
 			if(tmp)
@@ -506,22 +510,26 @@ int dmanage_get_communication_heart(Pframe_type type)
 	int ret = 0;
 
 	tmp_node = node_queue->sys_list[CONNECT_HEART]->next;
-	while(tmp_node!=NULL)
+	while(tmp_node != NULL)
 	{
 		hinfo = tmp_node->data;
-		if(hinfo->sockfd)
+		if(hinfo != NULL)
 		{
-			hinfo->status--;
-			if(!hinfo->status)
+			if(hinfo->sockfd)
 			{
-				type->fd = hinfo->sockfd;
-				ret = conf_status_check_chairman_legal(type);
-				if(ret)
-					type->con_data.seat = WIFI_MEETING_CON_SE_CHAIRMAN;
-				break;
-			}
+				hinfo->status--;
+				if(!hinfo->status)
+				{
+					type->fd = hinfo->sockfd;
+					ret = conf_status_check_chairman_legal(type);
+					if(ret)
+						type->con_data.seat = WIFI_MEETING_CON_SE_CHAIRMAN;
+					break;
+				}
 
+			}
 		}
+
 		tmp_node=tmp_node->next;
 
 	}

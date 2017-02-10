@@ -298,6 +298,22 @@ int conf_status_get_connected_len()
 {
 	return node_queue->sys_list[CONNECT_LIST]->size;
 }
+/*
+ * conf_status_get_connected_len
+ * 获取会议中连接设备的数量
+ *
+ */
+int conf_status_get_client_connect_len()
+{
+	int ret = 0;
+	if(conf_status_get_pc_staus() > 0)
+	{
+		ret = node_queue->sys_list[CONNECT_LIST]->size - 1;
+	}else{
+		ret = node_queue->sys_list[CONNECT_LIST]->size;
+	}
+	return ret;
+}
 
 
 /*

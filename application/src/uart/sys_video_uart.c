@@ -11,7 +11,6 @@ udev pdev_video;
 
 int gpio_pull_high()
 {
-	usleep(10000);
 	char command[128];
 	FILE *fp=NULL;
 	snprintf(command,sizeof(command),"echo 0 > /sys/class/leds/RS485/brightness");
@@ -27,7 +26,6 @@ int gpio_pull_high()
 
 int gpio_pull_low()
 {
-	usleep(10000);
 	char command[128];
 	FILE *fp=NULL;
 	snprintf(command,sizeof(command),"echo 1 > /sys/class/leds/RS485/brightness");

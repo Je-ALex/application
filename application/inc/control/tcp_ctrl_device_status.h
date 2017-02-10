@@ -85,6 +85,7 @@ int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue msg_tmp);
 
 
 int conf_status_get_connected_len();
+int conf_status_get_client_connect_len();
 
 int conf_status_get_conference_len();
 

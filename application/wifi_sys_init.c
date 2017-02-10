@@ -123,6 +123,8 @@ int wifi_sys_val_init()
 	node_queue->con_status->spk_number = DEF_SPK_NUM;
 	//设置默认话筒模式为FIFO
 	node_queue->con_status->mic_mode = DEF_MIC_MODE;
+	//摄像跟踪打开
+	conf_status_set_camera_track(1);
 	/*
 	 * 初始化连接文本信息
 	 */

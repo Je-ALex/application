@@ -147,8 +147,8 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	printf("\n");
 #endif
 
-//	if(sys_debug_get_switch())
-//	{
+	if(sys_debug_get_switch())
+	{
 		if(buf[4] != 0x87)
 		{
 			printf("receive from %d:",*fd);
@@ -158,7 +158,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 			}
 			printf("\n");
 		}
-//	}
+	}
 
 
 	/*
@@ -416,6 +416,10 @@ int tcp_ctrl_uevent_spk_port_reply(int fd)
 		tcp_ctrl_module_edit_info(&spk_tmp,NULL);
 	}
 
+	if(spk_tmp.evt_data.status == WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON)
+	{
+		dmanage_delete_spk_node(fd);
+	}
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	return SUCCESS;
@@ -588,6 +592,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type type)
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON:
 	{
 		dmanage_close_guest_spk_client(type);
+		conf_status_set_spk_now_fd(type);
 		break;
 	}
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_OFF:

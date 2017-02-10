@@ -50,7 +50,7 @@
 
 
 
-#define DEVICE_HEART 5
+#define DEVICE_HEART 12
 
 #define msleep(x) usleep(x*1000)
 

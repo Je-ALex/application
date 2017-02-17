@@ -104,21 +104,21 @@ static int tcp_ctrl_pc_write_msg_con(const unsigned char* msg,Pframe_type frame_
 		ret = tcp_ctrl_module_edit_info(frame_type,msg);
 		if(ret)
 			return ERROR;
-		if((num == conf_status_get_total_subject())
-				&& conf_status_get_conf_staus() == WIFI_MEETING_EVENT_CON_MAG_START)
-		{
-
-			msleep(10);
-			tmp_msg[0] = WIFI_MEETING_EVT_CON_MAG;
-			tmp_msg[1] = WIFI_MEETING_CHAR;
-			tmp_msg[2] = WIFI_MEETING_EVT_CON_MAG_START;
-			frame_type->data_len = 3;
-			frame_type->msg_type = WRITE_MSG;
-			frame_type->dev_type = HOST_CTRL;
-			frame_type->data_type = EVENT_DATA;
-			tcp_ctrl_module_edit_info(frame_type,tmp_msg);
-
-		}
+//		if((num == conf_status_get_total_subject())
+//				&& conf_status_get_conf_staus() == WIFI_MEETING_EVENT_CON_MAG_START)
+//		{
+//
+//			msleep(10);
+//			tmp_msg[0] = WIFI_MEETING_EVT_CON_MAG;
+//			tmp_msg[1] = WIFI_MEETING_CHAR;
+//			tmp_msg[2] = WIFI_MEETING_EVT_CON_MAG_START;
+//			frame_type->data_len = 3;
+//			frame_type->msg_type = WRITE_MSG;
+//			frame_type->dev_type = HOST_CTRL;
+//			frame_type->data_type = EVENT_DATA;
+//			tcp_ctrl_module_edit_info(frame_type,tmp_msg);
+//
+//		}
 
 	 }
 
@@ -190,6 +190,14 @@ static int tcp_ctrl_pc_write_msg_evt(const unsigned char* msg,Pframe_type frame_
 	case WIFI_MEETING_EVT_SPK_NUM:
 		frame_type->evt_data.value = msg[2];
 		conf_status_set_spk_num(frame_type->evt_data.value);
+		break;
+	case WIFI_MEETING_EVT_CAMERA_TRACK:
+		frame_type->evt_data.value = msg[2];
+		if(frame_type->evt_data.value == 2)
+		{
+			frame_type->evt_data.value = 0;
+		}
+		conf_status_set_camera_track(frame_type->evt_data.value);
 		break;
 	case WIFI_MEETING_EVT_SSID:
 		frame_type->evt_data.status = WIFI_MEETING_EVENT_PC_CMD_ALL;
@@ -372,6 +380,7 @@ static int tcp_ctrl_pc_request_spk(Pframe_type frame_type,const unsigned char* m
 	}
 	case WIFI_MEETING_EVT_SPK_VETO:
 	{
+		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_VETO;
 		pos = conf_status_find_did_sockfd_sock(frame_type);
 		if(pos > 0)
 		{

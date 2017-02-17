@@ -23,6 +23,71 @@ unsigned int spk_ts = 0;
  * TODO
  * 发言管理的设备音频端口管理
  */
+
+/*
+ * dmanage_send_mic_status_to_pc
+ * 话筒开关状态发送给上位机
+ *
+ */
+int dmanage_send_mic_status_to_pc(Pframe_type type)
+{
+	pclient_node tmp = NULL;
+	Pclient_info pinfo;
+	unsigned char msg[3] = {0};
+
+	int status = type->evt_data.status;
+
+	msg[0] = WIFI_MEETING_EVT_SPK;
+	msg[1] = WIFI_MEETING_CHAR;
+
+	type->msg_type = REQUEST_MSG;
+
+	switch(type->evt_data.value)
+	{
+	case WIFI_MEETING_EVT_SPK_VETO:
+	case WIFI_MEETING_EVT_SPK_CLOSE_MIC:
+		msg[2] = WIFI_MEETING_EVT_SPK_CLOSE_MIC;
+		break;
+	case WIFI_MEETING_EVT_SPK_REQ_SPK:
+		msg[2] = WIFI_MEETING_EVT_SPK_REQ_SPK;
+		break;
+	case WIFI_MEETING_EVT_SPK_OPEN_MIC:
+		msg[2] = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+		break;
+	}
+	type->data_len = 3;
+
+	if(conf_status_get_pc_staus() > 0)
+	{
+		tmp=node_queue->sys_list[CONNECT_LIST]->next;;
+		while(tmp != NULL)
+		{
+			pinfo = tmp->data;
+
+			if((pinfo->client_name == PC_CTRL) &&
+					(conf_status_get_pc_staus() == pinfo->client_fd))
+			{
+				type->evt_data.status = WIFI_MEETING_HOST_REP_TO_PC;
+				//上报上位机的源地址统一为sockfd
+				type->d_id = PC_ID;
+				type->s_id = type->fd;
+				type->fd = pinfo->client_fd;
+				tcp_ctrl_module_edit_info(type,msg);
+				break;
+			}
+			tmp = tmp->next;
+		}
+	}
+	type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
+	type->code_type[0] = WIFI_MEETING_CHAR;
+	type->evt_data.status = status;
+	type->msg_type = WRITE_MSG;
+	type->dev_type = HOST_CTRL;
+
+	return SUCCESS;
+
+}
+
 /*
  * conf_status_search_not_use_spk_port
  * 查找音频没有使用的端口
@@ -107,6 +172,9 @@ int dmanage_close_last_spk_client(Pframe_type type)
 	sys_uart_video_set(type->d_id,0);
 	tcp_ctrl_module_edit_info(type,NULL);
 
+	//关闭消息发送给上位机
+	dmanage_send_mic_status_to_pc(type);
+
 //	dmanage_delete_spk_node(type->fd);
 
 	return SUCCESS;
@@ -139,7 +207,8 @@ int dmanage_close_first_spk_client(Pframe_type type)
 	sys_uart_video_set(type->d_id,0);
 
 	tcp_ctrl_module_edit_info(type,NULL);
-
+	//关闭消息发送给上位机
+	dmanage_send_mic_status_to_pc(type);
 //	dmanage_delete_spk_node(type->fd);
 
 	return SUCCESS;
@@ -174,7 +243,7 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 			tcp_ctrl_module_edit_info(type,NULL);
 
 			//dmanage_delete_spk_node(sinfo->sockfd);
-
+			dmanage_send_mic_status_to_pc(type);
 			tmp=conf_status_get_cspk_num();
 			if(tmp)
 			{
@@ -182,7 +251,7 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 				conf_status_set_cspk_num(tmp);
 			}
 
-			msleep(1);
+			msleep(10);
 		}
 		tmp_node=tmp_node->next;
 
@@ -221,7 +290,7 @@ int dmanage_delete_spk_node(int fd)
 			 * 复位音频接收队列
 			 */
 			num = ((sinfo->asport -AUDIO_RECV_PORT)/2 + 1);
-			audio_queue_reset(rqueue[num]);
+//			audio_queue_reset(rqueue[num]);
 			conf_status_set_spk_buf_offset(num,0);
 			conf_status_set_spk_timestamp(num,0);
 			status++;

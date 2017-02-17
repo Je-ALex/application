@@ -422,8 +422,8 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 		if(ret == 0)
 		{
 			tmp = node->data;
-			if(sys_debug_get_switch())
-			{
+//			if(sys_debug_get_switch())
+//			{
 				if(tmp->msg[4] != 0x86)
 				{
 					printf("%s-tmp->socket_fd[%d] : \n",
@@ -434,9 +434,8 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 					}
 					printf("\n");
 				}
-			}
-
-			msleep(1);
+//			}
+			msleep(50);
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 			write(tmp->socket_fd,tmp->msg, tmp->len);
 			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);

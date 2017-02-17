@@ -1274,6 +1274,9 @@ int conf_status_set_camera_track(int value)
 {
 	node_queue->con_status->camera_track = value;
 
+	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
+			value);
+
 	return SUCCESS;
 }
 

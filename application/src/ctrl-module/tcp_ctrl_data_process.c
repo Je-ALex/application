@@ -147,8 +147,8 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	printf("\n");
 #endif
 
-	if(sys_debug_get_switch())
-	{
+//	if(sys_debug_get_switch())
+//	{
 		if(buf[4] != 0x87)
 		{
 			printf("receive from %d:",*fd);
@@ -158,7 +158,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 			}
 			printf("\n");
 		}
-	}
+//	}
 
 
 	/*
@@ -194,7 +194,7 @@ int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type fram
 	/* fixme
 	 * 长度最小不小于16(帧信息字节)+1(data字节，最小为一个名称码) = 13
 	 */
-	if(length < 0x10 || (length != package_len))
+	if(length < 0x10 )//|| (length != package_len))
 	{
 		printf( "%s not legal length\n", __FUNCTION__);
 
@@ -420,6 +420,8 @@ int tcp_ctrl_uevent_spk_port_reply(int fd)
 	{
 		dmanage_delete_spk_node(fd);
 	}
+	memset(&spk_tmp,0,sizeof(frame_type));
+
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	return SUCCESS;
@@ -548,6 +550,8 @@ int tcp_ctrl_uevent_spk_port(Pframe_type type)
 			conf_status_set_cspk_num(tmp);
 		}
 
+		type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+		dmanage_send_mic_status_to_pc(type);
 		break;
 	}
 	case WIFI_MEETING_EVENT_SPK_VETO:
@@ -588,6 +592,7 @@ int tcp_ctrl_uevent_spk_port(Pframe_type type)
 			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
 		}
 		dmanage_refresh_spk_node(type);
+		dmanage_send_mic_status_to_pc(type);
 		break;
 	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON:
 	{
@@ -676,6 +681,8 @@ int tcp_ctrl_uevent_spk_manage(Pframe_type frame_type,const unsigned char* msg)
 							//源地址为请求单元机id，目标地址修改为主机单元id
 							tcp_ctrl_source_dest_setting(tmp_fd,frame_type->fd,frame_type);
 							tcp_ctrl_module_edit_info(frame_type,msg);
+							frame_type->fd = tmp_fd;
+							dmanage_send_mic_status_to_pc(frame_type);
 						}else{
 							//没有主席，告知单元，拒绝其发言
 							printf("%s-%s-%d not find chairman\n",__FILE__,__func__,__LINE__);
@@ -867,12 +874,12 @@ int tcp_ctrl_uevent_request_spk(Pframe_type frame_type,const unsigned char* msg)
 	 * 将事件信息发送至消息队列
 	 * 告知应用
 	 */
-	if(value)
-	{
-		frame_type->fd = tmp_fd;
-		frame_type->msg_type = tmp_msg;
-		tcp_ctrl_msg_send_to(frame_type,msg,value);
-	}
+//	if(value)
+//	{
+//		frame_type->fd = tmp_fd;
+//		frame_type->msg_type = tmp_msg;
+//		tcp_ctrl_msg_send_to(frame_type,msg,value);
+//	}
 
 	return SUCCESS;
 }
@@ -1392,15 +1399,15 @@ int tcp_ctrl_uevent_request_conf_manage(Pframe_type frame_type,const unsigned ch
 		if(pos > 0)
 		{
 			//变换为控制类消息下个给单元机
-			if(value == WIFI_MEETING_EVENT_CON_MAG_END)
-			{
+//			if(value == WIFI_MEETING_EVENT_CON_MAG_END)
+//			{
 				frame_type->msg_type = WRITE_MSG;
 				frame_type->dev_type = HOST_CTRL;
 				frame_type->evt_data.status = value;
 				tcp_ctrl_module_edit_info(frame_type,msg);
-			}
-
-			conf_status_set_conf_staus(value);
+//			}
+				conf_status_set_current_subject(1);
+				conf_status_set_conf_staus(value);
 
 		}else{
 			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
@@ -1957,11 +1964,11 @@ int tcp_ctrl_unit_reply_event(const unsigned char* msg,Pframe_type frame_type)
 		break;
 	}
 	}
-	if(value > 0)
-	{
-		tcp_ctrl_msg_send_to(frame_type,msg,value);
-
-	}
+//	if(value > 0)
+//	{
+//		tcp_ctrl_msg_send_to(frame_type,msg,value);
+//
+//	}
 	return SUCCESS;
 }
 

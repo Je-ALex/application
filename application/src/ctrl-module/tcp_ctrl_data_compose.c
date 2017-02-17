@@ -567,6 +567,11 @@ int tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 			buf[tmp_index++] = conf_status_get_spk_num();
 			buf[tmp_index++] = WIFI_MEETING_EVT_HOST_SND;
 			buf[tmp_index++] = conf_status_get_snd_effect();
+			buf[tmp_index++] = WIFI_MEETING_EVT_HOST_CTRACK;
+			if(conf_status_get_camera_track() == 0)
+				buf[tmp_index++] = 2;
+			else
+				buf[tmp_index++] = conf_status_get_camera_track();
 
 			break;
 		}

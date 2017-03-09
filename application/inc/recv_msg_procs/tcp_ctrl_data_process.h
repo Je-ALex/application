@@ -8,9 +8,7 @@
 #ifndef INC_TCP_CTRL_DATA_PROCESS_H_
 #define INC_TCP_CTRL_DATA_PROCESS_H_
 
-#include "tcp_ctrl_server.h"
-#include "tcp_ctrl_list.h"
-
+#include "wifi_sys_init.h"
 
 int tcp_ctrl_uevent_spk_port(Pframe_type frame_type);
 

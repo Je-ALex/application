@@ -5,9 +5,9 @@
  *      Author: leon
  */
 
-#include "tcp_ctrl_server.h"
-#include "tcp_ctrl_list.h"
-#include "tcp_ctrl_api.h"
+
+#include "wifi_sys_list.h"
+#include "wifi_sys_init.h"
 
 /*
  * 将新结点加入链表中

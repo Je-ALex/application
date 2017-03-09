@@ -17,19 +17,21 @@
  *      Author: leon
  */
 
+#include "wifi_sys_init.h"
+#include "wifi_sys_list.h"
+#include "wifi_sys_queue.h"
 
 #include "tcp_ctrl_server.h"
 
-#include "scanf_md_udp.h"
+#include "tcp_ctrl_device_status.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_data_process.h"
-#include "tcp_ctrl_device_status.h"
+
 #include "client_heart_manage.h"
 #include "client_connect_manage.h"
 
-#include "tcp_ctrl_list.h"
-#include "tcp_ctrl_queue.h"
 #include "tcp_ctrl_api.h"
+
 #include "sys_uart_init.h"
 
 
@@ -543,6 +545,10 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 	}
 
 }
+
+
+
+
 
 /*
  * TODO 测试用

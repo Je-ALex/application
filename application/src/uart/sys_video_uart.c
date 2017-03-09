@@ -6,6 +6,9 @@
  */
 
 #include "sys_uart_init.h"
+#include "tcp_ctrl_server.h"
+#include "tcp_ctrl_device_status.h"
+
 udev pdev_video;
 
 

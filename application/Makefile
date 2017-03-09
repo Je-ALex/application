@@ -181,7 +181,16 @@ HOSTLIBS = -L/home/wang/work/hushan/alsa-install-gcc/alsa_lib/lib \
 #	-lasound -lpthread -lm
 
 ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/include \
-	-I./inc -I./inc/audio_module -I./inc/tcp_control_module -I./inc/utils -I./inc/uart -I./inc/info_manage
+	-I./inc \
+	-I./inc/audio_module \
+	-I./inc/device_manage \
+	-I./inc/utils \
+	-I./inc/uart \
+	-I./inc/info_manage \
+	-I./inc/recv_msg_procs \
+	-I./inc/send_msg_procs \
+	-I./inc/run_status_info \
+	-I./inc/app_interface 
 	
 ARMLIBS = -L/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/lib \
 	-lasound -lpthread -lm
@@ -190,12 +199,12 @@ CSOFLAGS= -shared -lc -fPIC
 
 
 TEST_SOURCE = src/wifi_sys_init.c \
-			src/scanf-module/ctrl_udp.c \
-			src/tcp_ctrl_module/tcp_ctrl_server.c \
 			src/app_interface/tcp_ctrl_api.c \
-			src/recv_msg_pros/tcp_ctrl_data_process.c \
-			src/recv_msg_pros/tcp_ctrl_data_process_pc.c \
-			src/send_msg_pros/tcp_ctrl_data_compose.c \
+			src/device_manage/udp_ctrl_server.c \
+			src/device_manage/tcp_ctrl_server.c \
+			src/recv_msg_procs/tcp_ctrl_data_process.c \
+			src/recv_msg_procs/tcp_ctrl_data_process_pc.c \
+			src/send_msg_procs/tcp_ctrl_data_compose.c \
 			src/run_status_info/tcp_ctrl_device_status.c \
 			src/utils/sys_list.c \
 			src/utils/sys_queue.c \

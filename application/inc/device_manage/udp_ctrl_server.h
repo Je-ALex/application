@@ -8,7 +8,6 @@
 #ifndef INC_SCANF_MD_UDP_H_
 #define INC_SCANF_MD_UDP_H_
 
-#include "tcp_ctrl_server.h"
 
 typedef enum{
 	 UDP_BRD = 1,

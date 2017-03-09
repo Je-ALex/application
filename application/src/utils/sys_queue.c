@@ -6,9 +6,8 @@
  */
 
 
-
-#include "tcp_ctrl_queue.h"
-
+#include "wifi_sys_queue.h"
+#include "wifi_sys_init.h"
 
 /*
  * 初始化队列

@@ -9,8 +9,6 @@
 #define INC_TCP_CTRL_LIST_H_
 
 
-
-
 typedef struct node{
 	int size;
     void* data;

@@ -8,7 +8,6 @@
 #ifndef INC_TCP_CTRL_QUEUE_H_
 #define INC_TCP_CTRL_QUEUE_H_
 
-#include "tcp_ctrl_server.h"
 
 typedef struct queue_node{
 

@@ -5,6 +5,8 @@
  *      Author: leon
  */
 
+
+#include "wifi_sys_init.h"
 #include "sys_uart_init.h"
 
 

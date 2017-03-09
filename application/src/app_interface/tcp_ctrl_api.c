@@ -8,9 +8,8 @@
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_status.h"
 #include "client_connect_manage.h"
-
-extern Pglobal_info node_queue;
-extern sys_info sys_in;
+#include "tcp_ctrl_server.h"
+#include "tcp_ctrl_data_process.h"
 
 /* config_conference_frame_info
  * 配置info信息

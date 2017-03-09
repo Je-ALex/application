@@ -1,12 +1,15 @@
 
 
+
+
+#include "wifi_sys_init.h"
 #include "sys_uart_init.h"
 #include "client_connect_manage.h"
-
-#include "audio_ring_buf.h"
+#include "tcp_ctrl_server.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_data_process.h"
 #include "tcp_ctrl_device_status.h"
+#include "audio_ring_buf.h"
 #include "client_mac_manage.h"
 #include "client_heart_manage.h"
 #include "client_mic_status_manage.h"

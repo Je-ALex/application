@@ -1,5 +1,7 @@
 
-#include "../../inc/audio_module/audio_ring_buf.h"
+
+#include "wifi_sys_init.h"
+#include "audio_ring_buf.h"
 
 
 /*

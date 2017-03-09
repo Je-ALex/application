@@ -1,6 +1,7 @@
 
-#include "../../inc/audio_module/audio_params_init.h"
-#include "../../inc/audio_module/audio_ring_buf.h"
+#include "audio_params_init.h"
+#include "audio_ring_buf.h"
+#include "tcp_ctrl_device_status.h"
 
 pthread_t  th_a[MAX_SPK_NUM] = {0};
 pthread_t  mix_th = 0;

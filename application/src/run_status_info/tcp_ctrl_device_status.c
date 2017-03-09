@@ -7,9 +7,11 @@
 
 
 #include "tcp_ctrl_device_status.h"
-
+#include "tcp_ctrl_server.h"
 #include "tcp_ctrl_data_compose.h"
 #include "client_heart_manage.h"
+#include "tcp_ctrl_data_process.h"
+#include "sys_uart_init.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;

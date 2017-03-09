@@ -8,11 +8,9 @@
 #ifndef INC_TCP_CTRL_DEVICE_STATUS_H_
 #define INC_TCP_CTRL_DEVICE_STATUS_H_
 
-#include "tcp_ctrl_api.h"
-#include "tcp_ctrl_queue.h"
-#include "tcp_ctrl_list.h"
-#include "sys_uart_init.h"
 
+#include "wifi_sys_init.h"
+#include "tcp_ctrl_api.h"
 
 #define DBG_ON 1
 #define DBG_OFF 0
@@ -40,16 +38,7 @@ typedef enum{
 	HOST_SND_EF_AFC_ANC1_ANC2,
 }snd_effect;
 
-typedef struct{
 
-	pclient_node* sys_list;
-	Plinkqueue* sys_queue;
-	/*
-	 * 会议实时状态
-	 */
-	Pconference_status con_status;
-
-}global_info,*Pglobal_info;
 
 /*
  * tcp控制模块收发数据信息

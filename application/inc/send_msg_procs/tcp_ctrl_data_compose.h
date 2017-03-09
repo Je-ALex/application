@@ -8,8 +8,7 @@
 #ifndef INC_TCP_CTRL_DATA_COMPOSE_H_
 #define INC_TCP_CTRL_DATA_COMPOSE_H_
 
-#include "tcp_ctrl_data_process.h"
-
+#include "wifi_sys_init.h"
 
 /*
  * tcp_ctrl_data_shift

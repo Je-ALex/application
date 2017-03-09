@@ -8,7 +8,8 @@
 #ifndef INC_UART_SYS_UART_INIT_H_
 #define INC_UART_SYS_UART_INIT_H_
 
-#include "audio_server.h"
+
+#include "wifi_sys_init.h"
 
 typedef enum{
 	UART_B_9600=9600,

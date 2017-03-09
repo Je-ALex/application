@@ -9,7 +9,7 @@
 #define INC_AUDIO_MODULE_AUDIO_SERVER_H_
 
 #include <alsa/asoundlib.h>
-#include "tcp_ctrl_device_status.h"
+#include "wifi_sys_init.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,9 +59,7 @@ typedef long long 		off64_t;
 
 #define		RS_NUM 	50
 #define 	LOG_NAME 	"audio.log"
-#define 	MAX_SPK_NUM 	8
-#define 	DEF_SPK_NUM 	4
-#define 	DEF_MIC_MODE 	2
+
 /*
  * timeofday
  */

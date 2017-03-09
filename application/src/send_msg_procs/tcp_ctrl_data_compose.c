@@ -8,8 +8,11 @@
 
 
 #include "tcp_ctrl_data_compose.h"
-
+#include "tcp_ctrl_server.h"
 #include "tcp_ctrl_device_status.h"
+#include "tcp_ctrl_data_process.h"
+
+
 
 extern Pglobal_info node_queue;
 extern sys_info sys_in;

@@ -5,11 +5,17 @@
  *      Author: leon
  */
 
-#include "audio_ring_buf.h"
+
+
+
+#include "wifi_sys_init.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_data_process.h"
 #include "tcp_ctrl_device_status.h"
+#include "audio_ring_buf.h"
 #include "sys_uart_init.h"
+#include "tcp_ctrl_server.h"
+#include "tcp_ctrl_api.h"
 
 //#include "client_mic_status_manage.h"
 

@@ -6,9 +6,8 @@
  */
 
 
-
-#include "../../inc/audio_module/audio_params_init.h"
-
+#include "audio_server.h"
+#include "audio_params_init.h"
 
 int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
 

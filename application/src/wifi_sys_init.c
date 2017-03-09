@@ -5,27 +5,30 @@
  *      Author: leon
  */
 
+#include "wifi_sys_init.h"
 
+#include "udp_ctrl_server.h"
+#include "tcp_ctrl_server.h"
 #include "audio_server.h"
-#include "scanf_md_udp.h"
 #include "tcp_ctrl_device_status.h"
 #include "sys_uart_init.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;
 
+
 /*
  * wifi_sys_signal_init
  * 系统状态与信号初始化
+ * 互斥锁的定义可以参考CTRL_TCP_SQUEUE_MUTEX定义
+ * 信号量参考CTRL_TCP_RECV_SEM定义
  *
- * 1、设备控制模块中TCP数据收发互斥锁
- * 2、本地状态上报QT消息队列互斥锁
- * 3、设备控制模块消息进出队列互斥锁
- * 4、设备控制模块状态上报上位机互斥锁
- *
+ * 返回值：
+ * 成功-SUCCESS
+ * 失败-ERROR
  *
  */
-int wifi_sys_signal_init()
+static int wifi_sys_signal_init()
 {
 	int i;
 	int ret = -1;
@@ -46,18 +49,17 @@ int wifi_sys_signal_init()
 		}
 		usleep(1000);
 	}
-
-
-
 	return SUCCESS;
 }
 
 
 /*
- * tcp_ctrl_module_init
+ * wifi_sys_val_init
+ *
  * 系统中链表、队列和全局变量初始化
+ *
  */
-int wifi_sys_val_init()
+static int wifi_sys_val_init()
 {
 	int i;
 	FILE* cfile;
@@ -134,10 +136,18 @@ int wifi_sys_val_init()
 	return SUCCESS;
 }
 
-/*
- * init_control_tcp_module
- * 设备控制模块初始化接口
- * 此接口可以作为API接口供外部使用
+
+/* TODO
+ * wifi_conference_sys_init
+ * 主机系统初始化接口函数
+ *
+ * 网络成功连接后，调用此函数
+ *
+ * 主要负责系统的功能初始化
+ *
+ * 返回值：
+ * 成功-0
+ * 失败-ERROR
  *
  */
 int wifi_conference_sys_init()
@@ -147,32 +157,26 @@ int wifi_conference_sys_init()
 	pthread_t ctrl_tcps;
 	pthread_t ctrl_procs;
 	pthread_t ctrl_heart;
+
 	int ret;
-//	void *retval;
+
+	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,
+			__DATE__,__TIME__,VERSION);
 
 
-	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,__DATE__,__TIME__,
-			VERSION);
-
-	/*
-	 * 系统互斥锁和信号量的初始化
-	 */
 	ret = wifi_sys_signal_init();
 	if (ret != 0)
 	{
 		 printf("wifi_sys_signal_init failed\n");
 		 goto ERR;
 	}
-	/*
-	 * 系统链表、队列和全局变量的初始化
-	 */
+
 	ret = wifi_sys_val_init();
 	if (ret != 0)
 	{
 		 printf("wifi_sys_val_init failed\n");
 		 goto ERR;
 	}
-
 
 	ret = uart_snd_effect_init();
 	if (ret != 0)

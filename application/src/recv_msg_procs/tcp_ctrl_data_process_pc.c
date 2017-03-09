@@ -9,6 +9,7 @@
 #include "tcp_ctrl_data_process.h"
 #include "tcp_ctrl_device_status.h"
 #include "client_connect_manage.h"
+#include "tcp_ctrl_server.h"
 extern sys_info sys_in;
 
 /***************

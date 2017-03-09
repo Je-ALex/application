@@ -5,7 +5,7 @@
  *      Author: leon
  */
 
-
+#include "tcp_ctrl_server.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_device_status.h"
 #include "client_connect_manage.h"

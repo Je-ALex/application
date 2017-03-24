@@ -114,7 +114,8 @@ typedef enum{
 	WIFI_MEETING_CONF_WREP_ERR,
 	WIFI_MEETING_CONF_RREP,
 
-	//网络异常
+	//网络状态
+//	WIFI_MEETING_EVENT_NET_SUCCESS,
 	WIFI_MEETING_EVENT_NET_ERROR,
 
 	//todo 议题管理,议题号偏移量，需将value减去偏移量,此定义必须放在最后

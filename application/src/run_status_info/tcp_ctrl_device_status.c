@@ -18,25 +18,53 @@ extern Pglobal_info node_queue;
 
 
 
-
 /*
- * 系统调试开关设置
+ * 网络状态
  */
-int sys_debug_set_switch(unsigned char value)
+int sys_net_status_set(int value)
 {
-	node_queue->con_status->debug_sw = value;
+	node_queue->con_status->lan_stat = value;
 	return SUCCESS;
 }
-
+int sys_net_status_get()
+{
+	return node_queue->con_status->lan_stat;
+}
 /*
  * 系统调试开关状态获取
  */
 int sys_debug_get_switch()
 {
-	return node_queue->con_status->debug_sw;
+//	int log_file = -1;
+//	char* path = "/hushan/log.dat";
+//	char value = 0;
+//
+//	log_file = open(path,O_RDONLY);
+//
+//	if(log_file < 0)
+//    {
+//		printf("%s-%s-%d log_file open failed \n",__FILE__,__func__,__LINE__);
+//
+//		return ERROR;
+//	}else{
+//		read(log_file,&value,sizeof(value));
+//		if(value == '0')
+//		{
+//			return 0;
+//		}else if(value=='1'){
+//			return 1;
+//		}
+//	}
+//	close(log_file);
+
+	return 0;
+
 }
 
 
+/*
+ * TODO 队列处理接口函数部分
+ */
 /*
  * tcp_ctrl_tprecv_enqueue
  * tcp控制模块的数据发送队列
@@ -291,6 +319,9 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 	return SUCCESS;
 }
 
+/*
+ * TODO 设备连接状态相关
+ */
 
 /*
  * conf_status_get_connected_len
@@ -427,6 +458,27 @@ int conf_status_check_chairman_legal(Pframe_type frame_type)
 	return pos;
 }
 
+int conf_status_check_pc_legal(Pframe_type frame_type)
+{
+	pclient_node tmp = NULL;
+	Pclient_info cnet_list;
+	int pos = 0;
+
+	tmp = node_queue->sys_list[CONNECT_LIST]->next;
+	while(tmp!=NULL)
+	{
+		cnet_list = tmp->data;
+		if(cnet_list->client_fd == frame_type->fd)
+		{
+			pos++;
+			break;
+		}
+
+		tmp=tmp->next;
+	}
+	return pos;
+}
+
 /*
  * conf_status_check_chariman_staus
  * 检查会议中是否有主席单元存在
@@ -478,14 +530,16 @@ int conf_status_find_did_sockfd_id(Pframe_type frame_type)
 		cnet_list = tmp->data;
 		if(cnet_list->id == frame_type->d_id)
 		{
-			frame_type->fd=cnet_list->client_fd;
+			frame_type->fd = cnet_list->client_fd;
 			pos++;
 			break;
 		}
 		tmp=tmp->next;
 	}
 
-	printf("%s-%s-%d，did=%d,pos=%d\n",__FILE__,__func__,__LINE__,frame_type->d_id,pos);
+	if(!pos)
+		printf("%s-%s-%d，did=%d,pos=%d\n",__FILE__,__func__,__LINE__,frame_type->d_id,pos);
+
 	return pos;
 }
 
@@ -508,7 +562,8 @@ int conf_status_find_did_sockfd_sock(Pframe_type frame_type)
 		cnet_list = tmp->data;
 		if(cnet_list->mac_addr == frame_type->d_id)
 		{
-			frame_type->fd=cnet_list->client_fd;
+			frame_type->fd = cnet_list->client_fd;
+			frame_type->d_id = cnet_list->id;
 			pos++;
 			break;
 		}
@@ -602,6 +657,10 @@ int conf_status_compare_id(int value)
 	return pos;
 }
 
+
+/*
+ * TODO 会议参数相关
+ */
 int conf_status_set_total_subject(unsigned char num)
 {
 	node_queue->con_status->total_sub = num;
@@ -1419,6 +1478,16 @@ int conf_status_get_snd_effect()
 
 }
 
+int conf_status_camera_track_postion(int id,int value)
+{
+
+	if(conf_status_get_camera_track())
+	{
+		sys_uart_video_set(id,value);
+	}
+
+	return SUCCESS;
+}
 /*
  * conf_status_set_camera_track
  * 设置摄像跟踪设置
@@ -1454,27 +1523,11 @@ int conf_status_get_camera_track()
 int conf_status_set_conf_staus(int value)
 {
 
-//	FILE* cfile;
-
-//	int ret = 0;
-//	int pos = 0;
-//	frame_type data_info;
-//	pclient_node tmp = NULL;
-//	Pclient_info cinfo;
-
-//	pclient_node tmpf = NULL;
-//	pclient_node del = NULL;
-//	Pclient_info cinfo;
-//	Pclient_info dinfo;
-//	Pclient_info tcinfo;
-//	Pclient_info newinfo;
-
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
 	node_queue->con_status->confer_status = value;
 
-//	memset(&data_info,0,sizeof(frame_type));
 	/*
 	 * 会议结束需要将会议信息相关的参数情况
 	 * 如投票 选举等结果参数
@@ -1482,57 +1535,6 @@ int conf_status_set_conf_staus(int value)
 	if(value == WIFI_MEETING_EVENT_CON_MAG_END)
 	{
 		memset(node_queue->con_status->sub_list,0,SUBJECT_NUM*sizeof(subject_info));
-
-/*
-		pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
-		tmp = node_queue->sys_list[CONNECT_LIST]->next;
-		while(tmp!=NULL)
-		{
-			cinfo = tmp->data;
-			if(cinfo->client_name != PC_CTRL
-					&& cinfo->client_fd > 0)
-			{
-				tcinfo = (Pclient_info)malloc(sizeof(client_info));
-				memset(tcinfo,0,sizeof(client_info));
-
-				list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
-				dinfo = del->data;
-				memcpy(tcinfo,dinfo,sizeof(client_info));
-
-				free(dinfo);
-				free(del);
-
-				tcinfo->seat = WIFI_MEETING_CON_SE_ATTEND;
-				list_add(node_queue->sys_list[CONNECT_LIST],tcinfo);
-
-				msleep(1);
-			}
-			pos++;
-			tmp = tmp->next;
-		}
-		pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
-
-		cfile = fopen(CONNECT_FILE,"w+");
-
-		tmpf = node_queue->sys_list[CONNECT_LIST]->next;
-		while(tmpf != NULL)
-		{
-			newinfo = tmpf->data;
-			if(newinfo->client_fd > 0)
-			{
-				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
-						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
-				newinfo->seat = WIFI_MEETING_CON_SE_ATTEND;
-
-				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
-//				perror("fwrite");
-				if(ret != 1)
-					return ERROR;
-			}
-			tmpf = tmpf->next;
-			usleep(100);
-		}
-		fclose(cfile);*/
 	}
 
 	return SUCCESS;

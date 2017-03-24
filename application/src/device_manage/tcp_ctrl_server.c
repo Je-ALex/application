@@ -42,11 +42,12 @@ Pglobal_info node_queue;
 
 
 /*
- * tcp_ctrl_local_addr_init.c
- * 服务端socket初始化
+ * tcp_ctrl_local_addr_init
+ * TCP服务端socket初始化
  *
- * 返回值
- * 错误码和成功后的端口号
+ * 返回值：
+ * 成功-套接字号
+ * 失败-错误码
  *
  */
 static int tcp_ctrl_local_addr_init(int port)
@@ -63,23 +64,25 @@ static int tcp_ctrl_local_addr_init(int port)
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (-1 == sock_fd)
     {
-        perror("call to socket");
+    	printf("%s-%s-%d socket failed\n",__FILE__,__func__,__LINE__);
+
         return SOCKERRO;
     }
-    //reuse socket
+    //设置sock属性，地址复用
     int opt=1;
     setsockopt(sock_fd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
 
     ret = bind(sock_fd, (struct sockaddr *)&sin, sizeof(sin));
-    if (-1 == ret)
+    if (ret == -1)
     {
-        perror("call to bind");
+        printf("%s-%s-%d bind failed\n",__FILE__,__func__,__LINE__);
         return BINDERRO;
     }
     ret = listen(sock_fd, 20);
-    if (-1 == ret)
+    if (ret)
     {
-        perror("call to listen");
+    	printf("%s-%s-%d listen failed\n",__FILE__,__func__,__LINE__);
+
         return LISNERRO;
     }
 
@@ -89,223 +92,230 @@ static int tcp_ctrl_local_addr_init(int port)
 
 
 /*
- * tc_set_noblock.c
- * 设置socket_fd为非阻塞模式
+ * tcp_ctrl_set_noblock
+ * 设置非阻塞模式
+ * 返回值：
+ * 成功-SUCCESS
+ * 失败-错误码
  */
 static int tcp_ctrl_set_noblock(int fd)
 {
-    int fl=fcntl(fd,F_GETFL);
+    int fl = fcntl(fd,F_GETFL);
     if(fl<0)
     {
-        perror("fcntl");
+        printf("%s-%s-%d F_GETFL failed\n",__FILE__,__func__,__LINE__);
         return SETOPTERRO;
     }
-    if(fcntl(fd,F_SETFL,fl|O_NONBLOCK))
+    if(fcntl(fd,F_SETFL,fl | O_NONBLOCK))
     {
-        perror("fcntl");
+        printf("%s-%s-%d F_SETFL failed\n",__FILE__,__func__,__LINE__);
         return SETOPTERRO;
     }
     return SUCCESS;
 }
 
 /*
- * tcp_ctrl_process_recv_msg
- * 接收消息的初步处理
- * 分类：
- * 上位机通讯部分
- * 单元机通讯部分
- *
- * 参数：
- * 客户端FD
- * 接收到的消息
- *
+ * tcp_ctrl_org_data_analysis
+ * tcp原始数据包解析
+ * 此函数主要是为了解决接收数据出现粘黏的情况
+ * 采用循环解析数据包的方式，再将解析后的数据送进队列
  *
  */
-static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* value, int* length)
+static int tcp_ctrl_org_data_analysis(int fd,unsigned char* buf,int len)
 {
+	int frame_len = 0;//帧长
+	unsigned char frame_data[512] = {0};//帧数组
 
-	/*
-	 * 检查数据包是否是完整的数据包
-	 * 数据头的检测
-	 * 数据长度的检测
-	 * 校验和的检测
-	 */
-	Pframe_type tmp_type;
+	int org_index = 0;//字节号
+	int tmp_len = len;//原始数据长度
+	unsigned char* tmp_buf = buf;//临时指针
 
-	int ret = 0;
-	int status = 0;
-	unsigned char* handlbuf = NULL;
+	unsigned char check_sum = 0;//校验和
+	int i = 0;
 
-	tmp_type = (Pframe_type)malloc(sizeof(frame_type));
-	memset(tmp_type,0,sizeof(frame_type));
-
-	ret = tcp_ctrl_frame_analysis(cli_fd,value,length,tmp_type,&handlbuf);
-
-#if 0
-	printf("type->msg_type = %d\n"
-			"type->data_type = %d\n"
-			"type->dev_type = %d\n",tmp_type->msg_type,tmp_type->data_type,tmp_type->dev_type);
-#endif
-
-	if(ret != SUCCESS)
+	while(tmp_len>0)
 	{
-		printf("tcp_ctrl_frame_analysis failed\n");
-		free(tmp_type);
-		free(handlbuf);
-		return ret;
-	}
 
-	/*
-	 * 在连接信息链表中检查端口合法性
-	 */
-	if(tmp_type->msg_type != ONLINE_REQ)
-	{
-		status = conf_status_check_client_connect_legal(tmp_type);
+//		printf("org_data %d:",fd);
+//		for(i=0;i<tmp_len;i++)
+//		{
+//			printf("%x ",tmp_buf[i]);
+//		}
+//		printf("\n");
 
-		if(status < 1)
+		//判断从第0个字节开始的数据头是否合法，是数据头，则解析后续内容，并送入队列
+		if (tmp_buf[0] == 'D' && tmp_buf[1] == 'S'
+				&& tmp_buf[2] == 'D' && tmp_buf[3] == 'S')
 		{
-			printf("client is not legal connect\n");
-			free(tmp_type);
-			free(handlbuf);
-			return CONECT_NOT_LEGAL;
+			//解析一帧数据包的长度
+			org_index = 5;
+			frame_len = tmp_buf[org_index++] & 0xff;
+			frame_len = frame_len << 8;
+			frame_len = frame_len + (tmp_buf[org_index] & 0xff);
+			//判断长度是否合法
+			if(frame_len == 0 || frame_len > tmp_len)
+				break;
+			//计算帧的校验和
+			for(i=0;i<frame_len-1;i++)
+			{
+				if(i<tmp_len)
+				{
+					check_sum += tmp_buf[i];
+				}
+
+			}
+			//比较校验和的值
+			if(tmp_buf[frame_len-1] != check_sum)
+				break;
+			//数据帧拷贝到入队数组
+			memcpy(frame_data,tmp_buf,frame_len);
+
+			//指针指向第二帧数据头，长度修正
+			tmp_buf = &tmp_buf[frame_len];
+			tmp_len -= frame_len;
+			//修正临时变量
+			org_index = check_sum = 0;
+
+//			printf("tmp_len-%d frame_len-%d:",tmp_len,frame_len);
+//			printf(" %d:",fd);
+//			for(i=0;i<frame_len;i++)
+//			{
+//				printf("%x ",frame_data[i]);
+//			}
+//			printf("\n");
+
+
+			//帧数据入队
+			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+			tcp_ctrl_tprecv_enqueue(&fd,frame_data,&frame_len);
+			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+
+		}else{
+			//帧头内容不对，长度减一，指针后移一个字节
+			tmp_len--;
+			tmp_buf = &tmp_buf[1];
 		}
 	}
-
-	/*
-	 * 设备类型分类
-	 */
-	switch(tmp_type->dev_type)
-	{
-		case PC_CTRL:
-			tcp_ctrl_from_pc(handlbuf,tmp_type);
-			break;
-
-		case UNIT_CTRL:
-			tcp_ctrl_from_unit(handlbuf,tmp_type);
-			break;
-
-	}
-
-	free(tmp_type);
-	free(handlbuf);
 
 	return SUCCESS;
 }
 
 
-
 /*
  * wifi_sys_ctrl_tcp_recv
  * 设备控制模块TCP数据接收模块
+ * 采用epoll模式，维护多终端连接
  *
- * 采用epoll模式，维护多终端
- * 接收客户端的通讯数据
+ * 初始化TCP服务端，进行相关参数配置
+ * 初始化epoll服务，维护处理文件描述符
+ * 处理端口接收数据
  *
  */
 void* wifi_sys_ctrl_tcp_recv(void* p)
 {
+	//声明epoll结构体和相关变量
 	struct epoll_event event;
     struct epoll_event* wait_event;
-	struct sockaddr_in cli_addr;
-
-	int sockfd;
 	int epoll_fd;
+
+    //声明socket结构体相关参数
+	struct sockaddr_in cli_addr;
 	int clilen = sizeof(cli_addr);
-
-    int n;
+	int listenfd;
     int newfd;
-    int ctrl_ret,wait_ret;
-	int maxi = 0;
-	int len = 0;
-	int ret = 0;
-	unsigned char buf[1024] = {0};
 
-	printf("%s,%d\n",__func__,__LINE__);
+    //相关参数变量
+    int n;
+    int ctrl_ret,wait_ret;
+	int maxi = 0;//监听最大值
+	int len = 0;//接收数据长度
+	int ret = 0;
+	unsigned char buf[1024] = {0};//接收buffer的大小
+
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
+	//线程非阻塞
 	pthread_detach(pthread_self());
-    /*
-     * 控制模块接收服务器套接字初始化
-     */
-    sockfd = tcp_ctrl_local_addr_init(CTRL_TCP_PORT);
-    if(sockfd < 0)
+	//初始化套接字
+	listenfd = tcp_ctrl_local_addr_init(CTRL_TCP_PORT);
+    if(listenfd < 0)
     {
-    	printf("wifi_sys_ctrl_tcp_recv failed\n");
+    	printf("%s-%s-%d wifi_sys_ctrl_tcp_recv failed\n",__FILE__,__func__,__LINE__);
     	pthread_exit(0);
     }
-    ret = tcp_ctrl_set_noblock(sockfd);
+    //设置非阻塞
+    ret = tcp_ctrl_set_noblock(listenfd);
     if(ret < 0)
     {
-    	printf("tcp_ctrl_set_noblock failed\n");
+    	printf("%s-%s-%d tcp_ctrl_set_noblock failed\n",__FILE__,__func__,__LINE__);
+
     	pthread_exit(0);
     }
 
-    /*
-     * epoll event init
-     * 除了参数size被忽略外,此函数和epoll_create完全相同
-     */
+    //创建epoll描述
     epoll_fd = epoll_create1(0);
     if(epoll_fd < 0){
-        perror ("epoll_create");
+        printf("%s-%s-%d epoll_create1 failed\n",__FILE__,__func__,__LINE__);
         pthread_exit(0);
     }
-    /*
-     * epoll监听套接字
-     * epoll事件参数设置
-     */
-    event.data.fd = sockfd;
+    //设置sock的属性，接收边沿触发
+    event.data.fd = listenfd;
     event.events = EPOLLIN | EPOLLET;
 
 	//事件注册函数，将监听套接字描述符 sockfd 加入监听事件
-    ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sockfd, &event);
+    ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listenfd, &event);
     if(-1 == ctrl_ret){
-        perror("epoll_ctl");
+        printf("%s-%s-%d epoll_ctl failed\n",__FILE__,__func__,__LINE__);
         pthread_exit(0);
     }
-
+    //申请事件集空间
 	wait_event = calloc(1024,sizeof(struct epoll_event));
-
 
 	while(1)
 	{
-//		printf("epoll_wait...\n");
-		// 监视并等待多个文件（标准输入，udp套接字）描述符的属性变化（是否可读）
-        // 没有属性变化，这个函数会阻塞，直到有变化才往下执行，这里没有设置超时
+		if(sys_net_status_get() == 1)
+			goto ERR;
+		// 监视并等待多个文件描述符的属性变化（是否可读）
+        // 没有属性变化，这个函数会阻塞，直到有变化才往下执行，(-1)这里没有设置超时
 		wait_ret = epoll_wait(epoll_fd, wait_event, maxi+1, -1);
 		if(wait_ret == -1)
 		{
-			perror("epoll_wait");
+			printf("%s-%s-%d epoll_wait failed\n",__FILE__,__func__,__LINE__);
 			break;
 		}
+		//轮询wait_ret个文件描述符的状态
 		for (n = 0; n < wait_ret; ++n)
 		{
-
-			if (wait_event[n].data.fd == sockfd
+			//listen套接字有状态变化，则通过accept函数创建新的连接，通过epoll_ctl添加到监测池
+			if (wait_event[n].data.fd == listenfd
 					&& (EPOLLIN == (wait_event[n].events & (EPOLLIN|EPOLLERR))))
 			{
 				pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
-				newfd = accept(sockfd, (struct sockaddr *) &cli_addr,
+				newfd = accept(listenfd, (struct sockaddr *) &cli_addr,
 								(socklen_t*)&clilen);
 				if (newfd < 0) {
-					perror("accept");
+					printf("%s-%s-%d accept failed\n",__FILE__,__func__,__LINE__);
 					continue;
 				}else
 				{
-
 					ret = tcp_ctrl_set_noblock(newfd);
 				    if(ret < 0)
 				    {
-				    	printf("tcp_ctrl_set_noblock failed\n");
+				    	printf("%s-%s-%d tcp_ctrl_set_noblock failed\n",__FILE__,__func__,__LINE__);
+
 				    	pthread_exit(0);
 				    }
-					// 打印客户端的 ip 和端口
+
 					printf("%d---------------------------\n",newfd);
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
 
+					//将套接字号添加到epoll监听事件之中
 					event.events = EPOLLIN | EPOLLET;
 					event.data.fd = newfd;
 					if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, newfd, &event) < 0) {
-						fprintf(stderr, "add socket '%d' to epoll failed %s\n",
-								newfd, strerror(errno));
+
+						printf("%s-%s-%d epoll_ctl failed\n",__FILE__,__func__,__LINE__);
 						pthread_exit(0);
 					}
 					maxi++;
@@ -313,7 +323,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
 				}
 
-			}else
+			}else if(wait_event[n].events & EPOLLIN)
 			{
 
 				pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
@@ -329,8 +339,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 							wait_event[n].data.fd,&event);
 					if( ctrl_ret < 0)
 					{
-					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
-							 wait_event[n].data.fd, strerror(errno));
+						printf("%s-%s-%d epoll_ctl failed\n",__FILE__,__func__,__LINE__);
 					}
 					/*
 					 * 删除链表中节点信息与文本中的信息
@@ -353,8 +362,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 							wait_event[n].data.fd,&event);
 					if( ctrl_ret < 0)
 					{
-					 fprintf(stderr, "delete socket '%d' from epoll failed! %s\n",
-							 wait_event[n].data.fd, strerror(errno));
+						printf("%s-%s-%d epoll_ctl failed\n",__FILE__,__func__,__LINE__);
 					}
 					pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 					ccm_delete_info(wait_event[n].data.fd);
@@ -366,32 +374,48 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				}else
 				{
 //					getpeername(wait_event[n].data.fd,(struct sockaddr*)&cli_addr,
-//							&clilen);
-//					printf("client %s:%d\n",inet_ntoa(cli_addr.sin_addr),
-//							ntohs(cli_addr.sin_port));
-
-//					printf("EPOLL %d:",wait_event[n].data.fd);
+//							(socklen_t*)&clilen);
+//					printf("\n client %s: ",inet_ntoa(cli_addr.sin_addr));
+//					int i;
+////					printf("\nEPOLL %d:",wait_event[n].data.fd);
 //					for(i=0;i<len;i++)
 //					{
 //						printf("%x ",buf[i]);
 //					}
 //					printf("\n");
 
-					//通过返回值进行处理
-					pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-					tcp_ctrl_tprecv_enqueue(&wait_event[n].data.fd,buf,&len);
-					pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+					//处理TCP元素数据
+					tcp_ctrl_org_data_analysis(wait_event[n].data.fd,buf,len);
+
 				}
+
+			}else if(wait_event[n].events & EPOLLERR)
+			{
+
+				printf("client %d offline\n",wait_event[n].data.fd);
+				ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
+						wait_event[n].data.fd,&event);
+				if( ctrl_ret < 0)
+				{
+					printf("%s-%s-%d epoll_ctl failed\n",__FILE__,__func__,__LINE__);
+				}
+				pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
+				ccm_delete_info(wait_event[n].data.fd);
+				pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
+				printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
+
+				close(wait_event[n].data.fd);
+				maxi--;
+
 			}//end if
 
 		}//end for
 
 	}//end while
-
+ERR:
 	free(wait_event);
-    close(sockfd);
-    free(node_queue->con_status);
-    free(node_queue);
+	close(epoll_fd);
+    close(listenfd);
 
     pthread_exit(0);
 
@@ -413,6 +437,9 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 	Pctrl_tcp_rsqueue tmp;
 
 	pthread_detach(pthread_self());
+
+//	char tmp_buf[1024]={0};
+//	int tmp_len = 0;
 
 	while(1)
 	{
@@ -439,10 +466,25 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 					printf("\n");
 				}
 //			}
-			msleep(50);
+//			msleep(10);
+
 			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
-			write(tmp->socket_fd,tmp->msg, tmp->len);
+			send(tmp->socket_fd,tmp->msg, tmp->len,0);
 			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+
+			//test
+//				memcpy(tmp_buf,tmp->msg,tmp->len);
+//				tmp_len += tmp->len;
+//				memcpy(&tmp_buf[tmp_len],tmp->msg,tmp->len);
+//				tmp_len += tmp->len;
+//				memcpy(&tmp_buf[tmp_len],tmp->msg,tmp->len);
+//				tmp_len += tmp->len;
+//				memcpy(&tmp_buf[tmp_len],tmp->msg,tmp->len);
+//				tmp_len += tmp->len;
+//			pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+//			send(tmp->socket_fd,tmp_buf, tmp_len,0);
+//			pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_MUTEX]);
+//			tmp_len = 0;
 
 			free(tmp->msg);
 			free(tmp);
@@ -460,47 +502,6 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 
 }
 
-
-/*
- * wifi_sys_ctrl_tcp_procs_data
- * 设备控制模块TCP接收数据处理线程
- *
- * 将消息从队列中读取，进行处理后发送
- *
- */
-void* wifi_sys_ctrl_tcp_procs_data(void* p)
-{
-	Plinknode node;
-	Pctrl_tcp_rsqueue tmp;
-	int ret;
-	pthread_detach(pthread_self());
-
-	while(1)
-	{
-		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
-//		printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-
-		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
-
-		if(ret == 0)
-		{
-			msleep(1);
-			tmp = node->data;
-			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
-
-			free(tmp->msg);
-			free(tmp);
-			free(node);
-		}else{
-			printf("%s dequeue error\n",__func__);
-
-		}
-		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
-
-	}
-
-}
 
 /*
  * wifi_sys_ctrl_tcp_heart_sta
@@ -545,7 +546,6 @@ void* wifi_sys_ctrl_tcp_heart_state(void* p)
 	}
 
 }
-
 
 
 

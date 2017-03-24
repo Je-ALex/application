@@ -11,11 +11,6 @@
 #define DEVICE_HEART 	5
 
 
-#define MSG_TYPE 		0xF0 //消息类型
-#define DATA_TYPE 		0x0C //数据类型
-#define MACHINE_TYPE 	0x03 //设备类型
-
-
 
 
 /*
@@ -183,7 +178,7 @@ typedef enum {
 
 typedef enum {
 
-	WIFI_MEETING_EVT_MIC_CHAIRMAN = 1,
+	WIFI_MEETING_EVT_MIC_CHAIRMAN = 1,//主席优先
 	WIFI_MEETING_EVT_MIC_FIFO,
 	WIFI_MEETING_EVT_MIC_STAD,
 	WIFI_MEETING_EVT_MIC_FREE,
@@ -311,11 +306,9 @@ typedef enum {
 
 void* wifi_sys_ctrl_tcp_recv(void* p);
 
-void* wifi_sys_ctrl_tcp_procs_data(void* p);
+void* wifi_sys_ctrl_tcp_send(void* p);
 
 void* wifi_sys_ctrl_tcp_heart_state(void* p);
-
-void* wifi_sys_ctrl_tcp_send(void* p);
 
 
 void* control_tcp_send(void* p);

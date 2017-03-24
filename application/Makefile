@@ -190,7 +190,8 @@ ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/i
 	-I./inc/recv_msg_procs \
 	-I./inc/send_msg_procs \
 	-I./inc/run_status_info \
-	-I./inc/app_interface 
+	-I./inc/app_interface \
+	-I./inc/sys_status_detect 
 	
 ARMLIBS = -L/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/lib \
 	-lasound -lpthread -lm
@@ -203,6 +204,7 @@ TEST_SOURCE = src/wifi_sys_init.c \
 			src/device_manage/udp_ctrl_server.c \
 			src/device_manage/tcp_ctrl_server.c \
 			src/recv_msg_procs/tcp_ctrl_data_process.c \
+			src/recv_msg_procs/tcp_ctrl_data_process_unit.c \
 			src/recv_msg_procs/tcp_ctrl_data_process_pc.c \
 			src/send_msg_procs/tcp_ctrl_data_compose.c \
 			src/run_status_info/tcp_ctrl_device_status.c \
@@ -217,7 +219,8 @@ TEST_SOURCE = src/wifi_sys_init.c \
 			src/info_manage/client_mac_manage.c \
 			src/info_manage/client_connect_manage.c \
 			src/info_manage/client_mic_status_manage.c \
-			src/info_manage/client_heart_manage.c
+			src/info_manage/client_heart_manage.c \
+			src/sys_status_detect/sys_status_detect.c
 			
 
 .PHONY: libso bin arm-bin clean

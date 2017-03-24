@@ -55,6 +55,11 @@ typedef struct{
 }ctrl_tcp_rsqueue,*Pctrl_tcp_rsqueue;
 
 
+
+int sys_net_status_set(int value);
+int sys_net_status_get();
+
+
 int sys_debug_set_switch(unsigned char value);
 
 
@@ -81,6 +86,7 @@ int conf_status_get_conference_len();
 int conf_status_check_client_conf_legal(Pframe_type frame_type);
 
 int conf_status_check_chairman_legal(Pframe_type frame_type);
+int conf_status_check_pc_legal(Pframe_type frame_type);
 
 int conf_status_check_client_connect_legal(Pframe_type frame_type);
 
@@ -178,8 +184,9 @@ int conf_status_set_snd_effect(int value);
 
 int conf_status_get_snd_effect();
 
-int conf_status_set_camera_track(int value);
 
+int conf_status_camera_track_postion(int id,int value);
+int conf_status_set_camera_track(int value);
 int conf_status_get_camera_track();
 
 

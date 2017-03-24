@@ -120,10 +120,12 @@ int set_uart_opt(Pudev pdev)
  * sys_uart_init
  * 系统串口初始化
  *
- * @Pudev设备信息
+ * 输入参数：
+ * @Pudev 串口配置结构体
  *
  * 返回值：
- * 设备号
+ * 成功-SUCCESS
+ * 失败-ERROR
  *
  */
 int sys_uart_init(Pudev pdev)
@@ -140,7 +142,7 @@ int sys_uart_init(Pudev pdev)
 	speed = sys_uart_get_baudrate(pdev->params.baudrate);
 
 	pdev->handle = open(pdev->dev,O_RDWR | O_NONBLOCK| O_NOCTTY | O_NDELAY);
-//	pdev->handle = open(pdev->dev,O_RDWR | O_NOCTTY );
+
     if(pdev->handle<0)
     {
         perror(pdev->dev);

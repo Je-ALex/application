@@ -1,6 +1,21 @@
+/*
+ *
+ *  Created on: 2016年11月10日
+ *      Author: leon
+ *
+ * udp_ctrl_ser.c
+ * 设备发现UDP广播服务
+ *
+ * 主要是设备发现的UDP部分
+ * UDP广播包的组包，UDP套接字的初始化，广播包的发送
+ *
+ */
 
 #include "wifi_sys_init.h"
 #include "udp_ctrl_server.h"
+#include "tcp_ctrl_device_status.h"
+
+int status = 0;
 
 
 
@@ -10,9 +25,8 @@
  *
  * 消息分为数据报头，帧信息，帧长度，帧内容和校验和
  *
- *
  */
-void udp_data_frame(unsigned char* str,int* len)
+static void udp_data_frame(unsigned char* str,int* len)
 {
 
 	unsigned char* data = str;
@@ -71,16 +85,19 @@ void udp_data_frame(unsigned char* str,int* len)
 	data[i] = sum;
 	*len = ++i;
 
-//	printf("0x%.2x \n",i);
 }
 
-
+//static void sig_handler()
+//{
+//	sys_net_status_set(1);
+//
+//}
 
 /*
  * wifi_sys_ctrl_udp_server
- * udp线程，设备发现
+ * 系统网络设备发现广播线程函数
  *
- * 主要是服务端的控制，数据包的广播
+ * 主要是对设备发现包进行广播，用于网络上设备进行TCP连接
  *
  */
 void* wifi_sys_ctrl_udp_server(void* p)
@@ -91,25 +108,20 @@ void* wifi_sys_ctrl_udp_server(void* p)
     int len;
     unsigned char msg[100] = {0};
 
-	printf("%s,%d\n",__func__,__LINE__);
 	pthread_detach(pthread_self());
-	/*
-	 * 创建socke套接字
-	 */
+
 	sock = socket(AF_INET,SOCK_DGRAM,0);
 	if(sock < 0)
 	{
-		 printf("init socket failed\n");
+		 printf("%s-%s-%d init socket failed\n",__FILE__,__func__,__LINE__);
 		 pthread_exit(0);
 	}
-	/*
-	 * 设置套接字的属性
-	 */
+
 	ret = setsockopt(sock, SOL_SOCKET, SO_BROADCAST,
 			(char *)&opt, sizeof(opt));
 	if(ret)
 	{
-		printf("setsockopt error...\n");
+		printf("%s-%s-%d setsockopt error\n",__FILE__,__func__,__LINE__);
 		pthread_exit(0);
 	}
 	/*
@@ -126,39 +138,41 @@ void* wifi_sys_ctrl_udp_server(void* p)
 	if(bind(sock,(struct sockaddr *)&(addr_serv),
 			sizeof(struct sockaddr_in)) == -1)
 	{
-		printf("bind error...\n");
+		printf("%s-%s-%d bind failed\n",__FILE__,__func__,__LINE__);
 		pthread_exit(0);
 	}
 
     udp_data_frame(msg,&len);
 
+
     /*
-     * UDP数据广播，没秒钟广播一次
+     * UDP数据广播，1秒广播一次
      */
 	while(1){
+
+		if(sys_net_status_get() == 1)
+			goto ERR;
 
 		ret = 0;
 		ret = sendto(sock,msg,len,0,
 				(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 
 		if(ret < 0){
-			printf("sendto fail\r\n");
-			close(sock);
-			pthread_exit(0);
-		}else{
+			status++;
+			printf("sendto fail number = %d\n",status);
 
-			{
+//			close(sock);
+//			pthread_exit(0);
+		}else{
 //				for(i=0;i<len;i++)
 //				{
 //					printf("%02X ",msg[i]);
 //				}
 //				printf("send ok\n");
-			}
-
 		}
 		sleep(1);
-
 	}
+ERR:
 	close(sock);
 	pthread_exit(0);
 }

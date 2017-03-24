@@ -11,6 +11,9 @@
 
 #include "wifi_sys_init.h"
 
+/*
+ * 波特率
+ */
 typedef enum{
 	UART_B_9600=9600,
 	UART_B_19200=19200,
@@ -19,22 +22,36 @@ typedef enum{
 	UART_B_115200=115200,
 }baudrate;
 
+/*
+ * 数据位
+ */
 typedef enum{
 	UART_CS_5,
 	UART_CS_6,
 	UART_CS_7,
 	UART_CS_8,
 }data_b;
+
+/*
+ * 停止位
+ */
 typedef enum{
 	UART_STOP_ONE,
 	USRT_STOP_TWO,
 }stop_b;
+
+/*
+ * 校验位
+ */
 typedef enum{
 	UART_PAR_NONE,
 	UART_PAR_EVEN,
 	UART_PAR_ODD,
 }parity_b;
 
+/*
+ * 串口参数结构体
+ */
 typedef struct {
 
 	int baudrate;
@@ -44,6 +61,9 @@ typedef struct {
 
 }uart_params,*Puart_params;
 
+/*
+ * 串口设备参数结构体
+ */
 typedef struct {
 
 	char* dev;
@@ -103,35 +123,11 @@ int sys_video_uart_init();
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-/*
- * sys_uart_init
- * 系统串口初始化
- *
- * @Pudev设备信息
- *
- * 返回值：
- * 设备号
- *
- */
 int sys_uart_init(Pudev pdev);
 
 int sys_uart_read_data(Pudev pdev,char* msg,int bytes,Ptimeout time_out);
 
 int sys_uart_write_data(Pudev pdev,char* msg,int len);
-
-
-
 
 
 

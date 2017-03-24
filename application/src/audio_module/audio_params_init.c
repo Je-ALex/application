@@ -268,7 +268,7 @@ ssize_t audio_module_data_read(snd_data_format *sndpcm,snd_data_format *sndpcm_p
 	ssize_t r;
 	size_t result = 0;
 	size_t count = rcount;
-	uint8_t *data = sndpcm->data_buf;
+	char *data = sndpcm->data_buf;
 
 
 	if (count != sndpcm->period_size) {
@@ -311,7 +311,7 @@ int audio_module_data_write(Psnd_data_format sndpcm, int frame_len)
 {
 	int r;
 	int result = 0;
-	uint8_t *data = sndpcm->data_buf;
+	char* data = sndpcm->data_buf;
 
 	if (frame_len < sndpcm->period_size) {
 		snd_pcm_format_set_silence(sndpcm->format,
@@ -340,6 +340,7 @@ int audio_module_data_write(Psnd_data_format sndpcm, int frame_len)
 
 		} else if (r < 0)
 		{
+			snd_pcm_prepare(sndpcm->handle);
 			printf( "Error snd_pcm_writei: [%s]", snd_strerror(r));
 			return ERROR;
 		}
@@ -453,8 +454,8 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	snd_pcm_hw_params_t *hwparams;
 
 	snd_pcm_format_t format;
-	uint32_t exact_rate;
-	uint32_t buffer_time, period_time;
+	uint32 exact_rate;
+	uint32 buffer_time, period_time;
 	int dir = 0;
 
 	/*为硬件参数申请内存*/
@@ -511,6 +512,7 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 //	buffer_time = 21333;
 //	buffer_time = 42666;
 	buffer_time = 10666;
+//	buffer_time = 5333;
 	period_time = buffer_time / 4;//5.3ms/1024B
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)
@@ -548,7 +550,7 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	sndpcm->chunk_bytes = sndpcm->period_size * sndpcm->bits_per_frame / 8;
 
 	/* alloc mem save the block*/
-	sndpcm->data_buf = (uint8_t *)malloc(sndpcm->chunk_bytes);
+	sndpcm->data_buf = (char *)malloc(sndpcm->chunk_bytes);
 
 	if (!sndpcm->data_buf) {
 		printf("Error malloc: [data_buf]\n");

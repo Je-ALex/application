@@ -9,7 +9,11 @@
 #include "tcp_ctrl_data_process.h"
 #include "tcp_ctrl_device_status.h"
 #include "client_connect_manage.h"
+#include "client_mic_status_manage.h"
 #include "tcp_ctrl_server.h"
+
+
+
 extern sys_info sys_in;
 
 /***************
@@ -353,48 +357,13 @@ static int tcp_ctrl_pc_request_spk(Pframe_type frame_type,const unsigned char* m
 
 	switch(frame_type->evt_data.value)
 	{
-	/*
-	 * 主机收到主席单元的允许指令，目标地址为具体允许的单元机ID，源地址为主席单元
-	 * 主机下发允许指令，修改源地址为主机，目标地址不变
-	 */
-	case WIFI_MEETING_EVT_SPK_ALLOW:
-	{
-		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_ALLOW;
-		pos = conf_status_find_did_sockfd_sock(frame_type);
-		if(pos > 0)
-		{
-			//变换为控制类消息下个给单元机
-			frame_type->msg_type = WRITE_MSG;
-			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-			tcp_ctrl_module_edit_info(frame_type,msg);
-			//设置单元音频端口信息
-			if(conf_status_check_client_connect_legal(frame_type))
-			{
-				tcp_ctrl_uevent_spk_port(frame_type);
-			}
-		}else{
-			printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
-			return ERROR;
-		}
-		break;
-	}
-	case WIFI_MEETING_EVT_SPK_VETO:
-	{
-		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_VETO;
-		pos = conf_status_find_did_sockfd_sock(frame_type);
-		if(pos > 0)
-		{
-			//变换为控制类消息下个给单元机
-			frame_type->msg_type = WRITE_MSG;
-			tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-			tcp_ctrl_module_edit_info(frame_type,msg);
 
-		}else{
-			printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
-			return ERROR;
-		}
+	case WIFI_MEETING_EVT_SPK_ALLOW:
+		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_ALLOW;
 		break;
-	}
+	case WIFI_MEETING_EVT_SPK_VETO:
+		frame_type->evt_data.status = WIFI_MEETING_EVENT_SPK_VETO;
+		break;
 	case WIFI_MEETING_EVT_SPK_ALOW_SND:
 		break;
 	case WIFI_MEETING_EVT_SPK_VETO_SND:
@@ -410,6 +379,11 @@ static int tcp_ctrl_pc_request_spk(Pframe_type frame_type,const unsigned char* m
 		return ERROR;
 	}
 
+	pos = conf_status_find_did_sockfd_sock(frame_type);
+	if(pos)
+	{
+		cmsm_msg_classify_handle(frame_type,msg);
+	}
 
 	return SUCCESS;
 

@@ -3,18 +3,34 @@
  *
  *  Created on: 2016年11月10日
  *      Author: leon
+ * 系统初始化文件
+ * 系统初始化接口函数
+ * 主要实现系统的功能初始化，变量和参数的初始化
+ *
  */
 
 #include "wifi_sys_init.h"
 
 #include "udp_ctrl_server.h"
 #include "tcp_ctrl_server.h"
+#include "tcp_ctrl_data_process.h"
 #include "audio_server.h"
 #include "tcp_ctrl_device_status.h"
+
 #include "sys_uart_init.h"
+#include "sys_status_detect.h"
 
 extern sys_info sys_in;
 extern Pglobal_info node_queue;
+
+pthread_t ctrl_udp;
+pthread_t ctrl_tcpr;
+pthread_t ctrl_tcps;
+pthread_t ctrl_procs;
+pthread_t ctrl_heart;
+
+pthread_t audp_recv[AUDP_RECV_NUM] = {0};
+pthread_t audp_send;
 
 
 /*
@@ -58,6 +74,10 @@ static int wifi_sys_signal_init()
  *
  * 系统中链表、队列和全局变量初始化
  *
+ * 1、队列初始化 主要有是状态上报队列  数据接收队列和数据发送队列
+ * 2、链表初始化 设备连接链表/心跳链表、发言管理和会议信息链表
+ * 3、系统全局变量初始化 相关功能参数初始化默认发言人数4人/FIFO模式/摄像跟踪关闭
+ * 4、连接信息的文本文件初始化
  */
 static int wifi_sys_val_init()
 {
@@ -67,9 +87,6 @@ static int wifi_sys_val_init()
 	node_queue = (Pglobal_info)malloc(sizeof(global_info));
 	memset(node_queue,0,sizeof(global_info));
 
-	/*
-	 * 队列初始化
-	 */
 	node_queue->sys_queue = (Plinkqueue*)malloc(sizeof(linkqueue)*(CTRL_TCP_SEND_QUEUE+1));
 	memset(node_queue->sys_queue,0,sizeof(linkqueue)*(CTRL_TCP_SEND_QUEUE+1));
 	for(i=0;i<=CTRL_TCP_SEND_QUEUE;i++)
@@ -78,22 +95,22 @@ static int wifi_sys_val_init()
 		if(node_queue->sys_queue[i] == NULL)
 		{
 #if TCP_DBG
-			printf("node_queue->sys_queue[%d] init failed\n",i);
+			printf("%s-%s-%d node_queue->sys_queue[%d] init failed\n",__FILE__,__func__,__LINE__,i);
+
 #endif
 			return INIT_QUEUE_ERR;
 
 		}
 		else{
 #if TCP_DBG
-			printf("node_queue->sys_queue[%d] init success\n",i);
+
+			printf("%s-%s-%d node_queue->sys_queue[%d] init success\n",__FILE__,__func__,__LINE__,i);
 #endif
 		}
-		usleep(1000);
+		msleep(1);
 
 	}
-	/*
-	 * 链表初始化
-	 */
+
 	node_queue->sys_list = (pclient_node*)malloc(sizeof(client_node)*(CONFERENCE_LIST+1));
 	memset(node_queue->sys_list,0,sizeof(client_node)*(CONFERENCE_LIST+1));
 
@@ -103,38 +120,146 @@ static int wifi_sys_val_init()
 		if(node_queue->sys_list[i] == NULL)
 		{
 #if TCP_DBG
-			printf("node_queue->sys_list[%d] init failed\n",i);
+			printf("%s-%s-%d node_queue->sys_list[%d] init failed\n",__FILE__,__func__,__LINE__,i);
 #endif
 			return INIT_LIST_ERR;
 		}
 		else{
 #if TCP_DBG
-			printf("node_queue->sys_list[%d] init success\n",i);
+			printf("%s-%s-%d node_queue->sys_list[%d] init success\n",__FILE__,__func__,__LINE__,i);
 #endif
 		}
-		usleep(1000);
+		msleep(1);
 
 	}
 
-	/*
-	 * 全局变量初始化
-	 */
+
 	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
 	memset(node_queue->con_status,0,sizeof(conference_status));
-	//设置默认发言人数为1
+
 	node_queue->con_status->spk_number = DEF_SPK_NUM;
-	//设置默认话筒模式为FIFO
+
 	node_queue->con_status->mic_mode = DEF_MIC_MODE;
-	//摄像跟踪打开
+
 	conf_status_set_camera_track(0);
-	/*
-	 * 初始化连接文本信息
-	 */
+
 	cfile = fopen(CONNECT_FILE,"w+");
 	fclose(cfile);
 
+
+
+
 	return SUCCESS;
 }
+
+
+
+int wifi_sys_net_thread_init()
+{
+	int ret = -1;
+	int i;
+
+	/*
+	 * 控制相关的网络线程
+	 */
+	ret = pthread_create(&ctrl_udp,NULL,wifi_sys_ctrl_udp_server,NULL);
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_ctrl_udp_server failed\n",__FILE__,__func__,__LINE__);
+		return ret;
+	}
+
+	ret = pthread_create(&ctrl_tcpr,NULL,wifi_sys_ctrl_tcp_recv,NULL);
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_ctrl_tcp_recv failed\n",__FILE__,__func__,__LINE__);
+		return ret;
+	}
+
+	/*
+	 * 音频相关的网络创建线程
+	 */
+
+	//语音接收线程
+    int port = AUDIO_RECV_PORT;
+    for(i=0;i<AUDP_RECV_NUM;i++)
+    {
+    	ret = pthread_create(&audp_recv[i], NULL, audio_recv_thread, (void*)port);
+    	if (ret != 0)
+    	{
+    		printf("%s-%s-%d audio_recv_thread[%d] failed\n",__FILE__,__func__,__LINE__,i);
+    	}
+    	port +=2;
+    }
+	//语音发送线程
+	ret = pthread_create(&audp_send, NULL, audio_send_thread,NULL);
+	if (ret != 0)
+	{
+		printf("%s-%s-%d audio_send_thread failed\n",__FILE__,__func__,__LINE__);
+	}
+
+	return SUCCESS;
+}
+
+int wifi_sys_net_thread_deinit()
+{
+	int i;
+
+//	pthread_exit(ctrl_udp);
+	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+
+	sys_net_status_set(1);
+//	pthread_kill(ctrl_udp,SIGUSR1);
+//	pthread_kill(ctrl_tcpr,SIGUSR1);
+//
+//
+//    for(i=0;i<AUDP_RECV_NUM;i++)
+//    {
+//    	pthread_kill(audp_recv[i],SIGUSR1);
+//    }
+//
+//    pthread_kill(audp_send,SIGUSR1);
+
+
+	return SUCCESS;
+}
+/*
+ * wifi_sys_thread_init
+ * 系统线程初始化函数
+ */
+static int wifi_sys_thread_init()
+{
+	int ret;
+
+
+	wifi_sys_net_thread_init();
+
+
+	ret = pthread_create(&ctrl_procs,NULL,wifi_sys_ctrl_tcp_procs_data,NULL);
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_ctrl_tcp_procs_data failed\n",__FILE__,__func__,__LINE__);
+		return ret;
+	}
+
+	ret = pthread_create(&ctrl_heart,NULL,wifi_sys_ctrl_tcp_heart_state,NULL);
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_ctrl_tcp_heart_state failed\n",__FILE__,__func__,__LINE__);
+		return ret;
+	}
+
+	ret = pthread_create(&ctrl_tcps,NULL,wifi_sys_ctrl_tcp_send,NULL);
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_ctrl_tcp_send failed\n",__FILE__,__func__,__LINE__);
+		return ret;
+	}
+
+
+	return SUCCESS;
+}
+
 
 
 /* TODO
@@ -152,105 +277,67 @@ static int wifi_sys_val_init()
  */
 int wifi_conference_sys_init()
 {
-	pthread_t ctrl_udp;
-	pthread_t ctrl_tcpr;
-	pthread_t ctrl_tcps;
-	pthread_t ctrl_procs;
-	pthread_t ctrl_heart;
-
 	int ret;
+
+	/*
+	 * 对标准输出进行重定向，指定到LOG文件
+	 */
+//	fflush(stdout);
+//	char* path = "/hushan/LOG.txt";
+//	freopen(path,"w",stdout);
+//	setvbuf(stdout,NULL,_IONBF,0);
+
 
 	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,
 			__DATE__,__TIME__,VERSION);
 
+	ret = sys_status_detect_init();
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d sys_status_detect_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
+	}
 
 	ret = wifi_sys_signal_init();
-	if (ret != 0)
+	if (ret != SUCCESS)
 	{
-		 printf("wifi_sys_signal_init failed\n");
-		 goto ERR;
+		printf("%s-%s-%d wifi_sys_signal_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
 	}
 
 	ret = wifi_sys_val_init();
-	if (ret != 0)
+	if (ret != SUCCESS)
 	{
-		 printf("wifi_sys_val_init failed\n");
-		 goto ERR;
+		printf("%s-%s-%d wifi_sys_val_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
 	}
 
 	ret = uart_snd_effect_init();
-	if (ret != 0)
+	if (ret != SUCCESS)
 	{
-		 printf("uart_snd_effect_init failed\n");
-		 goto ERR;
+		printf("%s-%s-%d uart_snd_effect_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
 	}
 	ret = sys_video_uart_init();
-	if (ret != 0)
+	if (ret != SUCCESS)
 	{
-		 printf("sys_video_uart_init failed\n");
-		 goto ERR;
-	}
-	/*
-	 * 设备发现之UDP广播初始化
-	 */
-	ret = pthread_create(&ctrl_udp,NULL,wifi_sys_ctrl_udp_server,NULL);
-	if (ret != 0)
-	{
-		 printf("wifi_sys_ctrl_udp_server failed\n");
-		 goto ERR;
-	}
-	/*
-	 * TCP控制模块数据接收线程
-	 */
-	ret = pthread_create(&ctrl_tcpr,NULL,wifi_sys_ctrl_tcp_recv,NULL);
-	if (ret != 0)
-	{
-		 printf("wifi_sys_ctrl_tcp_recv failed\n");
-		 goto ERR;
-	}
-	/*
-	 * TCP控制模块接收数据处理线程
-	 */
-	ret = pthread_create(&ctrl_procs,NULL,wifi_sys_ctrl_tcp_procs_data,NULL);
-	if (ret != 0)
-	{
-		 printf("wifi_sys_ctrl_tcp_procs_data failed\n");
-		 goto ERR;
-	}
-	/*
-	 * TCP控制模块心跳控制线程
-	 */
-	ret = pthread_create(&ctrl_heart,NULL,wifi_sys_ctrl_tcp_heart_state,NULL);
-	if (ret != 0)
-	{
-		 printf("wifi_sys_ctrl_tcp_heat_sta failed\n");
-		 goto ERR;
-	}
-	/*
-	 * TCP控制模块数据发送线程
-	 */
-	ret = pthread_create(&ctrl_tcps,NULL,wifi_sys_ctrl_tcp_send,NULL);
-	if (ret != 0)
-	{
-		 printf("wifi_sys_ctrl_tcp_send failed\n");
-		 goto ERR;
+		printf("%s-%s-%d sys_video_uart_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
 	}
 
-	//音频初始化
 	ret = wifi_sys_audio_init();
-	if (ret != 0)
+	if (ret != SUCCESS)
 	{
-		 printf("wifi_sys_audio_init failed\n");
-		 goto ERR;
+		printf("%s-%s-%d wifi_sys_audio_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
 	}
 
-
-//	pthread_join(ctrl_tcps, &retval);
-
-//	free(node_queue->sys_list);
-//	free(node_queue->sys_queue);
-//	free(node_queue->con_status);
-//	free(node_queue);
+	ret = wifi_sys_thread_init();
+	if (ret != SUCCESS)
+	{
+		printf("%s-%s-%d wifi_sys_thread_init failed\n",__FILE__,__func__,__LINE__);
+		goto ERR;
+	}
 
 	return SUCCESS;
 

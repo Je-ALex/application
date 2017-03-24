@@ -3,45 +3,38 @@
  *
  *  Created on: 2016年12月8日
  *      Author: leon
+ *
+ *
+ * 音频接口使用说明
+ * 主机使用UART与DSP模块的串口进行通讯，主要功能时实现音效的设置
+ * DSP端串口使用说明
+ * 1.第一步必须先发送一个是否需要回复的指令
+ * 是否需要回复命令
+ * 不需要回复命令: A5AC00000000000000000000
+ * 需要回复命令:  A5AC00000001000000000001
+ *
+ * 2.AFC(反馈抑制器)控制逻辑
+ * AFC直通     A5AC0F000101000000000011
+ * AFC非直通    A5AC0F000100000000000010
+ *
+ * 3.ANC(噪声消除)控制逻辑
+ * 直通    A5AC1B00010100000000001D
+ * 非直通    A5AC1B00010000000000001C
+ * 这个是会保持为上次的状态，所以在等级3后，先发送直通，再发个等级1.这样显示才会和按键的匹配正常
+ * 等级1    A5AC1B00020100000000001E
+ * 等级2    A5AC1B000203000000000020
+ * 等级3    A5AC1B000206000000000023
  */
 
 #include "sys_uart_init.h"
 
 
-/*
-是否需要回复命令
-不需要回复命令: A5AC00000000000000000000
-需要回复命令:  A5AC00000001000000000001
-
-反馈抑制器/AFC
-AFC直通     A5AC0F000101000000000011
-AFC非直通    A5AC0F000100000000000010
-
-噪声消除/ANC
-  直通    A5AC1B00010100000000001D
-非直通    A5AC1B00010000000000001C
-这个是会保持为上次的状态，所以在等级3后，先发送直通，再发个等级1.这样显示才会和按键的匹配正常z
- *等级1    A5AC1B00020100000000001E
- *等级2    A5AC1B000203000000000020
- *等级3    A5AC1B000206000000000023
-
-*/
-
 udev pdev_snd;
 #define SND_MODE 	9
 #define NUM 		12
 
+int old_mode = 0;
 
-
-//char* init_off=	"A5AC00000000000000000000";
-//char* init_on	=	"A5AC00000001000000000001";
-//char* afc_on 	= 	"A5AC0F000100000000000010";
-//char* afc_off	= 	"A5AC0F000101000000000011";
-//char* anc_off = 	"A5AC1B00010100000000001D";
-//char* anc_on	=  	"A5AC1B00010000000000001C";
-//char* anc1_on = 	"A5AC1B00020100000000001E";
-//char* anc2_on = 	"A5AC1B000203000000000020";
-//char* anc3_on = 	"A5AC1B000206000000000023";
 
 char init_off[NUM]	=	{0xa5,0xac,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 char init_on[NUM]	=	{0xa5,0xac,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01};
@@ -97,11 +90,18 @@ char reply_type[SND_MODE][NUM] =
 
 /*
  * uart_snd_effect_set
- * 发送控制信号
+ * 音效设置接口函数
  *
+ * 设置即将设置的音效参数
+ *
+ * 输入参数：
+ * @value 音效状态采用位表示，分别8421对应的位状态来表示音效状态，为开的则对应为为1，否则为0
+ *
+ * 返回值：
+ * 成功-SUCCESS
+ * 失败-ERROR
  *
  */
-int old_mode = 0;
 int uart_snd_effect_set(int value)
 {
 	char buf[24] = {0};
@@ -162,39 +162,6 @@ int uart_snd_effect_set(int value)
 			anc_mode = WIFI_MEETING_EVT_SEFC_ANC_THREE;
 		}
 
-//		switch(anc_mode)
-//		{
-//		case WIFI_MEETING_EVT_SEFC_ANC_OFF:
-//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ONE],NUM);
-//			break;
-//		case WIFI_MEETING_EVT_SEFC_ANC_ON:
-//		case WIFI_MEETING_EVT_SEFC_ANC_ONE:
-//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_ON],NUM);
-//			break;
-//		case WIFI_MEETING_EVT_SEFC_ANC_TWO:
-//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_TWO],NUM);
-//			break;
-//		case WIFI_MEETING_EVT_SEFC_ANC_THREE:
-//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_THREE],NUM);
-//			break;
-//		default:
-//			printf("not legal value\n");
-//			return ERROR;
-//		}
-//
-//		if(anc_mode == WIFI_MEETING_EVT_SEFC_ANC_OFF)
-//		{
-//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
-//
-//			msleep(50);
-//			memset(buf,0,sizeof(buf));
-//
-//			memcpy(buf,snd_effect_mode[WIFI_MEETING_EVT_SEFC_ANC_OFF],NUM);
-//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
-//		}else{
-//
-//			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
-//		}
 		switch(anc_mode)
 		{
 		case WIFI_MEETING_EVT_SEFC_ANC_OFF:
@@ -231,7 +198,7 @@ int uart_snd_effect_set(int value)
 			ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 			break;
 		default:
-			printf("not legal value\n");
+			printf("%s-%s-%d not legal value\n",__FILE__,__func__,__LINE__);
 			return ERROR;
 		}
 
@@ -243,7 +210,14 @@ int uart_snd_effect_set(int value)
 	return ret;
 }
 
-void* uart_snd_effect_get(void* p)
+/*
+ * uart_snd_effect_get
+ * 音频接口串口接收线程
+ *
+ * 主要是用于接收串口数据
+ *
+ */
+static void* uart_snd_effect_get(void* p)
 {
 	timeout time_out;
 	char buf[NUM] = {0};
@@ -269,15 +243,24 @@ void* uart_snd_effect_get(void* p)
 
 			memset(buf,0,sizeof(buf));
 
-		}else{
-
-
 		}
 
 	}
 	pthread_exit(0);
 }
 
+/*
+ * uart_snd_effect_init
+ * 音频控制接口初始化函数
+ *
+ * 1、串口配置初始化，使用UART4，配置为8N1模式，波特率为57600
+ * 2、串口接收线程初始化
+ *
+ * 返回值：
+ * 成功-SUCCESS
+ * 失败-ERROR
+ *
+ */
 int uart_snd_effect_init()
 {
 	pthread_t snd_uart;
@@ -285,7 +268,6 @@ int uart_snd_effect_init()
 	char buf[24] = {0};
 
 	pdev_snd.dev = "/dev/ttymxc3";
-
 	pdev_snd.params.baudrate = UART_B_57600;
 	pdev_snd.params.cs = UART_CS_8;
 	pdev_snd.params.stop = UART_STOP_ONE;
@@ -295,10 +277,10 @@ int uart_snd_effect_init()
 	ret = sys_uart_init(&pdev_snd);
 	if(ret)
 	{
-		printf("sys_uart_init failed\n");
+		printf("%s-%s-%d sys_uart_init failed\n",__FILE__,__func__,__LINE__);
 		return ret;
 	}
-	memcpy(buf,init_on,NUM);
+	memcpy(buf,snd_effect_mode[1],NUM);
 
 	ret = sys_uart_write_data(&pdev_snd,buf,NUM);
 

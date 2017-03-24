@@ -10,30 +10,39 @@
 
 #include "wifi_sys_init.h"
 
-int tcp_ctrl_uevent_spk_port(Pframe_type frame_type);
+#define MSG_TYPE 		0xF0 //消息类型
+#define DATA_TYPE 		0x0C //数据类型
+#define MACHINE_TYPE 	0x03 //设备类型
 
-int tcp_ctrl_data_char_to_int(int* value,char* buf);
+#define PKG_LEN		0x10//数据包最小固定长度
 
-int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type frame_type,
-		unsigned char** ret_msg);
+/*
+ * 通用函数接口
+ */
+int tcp_ctrl_data_char2short(unsigned short* value,unsigned char* buf);
 
-int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type frame_type);
-
-int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type);
-
+int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value);
 
 int tcp_ctrl_source_dest_setting(int s_fd,int d_fd,Pframe_type type);
 
 
-int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value);
 
+/*
+ * 单元相关处理
+ */
 
+int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type frame_type);
 
+/*
+ * 上位机相关处理
+ */
 
+int tcp_ctrl_from_pc(const unsigned char* handlbuf,Pframe_type frame_type);
 
-
-
-
+/*
+ * 统一数据处理
+ */
+void* wifi_sys_ctrl_tcp_procs_data(void* p);
 
 
 

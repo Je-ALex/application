@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <unistd.h>
 #include <sys/select.h>
 #include <sys/time.h>
@@ -27,7 +28,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <signal.h>
-
 #include <termios.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,6 +35,21 @@
 
 #include "wifi_sys_queue.h"
 #include "wifi_sys_list.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+typedef char 	int8;
+typedef short 	int16;
+typedef int 	int32;
+
+
+typedef unsigned char  	uint8;
+typedef unsigned short 	uint16;
+typedef unsigned int   	uint32;
+typedef long long 		off64;
 
 
 /*
@@ -49,11 +64,13 @@
 /*
  * 设备系统参数
  */
+#define LOG_FILE	"LOG.txt"
 #define VERSION		"V 1.0.5-R1"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
-#define CONNECT_FILE "connection.info"
+#define CONNECT_FILE 	"connection.info"
+#define PID_FILE 		"sys_init.pid"
 /*
  * 会议类相关宏定义
  */
@@ -73,9 +90,11 @@
 
 #define SYS_VAL 10
 
+#define		AUDP_RECV_NUM	9
 #define 	MAX_SPK_NUM 	8
 #define 	DEF_SPK_NUM 	4
 #define 	DEF_MIC_MODE 	2
+
 
 
 #define msleep(x) usleep(x*1000)
@@ -121,8 +140,6 @@ typedef enum{
 
 	//本地状态上报qt消息队列
 	LOCAL_REP_QUEUE = 0,
-	//状态上报上位机消息队列
-	CTRL_REP_PC_QUEUE,
 	//tcp接收数据消息队列
 	CTRL_TCP_RECV_QUEUE,
 	//tcp发送数据消息队列
@@ -172,7 +189,7 @@ typedef struct{
  */
 typedef struct {
 
-	 char ssid[32];
+	 int8 ssid[32];
 	 char key[64];
 	 unsigned int mac;
 	 int sockfd;
@@ -293,14 +310,16 @@ typedef struct {
 	volatile int chirman_t;
 
 	//DEBUG
-	unsigned char debug_sw;
-
+	int debug_fd;
+	int lan_stat;
 	//系统时间
 	unsigned char sys_time[4];
 	//系统时间秒
 	unsigned int sys_stime;
 
 	net_info network;
+
+	char* pidfile;
 
 }conference_status,*Pconference_status;
 
@@ -418,20 +437,7 @@ typedef struct {
 
 }connect_heart,*Pconnect_heart;
 
-/*
- * 发言设备的端口管理
- * 主要是套接字号
- * 席别号 音频端口号 时间戳
- */
-typedef struct {
 
-	int sockfd;
-	int seat;
-	int asport;
-
-	unsigned int ts;
-
-}as_port,*Pas_port;
 
 /*
  * 会议信息链表
@@ -444,6 +450,11 @@ typedef struct {
 
 }conference_list,*Pconference_list;
 
+int wifi_sys_net_thread_init();
+int wifi_sys_net_thread_deinit();
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_WIFI_SYS_INIT_H_ */

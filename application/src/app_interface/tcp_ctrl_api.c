@@ -59,16 +59,18 @@ int host_info_reset_factory_mode()
 
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
-	char command[128];
-	FILE *fp=NULL;
-	snprintf(command,sizeof(command),"reboot");
-	fp=popen(command,"r");
-	if(fp==NULL)
-    {
-	    printf("reboot error\n");
-	    return -1;
-	}
-	fclose(fp);
+//	char command[128];
+//	FILE *fp=NULL;
+//	snprintf(command,sizeof(command),"reboot");
+//	fp=popen(command,"r");
+//	if(fp==NULL)
+//    {
+//	    printf("reboot error\n");
+//	    return -1;
+//	}
+//	fclose(fp);
+	system("reboot");
+
 
 //	tmp = node_queue->sys_list[CONNECT_LIST]->next;
 //	while(tmp != NULL)
@@ -114,7 +116,7 @@ int host_info_get_network_info(Phost_info ninfo)
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0)
 	{
-		fprintf(stderr, "Create socket failed!errno=%d", errno);
+		printf("Create socket failed!errno=%d", errno);
 		return ERROR;
 	}
 
@@ -468,7 +470,7 @@ int conf_info_get_spk_num()
 
 	ret = conf_status_get_spk_num();
 
-	printf("%s-%s-%d，%d\n",__FILE__,__func__,__LINE__,ret);
+	printf("%s-%s-%d,%d\n",__FILE__,__func__,__LINE__,ret);
 	return ret;
 }
 

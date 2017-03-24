@@ -15,13 +15,6 @@
 extern "C" {
 #endif
 
-typedef unsigned char  	uint8_t;
-
-typedef unsigned short 	uint16_t;
-
-typedef unsigned int   	uint32_t;
-
-typedef long long 		off64_t;
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define COMPOSE_ID(a,b,c,d) ((a) | ((b)<<8) | ((c)<<16) | ((d)<<24))
@@ -70,25 +63,25 @@ typedef struct {
 }timetime;
 
 typedef struct  {
-	uint32_t magic;
-	uint32_t length;
-	uint32_t type;
+	uint32 magic;
+	uint32 length;
+	uint32 type;
 } WAVHeader;
 
 typedef struct  {
-	uint32_t magic;
-	uint32_t fmt_size;
-	uint16_t format;
-	uint16_t channels;
-	uint32_t sample_rate;
-	uint32_t bytes_p_second;
-	uint16_t blocks_align;
-	uint16_t sample_length;
+	uint32 magic;
+	uint32 fmt_size;
+	uint16 format;
+	uint16 channels;
+	uint32 sample_rate;
+	uint32 bytes_p_second;
+	uint16 blocks_align;
+	uint16 sample_length;
 } WAVFmt;
 
 typedef struct  {
-	uint32_t type;
-	uint32_t length;
+	uint32 type;
+	uint32 length;
 } WAVChunkHeader;
 
 typedef struct  {
@@ -106,13 +99,13 @@ typedef struct  {
 	snd_pcm_uframes_t buffer_size;
 	snd_pcm_format_t format;
 
-	uint16_t channels;
+	uint16 channels;
 	size_t chunk_bytes;
 	size_t bits_per_sample;
 	size_t bits_per_frame;
 
 	int recv_num;
-	uint8_t *data_buf;
+	char* data_buf;
 
 } snd_data_format,*Psnd_data_format;
 
@@ -135,11 +128,8 @@ typedef struct{
 
 int wifi_sys_audio_init();
 
-
-int audio_spk_recv_thread_create(int port);
-
-int audio_spk_recv_thread_delete();
-
+void* audio_recv_thread(void* p);
+void* audio_send_thread(void* p);
 
 
 #ifdef __cplusplus

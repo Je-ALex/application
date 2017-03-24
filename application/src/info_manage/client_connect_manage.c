@@ -744,7 +744,7 @@ int ccm_add_info(const unsigned char* msg,Pframe_type type)
 {
 	int tmp_fd = 0;
 	int tmp_did = 0;
-
+	int ret = 0;
 	/*
 	 * 判断设备类型
 	 */
@@ -762,7 +762,11 @@ int ccm_add_info(const unsigned char* msg,Pframe_type type)
 	tmp_fd = type->fd;
 	tmp_did = type->s_id;
 
-	ccm_add_connected_info(type);
+	ret = ccm_add_connected_info(type);
+	if(ret)
+	{
+		return ERROR;
+	}
 
 	/*
 	 * 消息上报

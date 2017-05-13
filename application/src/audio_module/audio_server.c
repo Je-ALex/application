@@ -536,22 +536,22 @@ void* audio_recv_thread(void* p)
 //	char file_name[20] = {0};
 //	sprintf(file_name,"%d",queue_num);
 //	audio = fopen(file_name,"w+");
-
+//
 //	framecontent tmp;
-//    memset(&tmp,0,sizeof(framecontent));
+//  memset(&tmp,0,sizeof(framecontent));
 //
 //	OpusDecoder *dec=NULL;
-//    dec = decoder_init(&tmp);
-//    char *outFile;
-//    FILE *fout;
-//    outFile = "demo.opus";
-//    fout = fopen(outFile, "wb+");
-//    if (!fout)
-//    {
-//        fprintf (stderr, "Could not open output file\n");
-//    }
-//    unsigned int len = 0,range = 0;
-//    unsigned int recv_count = 0;
+//  dec = decoder_init(&tmp);
+//  char *outFile;
+//  FILE *fout;
+//  outFile = "demo.opus";
+//  fout = fopen(outFile, "wb+");
+//  if (!fout)
+//  {
+//     fprintf (stderr, "Could not open output file\n");
+//  }
+//  unsigned int len = 0,range = 0;
+//  unsigned int recv_count = 0;
 
     while(1)
     {
@@ -604,6 +604,7 @@ void* audio_recv_thread(void* p)
 			audio_enqueue(rqueue[queue_num],data[i]);
 //		}
 //		recv_count++;
+
 		i++;
 		if(i==RS_NUM)
 			i=0;

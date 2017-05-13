@@ -13,8 +13,6 @@
  */
 
 
-
-
 #include "wifi_sys_init.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_data_process.h"
@@ -23,56 +21,340 @@
 #include "sys_uart_init.h"
 #include "tcp_ctrl_server.h"
 #include "tcp_ctrl_api.h"
-
 #include "client_mic_status_manage.h"
 
 
 extern Pglobal_info node_queue;
 
 unsigned int spk_ts = 0;
-frame_type spk_tmp;
 
 
+
+//TODO 链表操作相关
 /*
- * TODO 发言管理端口链表信息管理
- */
-
-/*
- * dmanage_send_mic_status_to_pc
- * 单元话筒发言状态上报函数
+ * cmsm_delete_spk_node
+ * 关闭链表中的发言单元
  *
+ * 通过fd进行筛选，关闭对应 单元
+ *
+ * 输入
+ * fd
+ * 输出
+ * 无
+ * 返回值
+ * 成功
+ * 失败
  *
  */
-int dmanage_send_mic_status_to_pc(Pframe_type type)
+static int cmsm_delete_spk_node(int fd)
 {
-	pclient_node tmp = NULL;
-	Pclient_info pinfo;
-	unsigned char msg[3] = {0};
-	int tmp_fd = type->fd;
-	int status = type->evt_data.status;
+	pclient_node tmp_node = NULL,del = NULL;
+	Pas_port sinfo = NULL;
 
-	type->msg_type = REQUEST_MSG;
+	int pos = 0,status = 0;
 
-	msg[0] = WIFI_MEETING_EVT_SPK;
-	msg[1] = WIFI_MEETING_CHAR;
-
-	switch(type->evt_data.value)
+	int num = 0;
+	/*
+	 * 查找连接信息中，是否有该设备存在
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
 	{
-	case WIFI_MEETING_EVT_SPK_VETO:
-	case WIFI_MEETING_EVT_SPK_CLOSE_MIC:
-		msg[2] = WIFI_MEETING_EVT_SPK_CLOSE_MIC;
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd == fd)
+		{
+			num = (sinfo->asport-AUDIO_RECV_PORT)/2 + 1;
+			conf_status_set_spk_buf_offset(num,0);
+			conf_status_set_spk_timestamp(num,0);
+			status++;
+			break;
+		}
+		tmp_node = tmp_node->next;
+		pos++;
+	}
+
+	if(status)
+	{
+		sys_list_delete(node_queue->sys_list[CONFERENCE_SPK],pos,&del);
+		sinfo = del->data;
+
+		printf("%s-%s-%d,remove %d in spk list\n",__FILE__,__func__,__LINE__,
+				sinfo->asport);
+
+		free(sinfo);
+		free(del);
+		sinfo = NULL;
+		del = NULL;
+	}else{
+		printf("%s-%s-%d,not have spk client\n",__FILE__,__func__,__LINE__);
+		return ERROR;
+	}
+
+	return SUCCESS;
+}
+
+/*
+ * cmsm_add_spk_node
+ * 发言链表中增加发言单元结点
+ *
+ * 将单元话筒状态存入链表中
+ * 主要是相关的fd/席别/发言端口/时间戳/当前状态
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * 无
+ *
+ * 返回值
+ * 成功
+ * 失败
+ */
+static int cmsm_add_spk_node(Pframe_type type)
+{
+	Pas_port sinfo = NULL;
+
+	sinfo = (Pas_port)malloc(sizeof(as_port));
+	memset(sinfo,0,sizeof(as_port));
+
+	spk_ts++;
+	sinfo->oldfd = type->oldfd;
+	sinfo->sockfd = type->fd;
+	sinfo->seat = type->ucinfo.seat;
+	sinfo->asport = type->spk_port;
+	sinfo->ts = spk_ts;
+	sinfo->status = type->evt_data.status;
+
+	printf("%s-%s-%d fd:%d,asport:%d,ts:%d,status:%d\n",__FILE__,__func__,__LINE__,
+			sinfo->sockfd,sinfo->asport,sinfo->ts,sinfo->status);
+	/*
+	 * 发言信息存入
+	 */
+	sys_list_add(node_queue->sys_list[CONFERENCE_SPK],sinfo);
+
+	return SUCCESS;
+
+}
+
+/*
+ * cmsm_search_spk_node
+ * 查找链表中的保存的单元
+ *
+ * 通过fd判断当前链表中是否有此设备了
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ */
+static int cmsm_search_spk_node(Pframe_type type)
+{
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
+	int pos = 0;
+
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd == type->fd)
+		{
+			pos++;
+			break;
+		}
+		tmp_node=tmp_node->next;
+	}
+
+	return pos;
+}
+
+/*
+ * cmsm_update_spk_node
+ * 更新链表信息
+ *
+ * 通过fd判断当前链表中的设备，对此设备进行信息更新操作
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ */
+static int cmsm_update_spk_node(Pframe_type type)
+{
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
+
+//	pclient_node del = NULL;
+//	Pas_port ninfo = NULL;
+
+	int pos,status;
+//	int tmp_fd = 0;
+//	int tmp_ts = 0;
+//	int tmp_seat = 0;
+//	int tmp_port = 0;
+
+	pos = status =0;
+
+	/*
+	 * 查找连接信息中，是否有该设备存在
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node!=NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd == type->fd)
+		{
+//			status++;
+//			tmp_fd = sinfo->sockfd;
+//			tmp_ts = sinfo->ts;
+//			tmp_seat = sinfo->seat;
+//			tmp_port = sinfo->asport;
+			sinfo->status = CMSM_OPEN_SUCCESS;
+			sinfo->oldfd = -1;
+			printf("%s-%s-%d fd:%d,asport:%d,ts:%d,status:%d\n",__FILE__,__func__,__LINE__,
+					sinfo->sockfd,sinfo->asport,sinfo->ts,sinfo->status);
+			break;
+		}
+		tmp_node=tmp_node->next;
+		pos++;
+	}
+
+//	if(status)
+//	{
+//
+//		list_delete(node_queue->sys_list[CONFERENCE_SPK],pos,&del);
+//		sinfo = del->data;
+//
+//		printf("%s-%s-%d,remove %d in spk list\n",__FILE__,__func__,__LINE__,
+//				sinfo->asport);
+//
+//		free(sinfo);
+//		free(del);
+//		sinfo = NULL;
+//		del = NULL;
+//
+//		ninfo = (Pas_port)malloc(sizeof(as_port));
+//		memset(ninfo,0,sizeof(as_port));
+//		ninfo->sockfd = tmp_fd;
+//		ninfo->seat = tmp_seat;
+//		ninfo->asport = tmp_port;
+//		ninfo->ts = tmp_ts;
+//		ninfo->status = CMSM_OPEN_SUCCESS;
+//
+//		printf("%s-%s-%d fd:%d,asport:%d,ts:%d,status:%d\n",__FILE__,__func__,__LINE__,
+//				ninfo->sockfd,ninfo->asport,ninfo->ts,ninfo->status);
+//		/*
+//		 * 发言信息存入
+//		 */
+//		list_add(node_queue->sys_list[CONFERENCE_SPK],ninfo);
+//
+//	}else{
+//		printf("%s-%s-%d,not have spk client\n",__FILE__,__func__,__LINE__);
+//		return ERROR;
+//	}
+
+
+	return SUCCESS;
+}
+
+/*
+ * cmsm_refresh_spk_node
+ * 单元话筒开关状态链表信息管理接口函数
+ *
+ * 主要通过状态对信息进行分类处理
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ *
+ */
+int cmsm_refresh_spk_node(Pframe_type type)
+{
+	int ret = -1;
+
+	switch(type->evt_data.status)
+	{
+	case CMSM_OPEN_SUCCESS:
+	case CMSM_WAIT_REPLY:
+		ret = cmsm_add_spk_node(type);
 		break;
-	case WIFI_MEETING_EVT_SPK_REQ_SPK:
-		msg[2] = WIFI_MEETING_EVT_SPK_REQ_SPK;
+	case CMSM_UPDATE_REPLY:
+		ret = cmsm_update_spk_node(type);
 		break;
-	case WIFI_MEETING_EVT_SPK_OPEN_MIC:
-		msg[2] = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+	case CMSM_MIC_CLOSE:
+		ret = cmsm_delete_spk_node(type->fd);
 		break;
 	}
-	type->data_len = 3;
+
+	return ret;
+}
+
+
+//TODO 逻辑处理相关
+
+/*
+ * cmsm_port_status_sendto_pc
+ * 单元话筒开关状态上报函数
+ *
+ * 此函数主要是将单元的话筒开关状态上报给PC,用于进行服务器的同步
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * 无
+ *
+ * 返回值
+ * 成功
+ * 失败
+ */
+static int cmsm_port_status_sendto_pc(Pframe_type type)
+{
+	pclient_node tmp = NULL;
+	Pclient_info pinfo = NULL;
+
+	unsigned char msg[3] = {0};
+	int t_index = 0;
+	int tmp_fd = type->fd;
+
+	type->msg_type = REQUEST_MSG;
+	type->dev_type = HOST_CTRL;
+
+	type->name_type[0] = WIFI_MEETING_EVT_SPK;
+	type->code_type[0] = WIFI_MEETING_CHAR;
+
 
 	if(conf_status_get_pc_staus() > 0)
 	{
+		msg[t_index++] = WIFI_MEETING_EVT_SPK;
+		msg[t_index++] = WIFI_MEETING_CHAR;
+		switch(type->evt_data.value)
+		{
+		case WIFI_MEETING_EVT_SPK_VETO:
+		case WIFI_MEETING_EVT_SPK_CLOSE_MIC:
+			msg[t_index++] = WIFI_MEETING_EVT_SPK_CLOSE_MIC;
+			break;
+		case WIFI_MEETING_EVT_SPK_REQ_SPK:
+			msg[t_index++] = WIFI_MEETING_EVT_SPK_REQ_SPK;
+			break;
+		case WIFI_MEETING_EVT_SPK_CLOSE_REQ:
+			msg[t_index++] = WIFI_MEETING_EVT_SPK_CLOSE_REQ;
+			break;
+		case WIFI_MEETING_EVT_SPK_OPEN_MIC:
+			msg[t_index++] = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+			break;
+		}
+
+		type->data_len = t_index;
+
 		tmp=node_queue->sys_list[CONNECT_LIST]->next;;
 		while(tmp != NULL)
 		{
@@ -104,145 +386,34 @@ int dmanage_send_mic_status_to_pc(Pframe_type type)
 			}
 			tmp = tmp->next;
 		}
+
+		type->fd = tmp_fd;
 	}
-	type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-	type->code_type[0] = WIFI_MEETING_CHAR;
-	type->evt_data.status = status;
-	type->msg_type = WRITE_MSG;
-	type->dev_type = HOST_CTRL;
-	type->fd = tmp_fd;
 
 	return SUCCESS;
 
 }
 
-/*
- * conf_status_search_spk_node
- * 查找发言链表中的设备信息，时间戳最小的，将会返回fd，用于发送关闭
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
- *
- */
-int dmanage_search_first_spk_node(Pframe_type type)
-{
-	pclient_node tmp_node;
-	Pas_port sinfo;
-
-	unsigned int ts = 0xFFFFFFFF;
-
-	/*
-	 * 找出信息中的最小时间戳
-	 */
-	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-	while(tmp_node!=NULL)
-	{
-		sinfo = tmp_node->data;
-		if(sinfo->sockfd)
-		{
-			if((sinfo->ts < ts) &&
-					(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN))
-			{
-				ts = sinfo->ts;
-			}
-		}
-
-		tmp_node=tmp_node->next;
-	}
-	if(ts < 0xffffffff)
-	{
-		/*
-		 * 找到最小时间戳的配置信息
-		 */
-		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-		while(tmp_node!=NULL)
-		{
-			sinfo = tmp_node->data;
-			if(sinfo->sockfd)
-			{
-				if(sinfo->ts == ts)
-				{
-					type->fd = sinfo->sockfd;
-					type->spk_port = sinfo->asport;
-					break;
-				}
-			}
-
-			tmp_node=tmp_node->next;
-		}
-	}
-
-	return SUCCESS;
-}
 
 /*
- * 查找发言中，最后上线的设备
+ * cmsm_search_not_use_spk_port
+ * 查找音频链表中没有使用端口号
  *
- */
-int dmanage_search_last_spk_node(Pframe_type type)
-{
-	pclient_node tmp_node;
-	Pas_port sinfo;
-
-	unsigned int ts = 0;
-
-	/*
-	 * 找出信息中的最大时间戳
-	 */
-	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-	while(tmp_node!=NULL)
-	{
-		sinfo = tmp_node->data;
-		if(sinfo->sockfd)
-		{
-			if((sinfo->ts > ts) &&
-					(sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN))
-			{
-				ts = sinfo->ts;
-			}
-		}
-
-		tmp_node=tmp_node->next;
-	}
-	if(ts > 0)
-	{
-		/*
-		 * 找到最大设备的配置信息
-		 */
-		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-		while(tmp_node!=NULL)
-		{
-			sinfo = tmp_node->data;
-			if(sinfo->sockfd)
-			{
-				if(sinfo->ts == ts)
-				{
-					type->fd = sinfo->sockfd;
-					type->spk_port = sinfo->asport;
-					break;
-				}
-			}
-
-			tmp_node=tmp_node->next;
-		}
-	}
-
-
-	return SUCCESS;
-}
-
-/*
- * conf_status_search_not_use_spk_port
- * 查找音频没有使用的端口
- * 轮询查找发言管理链表中的信息，筛选出没有使用的端口号
- * 返回没有使用的端口号
+ * 通过端口链表查找没有使用的端口信息，将端口信息返回
  *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ *
+ * 返回值
+ * 成功
+ * 失败
  */
-int dmanage_search_not_use_spk_port(Pframe_type type)
+static int cmsm_search_not_use_spk_port(Pframe_type type)
 {
-	pclient_node tmp_node;
-	Pas_port sinfo;
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
 
 	int i;
 	int tmp_port = 0;
@@ -258,8 +429,7 @@ int dmanage_search_not_use_spk_port(Pframe_type type)
 	};
 
 	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-
-	while(tmp_node!=NULL)
+	while(tmp_node != NULL)
 	{
 		sinfo = tmp_node->data;
 		if(sinfo->sockfd)
@@ -278,7 +448,7 @@ int dmanage_search_not_use_spk_port(Pframe_type type)
 				}
 			}
 		}
-		tmp_node=tmp_node->next;
+		tmp_node = tmp_node->next;
 	}
 	for(i=0;i<conf_status_get_spk_num();i++)
 	{
@@ -292,57 +462,175 @@ int dmanage_search_not_use_spk_port(Pframe_type type)
 	return SUCCESS;
 }
 
+
 /*
- * conf_status_close_last_spk_client
- * 关闭最后发言的端口号
- * 查找发言管理链表中，最后上线的设备
- * 将关闭消息下发给即将关闭的单元
+ * cmsm_search_first_spk_node
+ * 查找发言链表中的设备信息，当前状态下最先打开话筒的单元，得到此单元的fd和发言端口号
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ *
+ * 返回值
+ * 成功
+ * 失败
  *
  */
-int dmanage_close_last_spk_client(Pframe_type type)
+static int cmsm_search_first_spk_node(Pframe_type type)
 {
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
 
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+	int status = 0;
+	unsigned int ts = 0xFFFFFFFF;
+
 	/*
-	 * 查询会议中排位，关闭时间戳最大的单元
-	 * 将端口下发给新申请的单元
+	 * 找出信息中的最小时间戳
 	 */
-	dmanage_search_last_spk_node(type);
-	type->msg_type = WRITE_MSG;
-	type->name_type[0] = WIFI_MEETING_EVT_SPK;
-	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node != NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd)
+		{
+			if((sinfo->ts < ts) && (sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+					&& (sinfo->status == CMSM_OPEN_SUCCESS))
+			{
+				ts = sinfo->ts;
+				status++;
+			}
+		}
 
-	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+		tmp_node = tmp_node->next;
+	}
+	if(ts < 0xffffffff)
+	{
+		/*
+		 * 找到最小时间戳的配置信息
+		 */
+		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+		while(tmp_node != NULL)
+		{
+			sinfo = tmp_node->data;
+			if(sinfo->sockfd)
+			{
+				if(sinfo->ts == ts)
+				{
+					type->fd = sinfo->sockfd;
+					type->spk_port = sinfo->asport;
+					sinfo->status = CMSM_PREPARE_CLOSE;
+					break;
+				}
+			}
 
-	conf_status_camera_track_postion(type->d_id,0);
-	tcp_ctrl_module_edit_info(type,NULL);
-//	dmanage_delete_spk_node(type->fd);
-	//关闭消息发送给上位机
-	dmanage_send_mic_status_to_pc(type);
+			tmp_node = tmp_node->next;
+		}
+	}
 
-//	dmanage_delete_spk_node(type->fd);
-
-	return SUCCESS;
-
+	return status;
 }
 
+/*
+ * cmsm_search_last_spk_node
+ * 查找发言链表中，当前状态下，端口号最大的设备
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ *
+ * 返回值
+ * 成功
+ * 失败
+ */
+static int cmsm_search_last_spk_node(Pframe_type type)
+{
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
+
+	unsigned int ts = 0;
+
+	/*
+	 * 找出信息中的最大时间戳
+	 */
+	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+	while(tmp_node != NULL)
+	{
+		sinfo = tmp_node->data;
+		if(sinfo->sockfd)
+		{
+//			if((sinfo->ts > ts) && (sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+//					&& (sinfo->status == CMSM_OPEN_SUCCESS))
+//			{
+//				ts = sinfo->ts;
+//			}
+
+			if((sinfo->asport > ts) && (sinfo->seat != WIFI_MEETING_CON_SE_CHAIRMAN)
+					&& (sinfo->status == CMSM_OPEN_SUCCESS))
+			{
+				ts = sinfo->asport;
+			}
+
+		}
+
+		tmp_node = tmp_node->next;
+	}
+	if(ts > 0)
+	{
+		/*
+		 * 找到最大设备的配置信息
+		 */
+		tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
+		while(tmp_node != NULL)
+		{
+			sinfo = tmp_node->data;
+			if(sinfo->sockfd)
+			{
+//				if(sinfo->ts == ts)
+//				{
+//					type->fd = sinfo->sockfd;
+//					type->spk_port = sinfo->asport;
+//					break;
+//				}
+				if(sinfo->asport == ts)
+				{
+					type->fd = sinfo->sockfd;
+					type->spk_port = sinfo->asport;
+					break;
+				}
+			}
+
+			tmp_node = tmp_node->next;
+		}
+	}
+
+
+	return SUCCESS;
+}
 
 /*
- * conf_status_close_first_spk_client
- * 关闭发言管理链表中最先上线的设备
+ * cmsm_close_first_spk_client
+ * 关闭发言管理链表中最先开启的设备
  *
- * 查找链表中最先上线的设备
- * 将关闭消息下发给单元
+ * 查找设备中最先开启的单元，将关闭消息发送给此单元
  *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ *
+ * 返回值
+ * 成功
+ * 失败
  */
-int dmanage_close_first_spk_client(Pframe_type type)
+static int cmsm_close_first_spk_client(Pframe_type type)
 {
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	/*
 	 * 查询会议中排位，关闭时间戳最小的单元
 	 * 将端口下发给新申请的单元
 	 */
-	dmanage_search_first_spk_node(type);
+	cmsm_search_first_spk_node(type);
 
 	type->msg_type = WRITE_MSG;
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
@@ -350,30 +638,80 @@ int dmanage_close_first_spk_client(Pframe_type type)
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	conf_status_camera_track_postion(type->d_id,0);
-//	dmanage_delete_spk_node(type->fd);
+//	cmsm_delete_spk_node(type->fd);
 	tcp_ctrl_module_edit_info(type,NULL);
 	//关闭消息发送给上位机
-	dmanage_send_mic_status_to_pc(type);
 
+//	cmsm_port_status_sendto_pc(type);
 
 	return SUCCESS;
 }
 
 /*
- * conf_status_close_guest_spk_client
+ * cmsm_close_last_spk_client
+ * 关闭发言链表中最后开启的设备
+ *
+ * 找到发言链表中最后开启的单元，将关闭信息下发给此单元，上报给PC
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ *
+ * 返回值
+ * 成功
+ * 失败
+ *
+ */
+static int cmsm_close_last_spk_client(Pframe_type type)
+{
+	/*
+	 * 查询会议中排位，关闭时间戳最大的单元
+	 * 将端口下发给新申请的单元
+	 */
+	cmsm_search_last_spk_node(type);
+	type->msg_type = WRITE_MSG;
+	type->name_type[0] = WIFI_MEETING_EVT_SPK;
+	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+
+	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+
+	conf_status_camera_track_postion(type->d_id,0);
+	tcp_ctrl_module_edit_info(type,NULL);
+
+	//关闭消息发送给上位机
+	cmsm_port_status_sendto_pc(type);
+
+//	cmsm_delete_spk_node(type->fd);
+
+	return SUCCESS;
+
+}
+
+/*
+ * cmsm_close_guest_spk_client
  * 关闭列席单元的发言端口
  *
- * 查找发言链表中，所有的列席单元
- * 下发关闭消息个单元
+ * 查找发言链表中的列席单元，关闭列席单元
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ *
  */
-int dmanage_close_guest_spk_client(Pframe_type type)
+static int cmsm_close_guest_spk_client(Pframe_type type)
 {
-	pclient_node tmp_node;
-	Pas_port sinfo;
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
 	int tmp = 0;
 
 	type->name_type[0] = WIFI_MEETING_EVT_SPK;
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+
 	/*
 	 * 查找连接信息中，是否有该设备存在
 	 */
@@ -387,10 +725,10 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 			type->fd = sinfo->sockfd;
 			tcp_ctrl_module_edit_info(type,NULL);
 
-			//dmanage_delete_spk_node(sinfo->sockfd);
-			dmanage_send_mic_status_to_pc(type);
-			tmp=conf_status_get_cspk_num();
-			if(tmp>0)
+//			cmsm_delete_spk_node(sinfo->sockfd);
+			cmsm_port_status_sendto_pc(type);
+			tmp = conf_status_get_cspk_num();
+			if(tmp > 0)
 			{
 				tmp--;
 				conf_status_set_cspk_num(tmp);
@@ -398,7 +736,7 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 
 			msleep(10);
 		}
-		tmp_node=tmp_node->next;
+		tmp_node = tmp_node->next;
 
 	}
 
@@ -406,21 +744,33 @@ int dmanage_close_guest_spk_client(Pframe_type type)
 
 	return SUCCESS;
 }
-
-
 /*
- * conf_status_delete_spk_node
- * 关闭链表中的发言结点
+ * cmsm_through_reply_proc_port
+ * 话筒开关状态应答函数处理接口
+ *
+ * 主要是通过单元返回的412信息，对相应的单元进行链表结点删除和新单元链表信息更新操作
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
  */
-int dmanage_delete_spk_node(int fd)
+int cmsm_through_reply_proc_port(Pframe_type type)
 {
-	pclient_node tmp_node;
-	pclient_node del;
-	Pas_port sinfo;
+	pclient_node tmp_node = NULL;
+	Pas_port sinfo = NULL;
 
-	int pos,status;
-	int num = 0;
-	pos = status =0;
+	int status = 0;
+	int tmp_fd = 0;
+	int tmp_port = 0;
+
+
+	cmsm_delete_spk_node(type->fd);
+	type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
+	cmsm_port_status_sendto_pc(type);
 
 	/*
 	 * 查找连接信息中，是否有该设备存在
@@ -429,369 +779,80 @@ int dmanage_delete_spk_node(int fd)
 	while(tmp_node!=NULL)
 	{
 		sinfo = tmp_node->data;
-		if(sinfo->sockfd == fd)
+		if(sinfo->status != CMSM_OPEN_SUCCESS
+				&& sinfo->oldfd == type->fd)
 		{
-			/*
-			 * 复位音频接收队列
-			 */
-			num = ((sinfo->asport -AUDIO_RECV_PORT)/2 + 1);
-//			audio_queue_reset(rqueue[num]);
-			conf_status_set_spk_buf_offset(num,0);
-			conf_status_set_spk_timestamp(num,0);
+			tmp_fd = sinfo->sockfd;
+			tmp_port = sinfo->asport;
 			status++;
 			break;
 		}
-		tmp_node=tmp_node->next;
-		pos++;
+		tmp_node = tmp_node->next;
 	}
 
 	if(status)
 	{
-
-		list_delete(node_queue->sys_list[CONFERENCE_SPK],pos,&del);
-		sinfo = del->data;
-
-		printf("%s-%s-%d,remove %d in spk list\n",__FILE__,__func__,__LINE__,
-				sinfo->asport);
-
-		free(sinfo);
-		free(del);
-	}else{
-		printf("%s-%s-%d,not have spk client\n",__FILE__,__func__,__LINE__);
-		return ERROR;
-	}
-
-	return SUCCESS;
-}
-
-/*
- * conf_status_add_spk_node
- * 发言链表中增加发言结点
- */
-int dmanage_add_spk_node(Pframe_type type)
-{
-	Pas_port sinfo;
-
-	sinfo = malloc(sizeof(as_port));
-
-	spk_ts++;
-
-	sinfo->sockfd = type->fd;
-	sinfo->seat = type->con_data.seat;
-	sinfo->asport = type->spk_port;
-	sinfo->ts = spk_ts;
-	printf("%s-%s-%d fd:%d,asport:%d,ts:%d\n",__FILE__,__func__,__LINE__,
-			sinfo->sockfd,sinfo->asport,sinfo->ts);
-	/*
-	 * 发言信息存入
-	 */
-	list_add(node_queue->sys_list[CONFERENCE_SPK],sinfo);
-
-	return SUCCESS;
-
-}
-
-
-/*
- * cmsm_search_spk_node
- * 查找链表中的保存的单元
- */
-int cmsm_search_spk_node(Pframe_type type)
-{
-	pclient_node tmp_node;
-	Pas_port sinfo;
-	int pos = 0;
-
-	tmp_node = node_queue->sys_list[CONFERENCE_SPK]->next;
-	while(tmp_node!=NULL)
-	{
-		sinfo = tmp_node->data;
-		if(sinfo->sockfd == type->fd)
-		{
-			pos++;
-			break;
-		}
-
-		tmp_node=tmp_node->next;
-	}
-
-	return pos;
-}
-
-/*
- * dmanage_refresh_spk_node
- * 更新会议链表中的发言管理设备信息
- *
- * 返回值：
- * @ERROR
- * @SUCCESS
- *
- */
-int cmsm_refresh_spk_node(Pframe_type type)
-{
-	int ret = 0;
-	switch(type->evt_data.status)
-	{
-	case WIFI_MEETING_EVENT_SPK_ALLOW:
-	case WIFI_MEETING_EVENT_SPK_REQ_SPK:
-		ret = dmanage_add_spk_node(type);
-		break;
-	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
-		ret = dmanage_delete_spk_node(type->fd);
-		break;
-	}
-
-
-	return ret;
-}
-
-
-
-
-/*
- * TODO 话筒管理逻辑处理
- */
-
-int tcp_ctrl_uevent_spk_port_reply(int fd)
-{
-
-	if(spk_tmp.spk_port)
-	{
-		dmanage_delete_spk_node(fd);
-
-		cmsm_refresh_spk_node(&spk_tmp);
-
-		tcp_ctrl_module_edit_info(&spk_tmp,NULL);
-	}
-
-	if(spk_tmp.evt_data.status == WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON)
-	{
-		dmanage_delete_spk_node(fd);
-	}
-	memset(&spk_tmp,0,sizeof(frame_type));
-
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-
-	return SUCCESS;
-}
-
-int conf_status_set_spk_now_fd(Pframe_type type)
-{
-	memcpy(&spk_tmp,type,sizeof(frame_type));
-
-	return SUCCESS;
-}
-
-
-/*
- * cmsm_handle_spk_port
- * 发言端口处理函数
- *
- * 此接口是将端口号下发给相应的单元，并且将对应的关闭信息发送给被关闭的单元
- *
- * 此函数处理的就是两件事，端口关闭和端口打开信息的处理
- *
- *
- *
- */
-int cmsm_handle_spk_port(Pframe_type type)
-{
-	int tmp = 0;
-	int tmp_port = 0;
-	int cnum = 0;
-	int tmp_fd = type->fd;
-	int tmp2;
-
-	memset(&spk_tmp,0,sizeof(frame_type));
-
-	type->msg_type = WRITE_MSG;
-	type->dev_type = HOST_CTRL;
-
-	type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-	type->code_type[0] = WIFI_MEETING_CHAR;
-
-	switch(type->evt_data.status)
-	{
-	case WIFI_MEETING_EVENT_SPK_ALLOW:
-	case WIFI_MEETING_EVENT_SPK_REQ_SPK:
-	{
-		if(type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
-		{
-			tmp_port = AUDIO_RECV_PORT;
-			/*
-			 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
-			 * 人数饱满，则需要关闭最后上线的设备
-			 */
-			if(conf_status_get_cspk_num() == conf_status_get_spk_num())
-			{
-				dmanage_close_last_spk_client(type);
-			}else{
-
-				cnum = 1;
-//				tmp = conf_status_get_cspk_num();
-//				tmp++;
-//				conf_status_set_cspk_num(tmp);
-			}
-			conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHAIRMAN);
-			type->fd = tmp_fd;
-			type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-
-		}else if(type->con_data.seat == WIFI_MEETING_CON_SE_GUEST
-				|| type->con_data.seat == WIFI_MEETING_CON_SE_ATTEND)
-		{
-
-			/*
-			 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
-			 * 已达到上限，则需要关闭第一个单元
-			 * 轮询发言链表中的设备，比较时间戳， 时间戳最小的，表示最早加入设备，需要关闭
-			 */
-			if(conf_status_get_cspk_num() == conf_status_get_spk_num())
-			{
-				/*
-				 * 人数已满，需要进行管理，关闭最早上线单元
-				 */
-				dmanage_close_first_spk_client(type);
-				/*
-				 * 更新发言链表，下发端口信息
-				 */
-				tmp2 = type->fd;
-				tmp_port = type->spk_port;
-				type->fd = tmp_fd;
-				type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-
-			}else{
-
-				/*
-				 * 判断发言端口状态，是否有单元自己关闭，然后新上线的单元，需要使用下线单元的端口号
-				 */
-				dmanage_search_not_use_spk_port(type);
-				tmp_port = type->spk_port;
-
-				//当前发言人数需要告知全局变量
-//				if((tmp=conf_status_get_cspk_num()) < conf_status_get_spk_num())
-//				{
-//					tmp++;
-//					conf_status_set_cspk_num(tmp);
-//				}
-				cnum = 1;
-			}
-		}
-
-		tcp_ctrl_source_dest_setting(-1,type->fd,type);
-		/*
-		 * 下发给摄像
-		 */
-		conf_status_camera_track_postion(type->d_id,1);
-		/*
-		 * 更新发言管理链表
-		 */
+		type->fd = tmp_fd;
+		type->msg_type = WRITE_MSG;
+		type->dev_type = HOST_CTRL;
+		type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
+		type->code_type[0] = WIFI_MEETING_CHAR;
 		type->spk_port = tmp_port;
 
-		if(conf_status_get_cspk_num() == conf_status_get_spk_num())
-		{
-//			conf_status_set_spk_now_fd(type);
-			dmanage_delete_spk_node(tmp2);
-
-			cmsm_refresh_spk_node(type);
-
-			tcp_ctrl_module_edit_info(type,NULL);
-
-
-		}else{
-			cmsm_refresh_spk_node(type);
-
-			tcp_ctrl_module_edit_info(type,NULL);
-		}
-
-		if(cnum == 1)
-		{
-			tmp = conf_status_get_cspk_num();
-			tmp++;
-			conf_status_set_cspk_num(tmp);
-		}
-
-		type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
-		dmanage_send_mic_status_to_pc(type);
-		break;
-	}
-//	case WIFI_MEETING_EVENT_SPK_VETO:
-//	{
-//		type->name_type[0] = WIFI_MEETING_EVT_SPK;
-//		type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-//
-//		tcp_ctrl_source_dest_setting(-1,type->fd,type);
-//		tcp_ctrl_module_edit_info(type,NULL);
-//		break;
-//	}
-	case WIFI_MEETING_EVENT_SPK_REQ_SND:
-	case WIFI_MEETING_EVENT_SPK_ALOW_SND:
-	{
-		conf_status_set_snd_brd(WIFI_MEETING_EVENT_SPK_REQ_SND);
-		type->brd_port = AUDIO_SEND_PORT;
-		tcp_ctrl_module_edit_info(type,NULL);
-		break;
-	}
-	case WIFI_MEETING_EVENT_SPK_CLOSE_SND:
-	{
-		conf_status_set_snd_brd(WIFI_MEETING_EVENT_SPK_CLOSE_SND);
-		break;
-	}
-	case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
-
-//		tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-
-		conf_status_camera_track_postion(type->s_id,0);
-		tmp=conf_status_get_cspk_num();
-		if(tmp>0)
-		{
-			tmp--;
-			conf_status_set_cspk_num(tmp);
-		}
-
-		if(type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
-		{
-			conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
-		}
+		type->evt_data.status = CMSM_UPDATE_REPLY;
 		cmsm_refresh_spk_node(type);
-		dmanage_send_mic_status_to_pc(type);
-		break;
-	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON:
-	{
-		dmanage_close_guest_spk_client(type);
-		conf_status_set_spk_now_fd(type);
-		break;
-	}
-	case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_OFF:
-	{
-		conf_status_set_spk_num(DEF_SPK_NUM);
-		break;
-	}
+
+		tcp_ctrl_source_dest_setting(-1,type->fd,type);
+		//摄像跟踪设置
+		conf_status_camera_track_postion(type->d_id,1);
+
+		tcp_ctrl_module_edit_info(type,NULL);
+
+		//告知上位机有设备打开话筒
+		type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+		cmsm_port_status_sendto_pc(type);
 	}
 
 	return SUCCESS;
 }
 
 
+/*
+ * cmsm_chairman_port
+ * 主席单元发言端口处理函数
+ *
+ * 主要是对主席话筒开关状态进行处理
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ *
+ */
 static int cmsm_chairman_port(Pframe_type type)
 {
 	int csn = 0;
 	int tmp_fd = type->fd;
+
 	/*
 	 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
 	 * 人数饱满，则需要关闭最后上线的设备
 	 */
-
 	if(conf_status_get_cspk_num() == conf_status_get_spk_num())
 	{
-		dmanage_close_last_spk_client(type);
+		cmsm_close_last_spk_client(type);
 
-		dmanage_delete_spk_node(type->fd);
+		cmsm_delete_spk_node(type->fd);
 
 	}else{
 		csn = conf_status_get_cspk_num();
 		csn++;
 		conf_status_set_cspk_num(csn);
 	}
+
 	conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHAIRMAN);
 
 	type->spk_port = AUDIO_RECV_PORT;
@@ -801,28 +862,43 @@ static int cmsm_chairman_port(Pframe_type type)
 	type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
 	type->code_type[0] = WIFI_MEETING_CHAR;
 
+	type->evt_data.status = CMSM_OPEN_SUCCESS;
+	cmsm_refresh_spk_node(type);
+
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
 	//摄像跟踪设置
 	conf_status_camera_track_postion(type->d_id,1);
-
-	cmsm_refresh_spk_node(type);
 
 	tcp_ctrl_module_edit_info(type,NULL);
 
 	//告知上位机有设备打开话筒
 	type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
-	dmanage_send_mic_status_to_pc(type);
+	cmsm_port_status_sendto_pc(type);
+
 
 	return SUCCESS;
 }
 
 
+/*
+ * cmsm_guest_port
+ * 其他单元发言端口处理函数
+ *
+ * 主要是对其他单元发言端口进行处理
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
+ *
+ */
 static int cmsm_guest_port(Pframe_type type)
 {
 	int tmp_fd = type->fd;
 	int csn = 0;
-
-
 
 	/*
 	 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
@@ -831,49 +907,52 @@ static int cmsm_guest_port(Pframe_type type)
 	 */
 	if(conf_status_get_cspk_num() == conf_status_get_spk_num())
 	{
+		cmsm_close_first_spk_client(type);
 
-		dmanage_close_first_spk_client(type);
-
-		dmanage_delete_spk_node(type->fd);
+		type->oldfd = type->fd;
+		type->fd = tmp_fd;
+		type->evt_data.status = CMSM_WAIT_REPLY;
+		cmsm_refresh_spk_node(type);
 
 	}else{
 
 		/*
 		 * 人数没有饱和，则查找没有使用的端口
 		 */
-		dmanage_search_not_use_spk_port(type);
+		cmsm_search_not_use_spk_port(type);
+
 		csn = conf_status_get_cspk_num();
 		csn++;
 		conf_status_set_cspk_num(csn);
+
+		type->fd = tmp_fd;
+		type->msg_type = WRITE_MSG;
+		type->dev_type = HOST_CTRL;
+		type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
+		type->code_type[0] = WIFI_MEETING_CHAR;
+
+		type->evt_data.status = CMSM_OPEN_SUCCESS;
+		cmsm_refresh_spk_node(type);
+
+		tcp_ctrl_source_dest_setting(-1,type->fd,type);
+		//摄像跟踪设置
+		conf_status_camera_track_postion(type->d_id,1);
+
+		tcp_ctrl_module_edit_info(type,NULL);
+
+		//告知上位机有设备打开话筒
+		type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
+		cmsm_port_status_sendto_pc(type);
 	}
-
-	type->fd = tmp_fd;
-	type->msg_type = WRITE_MSG;
-	type->dev_type = HOST_CTRL;
-	type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-	type->code_type[0] = WIFI_MEETING_CHAR;
-
-	tcp_ctrl_source_dest_setting(-1,type->fd,type);
-	//摄像跟踪设置
-	conf_status_camera_track_postion(type->d_id,1);
-
-	cmsm_refresh_spk_node(type);
-
-	tcp_ctrl_module_edit_info(type,NULL);
-
-	//告知上位机有设备打开话筒
-	type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
-	dmanage_send_mic_status_to_pc(type);
 
 	return SUCCESS;
 }
-
 
 /*
  * cmsm_spk_port_status_onoff
  * 发言端口的管理函数
  *
- * 主要是处理端口号的打开和关闭，并且更新链表信息
+ * 对单元的席别进行分类，分别进行处理
  *
  * 输入
  * tmp_type
@@ -886,124 +965,32 @@ static int cmsm_guest_port(Pframe_type type)
  */
 static int cmsm_spk_port_status_onoff(Pframe_type type)
 {
-//	int tmp_port = 0;
-//	int csn = 0;
-//	int cs_state = 0;
-//	int tmp2 = 0;
-//	int tmp_fd = type->fd;
-//
-//	type->msg_type = WRITE_MSG;
-//	type->dev_type = HOST_CTRL;
-//	type->code_type[0] = WIFI_MEETING_CHAR;
 
 	/*
 	 * 判断此单元状态是否已在链表中更新
 	 */
 	if(!cmsm_search_spk_node(type))
 	{
-		switch(type->con_data.seat)
+		switch(type->ucinfo.seat)
 		{
 			case WIFI_MEETING_CON_SE_CHAIRMAN:
-//				/*
-//				 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
-//				 * 人数饱满，则需要关闭最后上线的设备
-//				 */
-//				tmp_port = AUDIO_RECV_PORT;
-//
-//				if(conf_status_get_cspk_num() == conf_status_get_spk_num())
-//				{
-//					dmanage_close_last_spk_client(type);
-//					tmp2 = type->fd;
-//
-//				}else{
-//					cs_state++;
-//				}
-//
-//				conf_status_set_cmspk(WIFI_MEETING_CON_SE_CHAIRMAN);
-
 				cmsm_chairman_port(type);
 				break;
 			case WIFI_MEETING_CON_SE_GUEST:
 			case WIFI_MEETING_CON_SE_ATTEND:
-//				/*
-//				 * 判断当前发言人数是否饱和，如果饱和，则需要进行处理
-//				 * 已达到上限，则需要关闭第一个单元
-//				 * 轮询发言链表中的设备，比较时间戳， 时间戳最小的，表示最早加入设备，需要关闭
-//				 */
-//				if(conf_status_get_cspk_num() == conf_status_get_spk_num())
-//				{
-//					/*
-//					 * 人数已满，需要进行管理，关闭最早上线单元
-//					 */
-//					dmanage_close_first_spk_client(type);
-//					/*
-//					 * 更新发言链表，下发端口信息
-//					 */
-//					tmp2 = type->fd;
-//					tmp_port = type->spk_port;
-//
-//				}else{
-//					cs_state++;
-//					/*
-//					 * 人数没有饱和，则查找没有使用的端口
-//					 */
-//					dmanage_search_not_use_spk_port(type);
-//					tmp_port = type->spk_port;
-//				}
 				cmsm_guest_port(type);
-
 				break;
 		}
 
-//		type->fd = tmp_fd;
-//		/*
-//		 * 发送打开端口信息给单元
-//		 */
-//		type->msg_type = WRITE_MSG;
-//		type->dev_type = HOST_CTRL;
-//
-//		type->name_type[0] = WIFI_MEETING_EVT_AD_PORT;
-//		type->code_type[0] = WIFI_MEETING_CHAR;
-//
-//		tcp_ctrl_source_dest_setting(-1,type->fd,type);
-//		//摄像跟踪设置
-//		conf_status_camera_track_postion(type->d_id,1);
-//
-//		type->spk_port = tmp_port;
-//
-//		//通过当前人数是否有变化进行是否移除操作
-//		if(cs_state)
-//		{
-//			csn = conf_status_get_cspk_num();
-//			csn++;
-//			conf_status_set_cspk_num(csn);
-//
-//			cmsm_refresh_spk_node(type);
-//
-//			tcp_ctrl_module_edit_info(type,NULL);
-//
-//		}else{
-//			dmanage_delete_spk_node(tmp2);
-//
-//			cmsm_refresh_spk_node(type);
-//
-//			tcp_ctrl_module_edit_info(type,NULL);
-//
-//		}
-//		//告知上位机有设备打开话筒
-//		type->evt_data.value = WIFI_MEETING_EVT_SPK_OPEN_MIC;
-//		dmanage_send_mic_status_to_pc(type);
 	}else{
-		printf("%s-%s-%d the unit request already process\n",__FILE__,__func__,__LINE__);
+		printf("%s-%s-%d the unit %d request already process\n",__FILE__,__func__,
+				__LINE__,type->fd);
 	}
 
 
 	return SUCCESS;
 
 }
-
-
-
 
 /*
  * cmsm_spk_other_status_onoff
@@ -1028,7 +1015,6 @@ static int cmsm_spk_other_status_onoff(Pframe_type type,const unsigned char* msg
 	int tmp = 0;
 	int tmp_fd = type->fd;
 
-
 	switch(type->evt_data.status)
 	{
 		case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
@@ -1041,12 +1027,13 @@ static int cmsm_spk_other_status_onoff(Pframe_type type,const unsigned char* msg
 				conf_status_set_cspk_num(tmp);
 			}
 
-			if(type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
+			if(type->ucinfo.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
 			{
 				conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
 			}
+			type->evt_data.status = CMSM_MIC_CLOSE;
 			cmsm_refresh_spk_node(type);
-			dmanage_send_mic_status_to_pc(type);
+			cmsm_port_status_sendto_pc(type);
 			break;
 		}
 		/*
@@ -1063,12 +1050,12 @@ static int cmsm_spk_other_status_onoff(Pframe_type type,const unsigned char* msg
 			}else{
 				printf("%s-%s-%d not have chariman \n",__FILE__,__func__,__LINE__);
 			}
+			cmsm_port_status_sendto_pc(type);
 			break;
 		}
 		case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON:
 		{
-			dmanage_close_guest_spk_client(type);
-//			conf_status_set_spk_now_fd(tmp_type);
+			cmsm_close_guest_spk_client(type);
 			break;
 		}
 		case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_OFF:
@@ -1078,8 +1065,6 @@ static int cmsm_spk_other_status_onoff(Pframe_type type,const unsigned char* msg
 		}
 
 	}
-
-
 	return SUCCESS;
 }
 
@@ -1112,7 +1097,7 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 	 * 判断申请发言单元的席别，如果是主席，则直接进行处理
 	 * 如果是其它单元，则需要判断发言人数和话筒模式
 	 */
-	if(type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN){
+	if(type->ucinfo.seat == WIFI_MEETING_CON_SE_CHAIRMAN){
 		cmsm_spk_port_status_onoff(type);
 	}else{
 		/*
@@ -1139,17 +1124,11 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 			 * 将请求消息发送给主席，无主席和上位机，则直接发送拒绝消息给单元
 			 */
 			pos = conf_status_find_chairman_sockfd(type);
-			if(pos > 0 || conf_status_get_pc_staus() > 0){
-				//请求消息发送给主席
-				if(pos > 0)
-				{
-					//源地址为请求单元机id，目标地址修改为主机单元id
-					tcp_ctrl_source_dest_setting(tmp_fd,type->fd,type);
-					tcp_ctrl_module_edit_info(type,msg);
-					type->fd = tmp_fd;
-				}
-				//请求消息发送给上位机
-				dmanage_send_mic_status_to_pc(type);
+			if(pos > 0){
+
+				//源地址为请求单元机id，目标地址修改为主机单元id
+				tcp_ctrl_source_dest_setting(tmp_fd,type->fd,type);
+				tcp_ctrl_module_edit_info(type,msg);
 			}else{
 				//没有主席和上位机，告知单元，拒绝其发言
 				printf("%s-%s-%d not find chairman and pc\n",__FILE__,__func__,__LINE__);
@@ -1161,6 +1140,10 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 				tcp_ctrl_module_edit_info(type,NULL);
 
 			}
+			//请求消息发送给上位机
+			type->fd = tmp_fd;
+			cmsm_port_status_sendto_pc(type);
+
 		}else{
 			//当前发言人数小于设置人数
 			cmsm_spk_port_status_onoff(type);
@@ -1169,7 +1152,6 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 
 	return SUCCESS;
 }
-
 
 /*
  * cmsm_handle_chairm_rreply
@@ -1208,8 +1190,7 @@ static int cmsm_handle_request_reply(Pframe_type type,const unsigned char* msg)
 			tcp_ctrl_source_dest_setting(-1,type->fd,type);
 			tcp_ctrl_module_edit_info(type,msg);
 			//设置单元音频端口信息
-			if(conf_status_check_client_connect_legal(type)
-					&& type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALLOW)
+			if(type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALLOW)
 			{
 				cmsm_spk_port_status_onoff(type);
 			}
@@ -1226,27 +1207,6 @@ static int cmsm_handle_request_reply(Pframe_type type,const unsigned char* msg)
 
 	return SUCCESS;
 }
-
-
-
-/*
- * cmsm_handle_snd_brd
- * 音频下发处理函数
- *
- * 此接口暂时没用
- * 设计思路和请求发言差不多，但是计划是固定只能打开几个
- *
- * 输入
- * frame_type
- * msg
- * 输出
- * 无
- *
- * 返回值
- * 成功
- * 失败
- *
- */
 
 /*
  * cmsm_handle_snd_brd
@@ -1304,7 +1264,7 @@ static int cmsm_handle_snd_brd(Pframe_type type,const unsigned char* msg)
 			}
 
 		}else{
-			printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
+			printf("%s-%s-%d not the chairman command\n",__FILE__,__func__,__LINE__);
 			return ERROR;
 		}
 		break;
@@ -1317,8 +1277,6 @@ static int cmsm_handle_snd_brd(Pframe_type type,const unsigned char* msg)
 
 	return SUCCESS;
 }
-
-
 
 /*
  * cmsm_msg_classify_handle
@@ -1350,163 +1308,28 @@ static int cmsm_handle_snd_brd(Pframe_type type,const unsigned char* msg)
  */
 int cmsm_msg_classify_handle(Pframe_type frame_type,const unsigned char* msg)
 {
+
 	switch(frame_type->evt_data.status)
 	{
-		/*
-		 * 发言话筒
-		 */
 		case WIFI_MEETING_EVENT_SPK_REQ_SPK:
 			cmsm_handle_spk_request(frame_type,msg);
-//			/*
-//			 * 判断申请发言单元的席别，如果是主席，则直接进行处理
-//			 * 如果是其它单元，则需要判断发言人数和话筒模式
-//			 */
-//			if(frame_type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN){
-//				cmsm_handle_spk_port(frame_type);
-//			}else{
-//
-//				/*
-//				 * 判断发言人数，如果发言人数为1，则表示主席优先模式打开
-//				 * 发言人数为1 ，则直接拒绝单元申请
-//				 *
-//				 * 发言人数大于1，则需要判断话筒模式和发言人数
-//				 * FIFO模式，则直接关闭最先发言单元，新单元加入
-//				 * 其他模式，先判断发言人数，饱和则需要通知主席
-//				 */
-//				if(conf_status_get_spk_num() == WIFI_MEETING_EVT_MIC_CHAIRMAN)
-//				{
-//
-//	//				printf("%s-%s-%d only chairman mode\n",__FILE__,__func__,__LINE__);
-//					//直接回复单元，拒绝其发言
-//					frame_type->msg_type = WRITE_MSG;
-//					frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-//					tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-//
-//					tcp_ctrl_module_edit_info(frame_type,NULL);
-//
-//				}else{
-//					/*
-//					 * 判断发言话筒模式，如果是FIFO模式，则直接进行处理，不需要转发主席
-//					 */
-//					if(conf_status_get_mic_mode() == WIFI_MEETING_EVT_MIC_FIFO)
-//					{
-//						cmsm_handle_spk_port(frame_type);
-//					}else{
-//						/*
-//						 * 判断发言人数是否饱和，如果达到上限，则需要请求主席授权
-//						 */
-//						if(conf_status_get_cspk_num() < conf_status_get_spk_num())
-//						{
-//							cmsm_handle_spk_port(frame_type);
-//						}else{
-//							/*
-//							 * 将请求消息发送给主席，无主席和上位机，则直接发送拒绝消息给单元
-//							 */
-//							pos = conf_status_find_chairman_sockfd(frame_type);
-//							if(pos > 0 || conf_status_get_pc_staus() > 0){
-//								//请求消息发送给主席
-//								if(pos > 0)
-//								{
-//									//源地址为请求单元机id，目标地址修改为主机单元id
-//									tcp_ctrl_source_dest_setting(tmp_fd,frame_type->fd,frame_type);
-//									tcp_ctrl_module_edit_info(frame_type,msg);
-//									frame_type->fd = tmp_fd;
-//								}
-//								//请求消息发送给上位机
-//								dmanage_send_mic_status_to_pc(frame_type);
-//							}else{
-//								//没有主席和上位机，告知单元，拒绝其发言
-//								printf("%s-%s-%d not find chairman and pc\n",__FILE__,__func__,__LINE__);
-//
-//								frame_type->msg_type = WRITE_MSG;
-//								frame_type->evt_data.value = WIFI_MEETING_EVT_SPK_VETO;
-//								tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-//
-//								tcp_ctrl_module_edit_info(frame_type,NULL);
-//
-//							}
-//						}
-//					}
-//				}
-//			}
 			break;
-
 		case WIFI_MEETING_EVENT_SPK_ALLOW:
 		case WIFI_MEETING_EVENT_SPK_VETO:
 			cmsm_handle_request_reply(frame_type,msg);
-//			//允许和拒绝消息只能是主席发送
-//			pos = conf_status_check_chairman_legal(frame_type);
-//
-//			if(pos > 0){
-//	//			pos = 0;
-//				//找到目标地址对应的单元
-//				pos = conf_status_find_did_sockfd_id(frame_type);
-//				if(pos > 0)
-//				{
-//					//变换为控制类消息发送给单元
-//					frame_type->msg_type = WRITE_MSG;
-//					tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-//					tcp_ctrl_module_edit_info(frame_type,msg);
-//					//设置单元音频端口信息
-//					if(conf_status_check_client_connect_legal(frame_type)
-//							&& frame_type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALLOW)
-//					{
-//						cmsm_handle_spk_port(frame_type);
-//					}
-//
-//				}else{
-//					printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
-//					return ERROR;
-//				}
-//
-//			}else{
-//				printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
-//				return ERROR;
-//			}
 			break;
-		/*
-		 * 音频下发
-		 */
 		case WIFI_MEETING_EVENT_SPK_REQ_SND:
 		case WIFI_MEETING_EVENT_SPK_ALOW_SND:
 		case WIFI_MEETING_EVENT_SPK_VETO_SND:
 		case WIFI_MEETING_EVENT_SPK_CLOSE_SND:
 			cmsm_handle_snd_brd(frame_type,msg);
-			//音频请求接口，暂时不做判断
-//			pos = conf_status_check_chairman_legal(frame_type);
-//			if(pos > 0){
-//				pos = 0;
-//				pos = conf_status_find_did_sockfd_id(frame_type);
-//				if(pos > 0)
-//				{
-//					printf("reply sound request\n");
-//					//变换为控制类消息下个给单元机
-//					frame_type->msg_type = WRITE_MSG;
-//					tcp_ctrl_source_dest_setting(-1,frame_type->fd,frame_type);
-//					tcp_ctrl_module_edit_info(frame_type,msg);
-//					//设置单元音频端口信息
-//					if(frame_type->evt_data.status == WIFI_MEETING_EVENT_SPK_ALOW_SND)
-//						cmsm_handle_spk_port(frame_type);
-//				}else{
-//					printf("%s-%s-%d not the find the unit device\n",__FILE__,__func__,__LINE__);
-//					return ERROR;
-//				}
-//
-//			}else{
-//				printf("%s-%s-%d not the chariman command\n",__FILE__,__func__,__LINE__);
-//				return ERROR;
-//			}
 			break;
-		/*
-		 * 其他请求
-		 */
 		case WIFI_MEETING_EVENT_SPK_CLOSE_MIC:
 		case WIFI_MEETING_EVENT_SPK_CLOSE_REQ:
 		case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_ON:
 		case WIFI_MEETING_EVENT_SPK_CHAIRMAN_ONLY_OFF:
 			cmsm_spk_other_status_onoff(frame_type,msg);
 			break;
-
 	}
 
 	return SUCCESS;

@@ -16,10 +16,9 @@ typedef struct node{
 
 } client_node, *pclient_node;
 
-pclient_node list_add(pclient_node head,void* data);
-int list_delete(pclient_node head,int pos,pclient_node* del);
+int sys_list_add(pclient_node head,void* data);
+int sys_list_delete(pclient_node head,int pos,pclient_node* del);
 
-
-pclient_node list_head_init();
+pclient_node sys_list_head_init();
 
 #endif /* INC_TCP_CTRL_LIST_H_ */

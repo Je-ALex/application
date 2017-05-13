@@ -107,7 +107,7 @@ int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value)
 			type->name_type[0] = WIFI_MEETING_EVT_UNIT_ONOFF_LINE;
 			type->code_type[0] = WIFI_MEETING_STRING;
 
-			type->evt_data.unet_info.sockfd = tmp_fd;
+			type->evt_data.unet_info.mac = tmp_fd;
 			type->evt_data.unet_info.ip = cli_addr.sin_addr.s_addr;
 
 			status++;
@@ -158,7 +158,7 @@ int tcp_ctrl_msg_send_to(Pframe_type type,const unsigned char* msg,int value)
  * 失败-错误码
  *
  */
-static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type frame_type,
+static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_type type,
 		unsigned char** ret_msg)
 {
 
@@ -198,9 +198,9 @@ static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_ty
 	 * 数据类型(0x0c)4.2-4.4：事件型数据(0x01)，会议型单元参数(0x02)，会议型会议参数(0x03)
 	 * 设备类型数据(0x03)4.0-4.1：上位机发送(0x01)，主机发送(0x02)，单元机发送(0x03)
 	 */
-	frame_type->msg_type = (buf[tc_index] & MSG_TYPE) >> 4;
-	frame_type->data_type = (buf[tc_index] & DATA_TYPE) >> 2;
-	frame_type->dev_type = buf[tc_index] & MACHINE_TYPE;
+	type->msg_type = (buf[tc_index] & MSG_TYPE) >> 4;
+	type->data_type = (buf[tc_index] & DATA_TYPE) >> 2;
+	type->dev_type = buf[tc_index] & MACHINE_TYPE;
 	tc_index++;
 
 	/*
@@ -220,14 +220,11 @@ static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_ty
 		printf("%s-%s-%d not legal length\n",__FILE__,__func__,__LINE__);
 		return BUF_LEN_ERR;
 	}
-	unsigned char id_msg[2] = {0};
 
-//	memcpy(id_msg,&buf[tc_index],sizeof(short));
-	tcp_ctrl_data_char2short(&frame_type->s_id,&buf[tc_index]);
+	tcp_ctrl_data_char2short(&type->s_id,&buf[tc_index]);
 	tc_index = tc_index+sizeof(short);
 
-//	memcpy(id_msg,&buf[tc_index],sizeof(short));
-	tcp_ctrl_data_char2short(&frame_type->d_id,&buf[tc_index]);
+	tcp_ctrl_data_char2short(&type->d_id,&buf[tc_index]);
 	tc_index = tc_index+sizeof(short);
 
 	/*
@@ -248,7 +245,7 @@ static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_ty
 		return BUF_CHECKS_ERR;
 	}
 
-	frame_type->fd = *fd;
+	type->fd = *fd;
 
 	/*
 	 * 计算data内容长度
@@ -257,7 +254,7 @@ static int tcp_ctrl_frame_analysis(int* fd,unsigned char* buf,int* len,Pframe_ty
 	 * data_len = package_len - 15 - 1
 	 */
 	int data_len = package_len - PKG_LEN;
-	frame_type->data_len = data_len;
+	type->data_len = data_len;
 
 	/*
 	 * 保存有效数据
@@ -307,7 +304,7 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* buf, int* lengt
 	/*
 	 * 帧信息内容结构
 	 */
-	Pframe_type tmp_type;
+	Pframe_type tmp_type = NULL;
 
 	int ret = 0;
 	int status = 0;
@@ -334,7 +331,8 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* buf, int* lengt
 
 		free(tmp_type);
 		free(handlbuf);
-
+		tmp_type = NULL;
+		handlbuf = NULL;
 		return ret;
 	}
 
@@ -351,6 +349,8 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* buf, int* lengt
 
 			free(tmp_type);
 			free(handlbuf);
+			tmp_type = NULL;
+			handlbuf = NULL;
 
 			return CONECT_NOT_LEGAL;
 		}
@@ -373,44 +373,68 @@ static int tcp_ctrl_process_recv_msg(int* cli_fd, unsigned char* buf, int* lengt
 
 	free(tmp_type);
 	free(handlbuf);
+	tmp_type = NULL;
+	handlbuf = NULL;
 
 	return SUCCESS;
 }
 
 /*
  * wifi_sys_ctrl_tcp_procs_data
- * TCP接收数据处理线程
+ * 系统TCP接收数据的处理
  *
  * 将数据消息从队列中取出，进行数据解析处理
+ *
+ * 输入
+ * 无
+ * 输出
+ * 无
+ * 返回值
+ * 无
  *
  */
 void* wifi_sys_ctrl_tcp_procs_data(void* p)
 {
-	Plinknode node;
-	Pctrl_tcp_rsqueue tmp;
+	Plinknode node = NULL;
+	Pctrl_tcp_rsqueue tmp = NULL;
 	int ret;
+
 	pthread_detach(pthread_self());
 
 	while(1)
 	{
-		sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
-
-		pthread_mutex_lock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+		sys_semaphore_wait(CTRL_TCP_RECV_SEM);
+		sys_mutex_lock(CTRL_TCP_RQUEUE_MUTEX);
 		ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
 
 		if(ret == 0)
 		{
-
 			tmp = node->data;
-			ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
 
-			free(tmp->msg);
+			//约定len为0 代表设备离线，需要进行信息删除操作
+			if(tmp->len == 0)
+			{
+				sys_mutex_lock(LIST_MUTEX);
+				ccm_delete_info(tmp->socket_fd);
+				sys_mutex_unlock(LIST_MUTEX);
+				printf("size--%d\n",node_queue->sys_list[CONNECT_LIST]->size);
+
+			}else{
+				ret = tcp_ctrl_process_recv_msg(&tmp->socket_fd,tmp->msg,&tmp->len);
+				free(tmp->msg);
+			}
+
 			free(tmp);
 			free(node);
+
+			tmp->msg = NULL;
+			tmp = NULL;
+			node = NULL;
 		}else{
 			printf("%s-%s-%d dequeue error\n",__FILE__,__func__,__LINE__);
 		}
-		pthread_mutex_unlock(&sys_in.sys_mutex[CTRL_TCP_RQUEUE_MUTEX]);
+		sys_mutex_unlock(CTRL_TCP_RQUEUE_MUTEX);
+
 	}
 
 }

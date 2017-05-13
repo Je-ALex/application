@@ -51,7 +51,7 @@ int sys_uart_write_data(Pudev pdev,char* msg,int len)
 
 	write(pdev->handle, msg, len);
 
-	printf("uart send:\n");
+	printf("uart send\n");
 	for(i=0;i<len;i++)
 		printf("0x%02x ",msg[i]);
 	printf("\n");

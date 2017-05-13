@@ -58,14 +58,14 @@ typedef long long 		off64;
 #define CTRL_BROADCAST_PORT 50001
 
 #define CTRL_TCP_PORT 		8080
-#define	AUDIO_RECV_PORT 	9000
-#define	AUDIO_SEND_PORT 	9090
+#define	AUDIO_RECV_PORT 	14336  //9000
+#define	AUDIO_SEND_PORT 	15000
 
 /*
  * 设备系统参数
  */
 #define LOG_FILE	"LOG.txt"
-#define VERSION		"V 1.0.5-R1"
+#define VERSION		"V 1.1.0-r511"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
@@ -99,6 +99,8 @@ typedef long long 		off64;
 
 #define msleep(x) usleep(x*1000)
 
+
+
 /*
  * 系统错误码
  */
@@ -123,7 +125,11 @@ typedef enum{
 }errs;
 
 /*
- * system list/mutex/queue
+ * TODO 系统基本信息，定义系统基础变量信息
+ * 1、链表信息
+ * 2、队列信息
+ * 3、互斥锁新
+ * 4、信号量信息
  */
 typedef enum{
 
@@ -133,7 +139,7 @@ typedef enum{
 	CONNECT_HEART,
 	//MAC映射表
 	CONNECT_MAC_TABLE,
-	//会议发言管理链表
+	//发言端口等信息链表
 	CONFERENCE_SPK,
 	//会议信息链表
 	CONFERENCE_LIST,
@@ -239,24 +245,7 @@ typedef struct{
 
 }score_result,*Pscore_result;
 
-/*
- * 议题内容
- * 议题名称
- * 议题的类型，投票表决等属性
- */
-typedef struct{
 
-	//议题名称和议题属性
-//	unsigned char subj[SUBJECT_NUM][SUBJECT_NAME_LEN];
-
-	unsigned char subj[SUBJECT_NAME_LEN];
-	unsigned char subj_prop;
-
-	vote_result v_result;
-	election_result ele_result;
-	score_result scr_result;
-
-}subject_info,*Psubject_info;
 
 /*
  * 提议公布结果内容
@@ -269,29 +258,80 @@ typedef struct {
 
 }conf_pc_result;
 
-/*
- * 会议动态全局变量
- * 主要是会议的信息，不涉及参会人员信息
- * 会议信息是单次会议中不会更改的状态
- * 投票，表决，计分是会涉及到下发单元机，所以需要
- */
 typedef struct {
 
-	//上位机标记
-	volatile int pc_status;
+	vote_result v_result;
+	election_result ele_result;
+	score_result scr_result;
+
+}sub_result,*Psub_result;
+
+typedef struct {
+
+	//议题名称和议题属性
+	char sub[SUBJECT_NAME_LEN];
+	unsigned char slen;
+	unsigned char sprop;
+
+	sub_result sresult;
+
+}sub_content,*Psub_content;
+
+typedef struct {
+
+	char conf_name[CONF_NAME_LEN];
+	unsigned char conf_nlen;
+	sub_content scontent[SUBJECT_NUM];
+
+	unsigned char total_sub;
+
+}conf_content,*Pconf_content;
+
+typedef struct {
+
 	//会议状态
 	volatile unsigned char confer_status;
 	//议题状态
-	volatile unsigned char suject_status;
-	//会议名称
-	unsigned char conf_name[CONF_NAME_LEN];
-	//议题表
-	subject_info sub_list[SUBJECT_NUM];
-	//议题总数
-	volatile unsigned char total_sub;
+	volatile unsigned char subject_status;
 	//当前议题
-	volatile unsigned char sub_num;
+	volatile unsigned char current_sub;
+
 	conf_pc_result cresult;
+
+}conf_status,*Pconf_status;
+
+typedef struct {
+
+
+}audio_status,*Paudio_status;
+
+typedef struct {
+
+
+}common_status,*Pcommon_status;
+
+
+/*
+ * 全局变量
+ * 1、会议内容部分
+ * 2、会议状态部分
+ * 3、音频状态部分
+ * 4、其他参数部分
+ */
+typedef struct {
+
+
+	 //1、会议内容部分
+	conf_content ccontent;
+	 //2、会议状态部分
+	conf_status cstatus;
+	 //3、音频状态部分
+	audio_status astatus;
+	 //4、其他参数部分
+	common_status cmstatus;
+
+	//上位机标记
+	volatile int pc_status;
 
 	//音频状态信息
 	volatile unsigned char mic_mode;
@@ -299,18 +339,14 @@ typedef struct {
 	volatile unsigned char snd_brdcast;
 	//设置的发言人数
 	volatile unsigned char spk_number;
-
 	//当前发言的人数
 	volatile unsigned char current_spk;
-	volatile unsigned char spk_offset[8];
-	volatile unsigned int	spk_ts[8];
 	//摄像跟踪状态开关
 	volatile unsigned char camera_track;
 	//主席发言状态
 	volatile int chirman_t;
 
 	//DEBUG
-	int debug_fd;
 	int lan_stat;
 	//系统时间
 	unsigned char sys_time[4];
@@ -319,9 +355,10 @@ typedef struct {
 
 	net_info network;
 
-	char* pidfile;
-
 }conference_status,*Pconference_status;
+
+
+
 
 typedef struct{
 
@@ -357,30 +394,17 @@ typedef struct {
 
 
 /*
- * 单元会议参数
- * 主要是描述每个单元机的属性状态
+ * 单元会议相关参数
+ * ID/席别/姓名/姓名长度
  */
 typedef struct {
 
-	/*
-	 * 主机ID为0x0000，上位机ID为0xFFFF
-	 */
 	unsigned short id;
 	unsigned char seat;
-	unsigned char sub_num;
-	//会议参数
 	char name[NAME_LEN];
-	char conf_name[CONF_NAME_LEN];
-	char subj[SUBJECT_NUM][SUBJECT_NAME_LEN];
+	unsigned char name_len;
 
-	/*
-	 * 保存单个单元的议题结果
-	 */
-	vote_result v_result;
-	election_result elec_rsult;
-	score_result src_result;
-
-}signal_unit_data;
+}unit_cinfo,*Punit_cinfo;
 
 /*
  * 收发数据的帧信息
@@ -388,6 +412,7 @@ typedef struct {
  */
 typedef struct {
 
+	int oldfd;
 	int fd;
 	unsigned char msg_type;
 	unsigned char data_type;
@@ -405,50 +430,28 @@ typedef struct {
 	unsigned short brd_port;	//音频广播端口
 
 	event_data evt_data;
-	signal_unit_data con_data;
+
+	unit_cinfo ucinfo;
+	conf_content ccontent;
+	sub_result sresult;
 
 }frame_type,*Pframe_type;
 
 
-
-
-
-
-/*
- * MAC映射表
- */
-typedef struct {
-
-	unsigned int mac_number;
-	unsigned short mac_table;
-
-}connect_mac_table,*Pconnect_mac_table;
-
-/*
- * 心跳状态链表信息
- * 保存套接字号
- * 心跳状态
- */
-typedef struct {
-
-	int sockfd;
-	unsigned int mac_addr;
-	volatile char status;
-
-}connect_heart,*Pconnect_heart;
-
-
-
 /*
  * 会议信息链表
- * 保存单元的id等信息
+ * 此链表主要是保存单元的会议信息
+ * 单元的fd
+ * 单元的会议信息
+ *
  */
 typedef struct {
 
 	int fd;
-	signal_unit_data con_data;
+	unit_cinfo ucinfo;
 
 }conference_list,*Pconference_list;
+
 
 int wifi_sys_net_thread_init();
 int wifi_sys_net_thread_deinit();

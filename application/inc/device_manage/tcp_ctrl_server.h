@@ -308,7 +308,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p);
 
 void* wifi_sys_ctrl_tcp_send(void* p);
 
-void* wifi_sys_ctrl_tcp_heart_state(void* p);
 
 
 void* control_tcp_send(void* p);

@@ -11,8 +11,7 @@
 #include "tcp_ctrl_device_status.h"
 
 
-int rep_stat = 0;
-int del_stat = 0;
+int rep_stat = 0,del_stat = 0;
 
 /*
  * network_status_detection
@@ -29,13 +28,10 @@ static void* network_status_detection(void* p)
 	char ethname[64] = "/sys/class/net/eth0/carrier";
 	char value[3] = {0};
 	frame_type type;
-	int status = 0;
 
 	pthread_detach(pthread_self());
 
 	memset(&type,0,sizeof(frame_type));
-
-
 
 	while(1)
 	{
@@ -50,25 +46,30 @@ static void* network_status_detection(void* p)
 
 		if(strstr(value,"0"))
 		{
-			printf("%s-%s-%d value=%s\n",__FILE__,__func__,__LINE__,value);
+			printf("%s-%s-%d value=%s-%d\n",__FILE__,__func__,__LINE__,value,getpid());
 			if(rep_stat == 0)
 			{
-				rep_stat = 1;
-				//关闭本地网络线程
-				wifi_sys_net_thread_deinit();
-
-				system("udhcpc -b -i eth0 -q");
-
-				msleep(30);
-				//本地状态上报qt
-				del_stat = 1;
-
-				status = WIFI_MEETING_EVENT_NET_ERROR;
-				tcp_ctrl_report_enqueue(&type,status);
+//				system("./s_t.sh");
+//				printf("%s-%s-%d value=%s-%d\n",__FILE__,__func__,__LINE__,value,getpid());
+//
+//				exit(0);
+//				rep_stat = 1;
+//				//关闭本地网络线程
+//				wifi_sys_net_thread_deinit();
+//
+////				system("udhcpc -b -i eth0 -q");
+//				msleep(30);
+//				//本地状态上报qt
+//				del_stat = 1;
+//
+//				status = WIFI_MEETING_EVENT_NET_ERROR;
+//				tcp_ctrl_report_enqueue(&type,status);
 			}
-		}else{
+		}else
+		{
 			if(del_stat)
 			{
+				sys_net_status_set(0);
 				wifi_sys_net_thread_init();
 				del_stat = 0;
 			}

@@ -9,10 +9,9 @@
 #include "audio_server.h"
 #include "audio_params_init.h"
 
+
 int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
-
 {
-
     if(begin->tv_sec > end->tv_sec)
     	return -1;
 
@@ -37,7 +36,6 @@ int  time_substract(timetime *result, struct timeval *begin,struct timeval *end)
  */
 int audio_format_init(PWAVContainer wav)
 {
-
 	wav->format.channels = DEFAULT_CHANNELS;
 	wav->format.sample_rate = DEFAULT_SAMPLE_RATE;
 	wav->format.sample_length = DEFAULT_SAMPLE_LENGTH;
@@ -45,9 +43,6 @@ int audio_format_init(PWAVContainer wav)
 	return SUCCESS;
 
 }
-
-
-
 
 int audio_get_format(PWAVContainer wav, snd_pcm_format_t *snd_format)
 {
@@ -73,194 +68,6 @@ int audio_get_format(PWAVContainer wav, snd_pcm_format_t *snd_format)
 
 	return SUCCESS;
 }
-
-//ssize_t audio_module_data_read(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_t rcount)
-//{
-//	ssize_t r;
-//	size_t result = 0;
-//	size_t count = rcount;
-//	uint8_t *data = sndpcm->data_buf;
-//
-//
-//	if (count != sndpcm->period_size) {
-//		count = sndpcm->period_size;
-//	}
-//
-//	while (count > 0) {
-//
-////		printf("snd_pcm_readi  count = %zu\n",count);
-//		r = snd_pcm_readi(sndpcm->handle, data, count);
-//
-//
-////		printf("snd_pcm_readi%d  r = %zu\n",__LINE__,r);
-//		if (r == -EAGAIN || (r >= 0 && (size_t)r < count)) {
-//				printf("<<<<<<<<<<<<<<< EAGAIN >>>>>>>>>>>>>>>\n");
-//				snd_pcm_wait(sndpcm->handle, 100);
-//		} else if (r == -EPIPE) {
-//
-//				snd_pcm_prepare(sndpcm->handle);
-//				printf("<<<<<<<<<<<<<<<snd_pcm_readi Buffer overrun >>>>>>>>>>>>>>>\n");
-//		} else if (r == -ESTRPIPE) {
-//				printf("<<<<<<<<<<<<<<< Need suspend >>>>>>>>>>>>>>>\n");
-//		} else if (r < 0) {
-//
-//				exit(-1);
-//		}
-//
-//		if (r > 0) {
-//			result += r;
-//			count -= r;
-//			data += r * sndpcm->bits_per_frame / 8;
-//		}
-//	}
-//
-//
-//	return rcount;
-//}
-
-//
-///* peak handler */
-//static void compute_max_peak(u_char *data, size_t count)
-//{
-//	signed int val, max, perc[2], max_peak[2];
-//	static	int	run = 0;
-//	size_t ocount = count;
-//	int	format_little_endian = snd_pcm_format_little_endian(hwparams.format);
-//	int ichans, c;
-//
-//	if (vumeter == VUMETER_STEREO)
-//		ichans = 2;
-//	else
-//		ichans = 1;
-//
-//	memset(max_peak, 0, sizeof(max_peak));
-//	switch (bits_per_sample) {
-//	case 8: {
-//		signed char *valp = (signed char *)data;
-//		signed char mask = snd_pcm_format_silence(hwparams.format);
-//		c = 0;
-//		while (count-- > 0) {
-//			val = *valp++ ^ mask;
-//			val = abs(val);
-//			if (max_peak[c] < val)
-//				max_peak[c] = val;
-//			if (vumeter == VUMETER_STEREO)
-//				c = !c;
-//		}
-//		break;
-//	}
-//	case 16: {
-//		signed short *valp = (signed short *)data;
-//		signed short mask = snd_pcm_format_silence_16(hwparams.format);
-//		signed short sval;
-//
-//		count /= 2;
-//		c = 0;
-//		while (count-- > 0) {
-//			if (format_little_endian)
-//				sval = le16toh(*valp);
-//			else
-//				sval = be16toh(*valp);
-//			sval = abs(sval) ^ mask;
-//			if (max_peak[c] < sval)
-//				max_peak[c] = sval;
-//			valp++;
-//			if (vumeter == VUMETER_STEREO)
-//				c = !c;
-//		}
-//		break;
-//	}
-//	case 24: {
-//		unsigned char *valp = data;
-//		signed int mask = snd_pcm_format_silence_32(hwparams.format);
-//
-//		count /= 3;
-//		c = 0;
-//		while (count-- > 0) {
-//			if (format_little_endian) {
-//				val = valp[0] | (valp[1]<<8) | (valp[2]<<16);
-//			} else {
-//				val = (valp[0]<<16) | (valp[1]<<8) | valp[2];
-//			}
-//			/* Correct signed bit in 32-bit value */
-//			if (val & (1<<(bits_per_sample-1))) {
-//				val |= 0xff<<24;	/* Negate upper bits too */
-//			}
-//			val = abs(val) ^ mask;
-//			if (max_peak[c] < val)
-//				max_peak[c] = val;
-//			valp += 3;
-//			if (vumeter == VUMETER_STEREO)
-//				c = !c;
-//		}
-//		break;
-//	}
-//	case 32: {
-//		signed int *valp = (signed int *)data;
-//		signed int mask = snd_pcm_format_silence_32(hwparams.format);
-//
-//		count /= 4;
-//		c = 0;
-//		while (count-- > 0) {
-//			if (format_little_endian)
-//				val = le32toh(*valp);
-//			else
-//				val = be32toh(*valp);
-//			val = abs(val) ^ mask;
-//			if (max_peak[c] < val)
-//				max_peak[c] = val;
-//			valp++;
-//			if (vumeter == VUMETER_STEREO)
-//				c = !c;
-//		}
-//		break;
-//	}
-//	default:
-//		if (run == 0) {
-//			fprintf(stderr, _("Unsupported bit size %d.\n"), (int)bits_per_sample);
-//			run = 1;
-//		}
-//		return;
-//	}
-//	max = 1 << (significant_bits_per_sample-1);
-//	if (max <= 0)
-//		max = 0x7fffffff;
-//
-//	for (c = 0; c < ichans; c++) {
-//		if (bits_per_sample > 16)
-//			perc[c] = max_peak[c] / (max / 100);
-//		else
-//			perc[c] = max_peak[c] * 100 / max;
-//	}
-//
-//	if (interleaved && verbose <= 2) {
-//		static int maxperc[2];
-//		static time_t t=0;
-//		const time_t tt=time(NULL);
-//		if(tt>t) {
-//			t=tt;
-//			maxperc[0] = 0;
-//			maxperc[1] = 0;
-//		}
-//		for (c = 0; c < ichans; c++)
-//			if (perc[c] > maxperc[c])
-//				maxperc[c] = perc[c];
-//
-//		putc('\r', stderr);
-//		print_vu_meter(perc, maxperc);
-//		fflush(stderr);
-//	}
-//	else if(verbose==3) {
-//		fprintf(stderr, _("Max peak (%li samples): 0x%08x "), (long)ocount, max_peak[0]);
-//		for (val = 0; val < 20; val++)
-//			if (val <= perc[0] / 5)
-//				putc('#', stderr);
-//			else
-//				putc(' ', stderr);
-//		fprintf(stderr, " %i%%\n", perc[0]);
-//		fflush(stderr);
-//	}
-//}
 
 
 ssize_t audio_module_data_read(snd_data_format *sndpcm,snd_data_format *sndpcm_p,  size_t rcount)
@@ -383,7 +190,6 @@ int audio_data_read(snd_data_format *sndpcm, char* buf,size_t rcount)
 		} else if (r == -ESTRPIPE) {
 				printf("<<<<<<<<<<<<<<< Need suspend >>>>>>>>>>>>>>>\n");
 		} else if (r < 0) {
-
 				exit(-1);
 		}
 
@@ -402,13 +208,13 @@ int audio_data_write(Psnd_data_format sndpcm, char* buf,int frame_len)
 	int result = 0;
 	char* data = buf;
 
-	if (frame_len < sndpcm->period_size) {
-		snd_pcm_format_set_silence(sndpcm->format,
-			data + frame_len * sndpcm->bits_per_frame / 8,
-			(sndpcm->period_size - frame_len) * sndpcm->channels);
-
-		frame_len = sndpcm->period_size;
-	}
+//	if (frame_len < sndpcm->period_size) {
+//		snd_pcm_format_set_silence(sndpcm->format,
+//			data + frame_len * sndpcm->bits_per_frame / 8,
+//			(sndpcm->period_size - frame_len) * sndpcm->channels);
+//
+//		frame_len = sndpcm->period_size;
+//	}
 
 	while (frame_len > 0) {
 
@@ -446,7 +252,18 @@ int audio_data_write(Psnd_data_format sndpcm, char* buf,int frame_len)
 
 
 /*
- * 函数：硬件参数配置
+ * audio_snd_params_init
+ * alsa参数配置
+ *
+ * 输入
+ * Psnd_data_format
+ * PWAVContainer
+ * 输出
+ * Psnd_data_format
+ *
+ * 返回值
+ * 成功
+ * 失败
  */
 int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 {
@@ -462,74 +279,93 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	snd_pcm_hw_params_alloca(&hwparams);
 
 	/*初始化为默认参数*/
-	if (snd_pcm_hw_params_any(sndpcm->handle, hwparams) < 0) {
-		printf("Error snd_pcm_hw_params_any\n");
+	if (snd_pcm_hw_params_any(sndpcm->handle, hwparams) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_any Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 	/*设置为交错模式*/
-	if (snd_pcm_hw_params_set_access(sndpcm->handle, hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
-		printf("Error snd_pcm_hw_params_set_access\n");
+	if (snd_pcm_hw_params_set_access(sndpcm->handle, hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_access Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
 	/*获取本地设置的format length*/
-	if (audio_get_format(wav, &format) < 0) {
-		printf("Error get_snd_pcm_format\n");
+	if (audio_get_format(wav, &format) < 0)
+	{
+		printf("%s-%s-%d audio_get_format Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 	/*设置format参数*/
-	if (snd_pcm_hw_params_set_format(sndpcm->handle, hwparams, format) < 0) {
-		printf("Error snd_pcm_hw_params_set_format--%d\n",format);
+	if (snd_pcm_hw_params_set_format(sndpcm->handle, hwparams, format) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_format Error --%d\n",__FILE__,__func__,
+				__LINE__,format);
 		goto ERR_SET_PARAMS;
 	}
 	sndpcm->format = format;
 
 	/*设置声道参数*/
-	if (snd_pcm_hw_params_set_channels(sndpcm->handle, hwparams, LE_SHORT(wav->format.channels)) < 0) {
-		printf("Error snd_pcm_hw_params_set_channels\n");
+	if (snd_pcm_hw_params_set_channels(sndpcm->handle, hwparams,
+			LE_SHORT(wav->format.channels)) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_channels Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 	sndpcm->channels = LE_SHORT(wav->format.channels);
 
 	/*设置采样率*/
 	exact_rate = LE_INT(wav->format.sample_rate);
-	if (snd_pcm_hw_params_set_rate_near(sndpcm->handle, hwparams, &exact_rate, 0) < 0) {
-		printf("Error snd_pcm_hw_params_set_rate_near\n");
+	if (snd_pcm_hw_params_set_rate_near(sndpcm->handle, hwparams, &exact_rate, 0) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_rate_near Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
-	if (LE_INT(wav->format.sample_rate) != exact_rate) {
-		printf( "The rate %d Hz is not supported by your hardware./n ==> Using %d Hz instead.\n",
-			LE_INT(wav->format.sample_rate), exact_rate);
+	if (LE_INT(wav->format.sample_rate) != exact_rate)
+	{
+		printf("%s-%s-%d The rate %d Hz is not supported by your hardware ==> Using %d Hz instead.\n",__FILE__,__func__,__LINE__,
+				LE_INT(wav->format.sample_rate), exact_rate);
 	}
 	//获取缓冲区支持的最大time （us）
-	if (snd_pcm_hw_params_get_buffer_time_max(hwparams, &buffer_time, 0) < 0) {
-		printf( "Error snd_pcm_hw_params_get_buffer_time_max\n");
+	if (snd_pcm_hw_params_get_buffer_time_max(hwparams, &buffer_time, 0) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_get_buffer_time_max Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
-	if (buffer_time > 500000) buffer_time = 500000;
-//	buffer_time = 21333;
-//	buffer_time = 42666;
-	buffer_time = 10666;
-//	buffer_time = 5333;
+	if(buffer_time > 500000)
+		buffer_time = 500000;
+
+//	buffer_time = 42666;//延时长
+//	buffer_time = 31999;//中间丢包
+//	buffer_time = 26666;//比较稳定
+//	buffer_time = 21333;//抖动
+	buffer_time = 10666;//抖动
+//	buffer_time = 10000;//抖动
+//	buffer_time = 5333;//抖动
+//	buffer_time = 5000;//抖动
 	period_time = buffer_time / 4;//5.3ms/1024B
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)
-	if (snd_pcm_hw_params_set_buffer_time_near(sndpcm->handle, hwparams, &buffer_time, &dir) < 0) {
-		printf("Error snd_pcm_hw_params_set_buffer_time_near\n");
+	if (snd_pcm_hw_params_set_buffer_time_near(sndpcm->handle, hwparams, &buffer_time, &dir) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_buffer_time_near Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
 	//设置周期时间 exact value is <,=,> val following dir (-1,0,1)
-	if (snd_pcm_hw_params_set_period_time_near(sndpcm->handle, hwparams, &period_time, &dir) < 0) {
-		printf("Error snd_pcm_hw_params_set_period_time_near\n");
+	if (snd_pcm_hw_params_set_period_time_near(sndpcm->handle, hwparams, &period_time, &dir) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params_set_period_time_near Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
 	/*将硬件参数设置到PCM设备*/
-	if (snd_pcm_hw_params(sndpcm->handle, hwparams) < 0) {
-		printf( "Error snd_pcm_hw_params(handle, params)\n");
+	if (snd_pcm_hw_params(sndpcm->handle, hwparams) < 0)
+	{
+		printf("%s-%s-%d snd_pcm_hw_params Error\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 
@@ -539,9 +375,10 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	/*从配置空间中获取buffer_size大小*/
 	snd_pcm_hw_params_get_buffer_size(hwparams, &sndpcm->buffer_size);
 
-	if (sndpcm->period_size == sndpcm->buffer_size) {
-		printf(("Can't use period equal to buffer size (%lu == %lu)\n"),
-				sndpcm->period_size, sndpcm->buffer_size);
+	if (sndpcm->period_size == sndpcm->buffer_size)
+	{
+		printf("%s-%s-%d Can't use period equal to buffer size (%lu == %lu)\n",__FILE__,__func__,
+				__LINE__,sndpcm->period_size, sndpcm->buffer_size);
 		goto ERR_SET_PARAMS;
 	}
 
@@ -550,10 +387,10 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 	sndpcm->chunk_bytes = sndpcm->period_size * sndpcm->bits_per_frame / 8;
 
 	/* alloc mem save the block*/
-	sndpcm->data_buf = (char *)malloc(sndpcm->chunk_bytes);
+	sndpcm->data_buf = (char*)malloc(sndpcm->chunk_bytes);
 
 	if (!sndpcm->data_buf) {
-		printf("Error malloc: [data_buf]\n");
+		printf("%s-%s-%d Error malloc: [data_buf]\n",__FILE__,__func__,__LINE__);
 		goto ERR_SET_PARAMS;
 	}
 

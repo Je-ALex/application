@@ -10,7 +10,7 @@
 #include "wifi_sys_init.h"
 #include "tcp_ctrl_api.h"
 #include "tcp_ctrl_server.h"
-
+#include "client_mac_manage.h"
 
 extern Pglobal_info node_queue;
 
@@ -58,7 +58,7 @@ int cmm_search_client_mac(Pclient_info info)
 	{
 		macinfo->mac_table = tmp_mac+1;
 		macinfo->mac_number = info->mac_addr;
-		list_add(node_queue->sys_list[CONNECT_MAC_TABLE],macinfo);
+		sys_list_add(node_queue->sys_list[CONNECT_MAC_TABLE],macinfo);
 
 	}
 

@@ -16,7 +16,7 @@
 #include "tcp_ctrl_data_process.h"
 #include "audio_server.h"
 #include "tcp_ctrl_device_status.h"
-
+#include "client_heart_manage.h"
 #include "sys_uart_init.h"
 #include "sys_status_detect.h"
 
@@ -29,7 +29,7 @@ pthread_t ctrl_tcps;
 pthread_t ctrl_procs;
 pthread_t ctrl_heart;
 
-pthread_t audp_recv[AUDP_RECV_NUM] = {0};
+pthread_t audp_recv[AUDP_RECV_NUM];
 pthread_t audp_send;
 
 
@@ -94,18 +94,11 @@ static int wifi_sys_val_init()
 		node_queue->sys_queue[i] = queue_init();
 		if(node_queue->sys_queue[i] == NULL)
 		{
-#if TCP_DBG
+
 			printf("%s-%s-%d node_queue->sys_queue[%d] init failed\n",__FILE__,__func__,__LINE__,i);
 
-#endif
 			return INIT_QUEUE_ERR;
 
-		}
-		else{
-#if TCP_DBG
-
-			printf("%s-%s-%d node_queue->sys_queue[%d] init success\n",__FILE__,__func__,__LINE__,i);
-#endif
 		}
 		msleep(1);
 
@@ -116,23 +109,17 @@ static int wifi_sys_val_init()
 
 	for(i=0;i<=CONFERENCE_LIST;i++)
 	{
-		node_queue->sys_list[i] = list_head_init();
+		node_queue->sys_list[i] = sys_list_head_init();
 		if(node_queue->sys_list[i] == NULL)
 		{
-#if TCP_DBG
+
 			printf("%s-%s-%d node_queue->sys_list[%d] init failed\n",__FILE__,__func__,__LINE__,i);
-#endif
+
 			return INIT_LIST_ERR;
-		}
-		else{
-#if TCP_DBG
-			printf("%s-%s-%d node_queue->sys_list[%d] init success\n",__FILE__,__func__,__LINE__,i);
-#endif
 		}
 		msleep(1);
 
 	}
-
 
 	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
 	memset(node_queue->con_status,0,sizeof(conference_status));
@@ -146,12 +133,8 @@ static int wifi_sys_val_init()
 	cfile = fopen(CONNECT_FILE,"w+");
 	fclose(cfile);
 
-
-
-
 	return SUCCESS;
 }
-
 
 
 int wifi_sys_net_thread_init()
@@ -179,7 +162,6 @@ int wifi_sys_net_thread_init()
 	/*
 	 * 音频相关的网络创建线程
 	 */
-
 	//语音接收线程
     int port = AUDIO_RECV_PORT;
     for(i=0;i<AUDP_RECV_NUM;i++)
@@ -203,26 +185,12 @@ int wifi_sys_net_thread_init()
 
 int wifi_sys_net_thread_deinit()
 {
-	int i;
 
-//	pthread_exit(ctrl_udp);
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-
-	sys_net_status_set(1);
-//	pthread_kill(ctrl_udp,SIGUSR1);
-//	pthread_kill(ctrl_tcpr,SIGUSR1);
-//
-//
-//    for(i=0;i<AUDP_RECV_NUM;i++)
-//    {
-//    	pthread_kill(audp_recv[i],SIGUSR1);
-//    }
-//
-//    pthread_kill(audp_send,SIGUSR1);
-
 
 	return SUCCESS;
 }
+
 /*
  * wifi_sys_thread_init
  * 系统线程初始化函数
@@ -231,9 +199,7 @@ static int wifi_sys_thread_init()
 {
 	int ret;
 
-
 	wifi_sys_net_thread_init();
-
 
 	ret = pthread_create(&ctrl_procs,NULL,wifi_sys_ctrl_tcp_procs_data,NULL);
 	if (ret != SUCCESS)
@@ -255,7 +221,6 @@ static int wifi_sys_thread_init()
 		printf("%s-%s-%d wifi_sys_ctrl_tcp_send failed\n",__FILE__,__func__,__LINE__);
 		return ret;
 	}
-
 
 	return SUCCESS;
 }
@@ -282,21 +247,32 @@ int wifi_conference_sys_init()
 	/*
 	 * 对标准输出进行重定向，指定到LOG文件
 	 */
-//	fflush(stdout);
-//	char* path = "/hushan/LOG.txt";
-//	freopen(path,"w",stdout);
-//	setvbuf(stdout,NULL,_IONBF,0);
+	fflush(stdout);
+	char* path = "/hushan/LOG.txt";
+	freopen(path,"w",stdout);
+	setvbuf(stdout,NULL,_IONBF,0);
 
+	FILE *out;
+	int pid_fd;
+	pid_fd = open("pid.info", O_CREAT | O_WRONLY, 0644);
 
-	printf("%s-%s-%d-%s-%s-%s\n",__FILE__,__func__,__LINE__,
-			__DATE__,__TIME__,VERSION);
+	if ((out = fdopen(pid_fd, "w")) != NULL) {
+		fprintf(out, "%d\n", getpid());
+		fclose(out);
+	}
+	close(pid_fd);
 
+	fprintf(stderr,"%s-%s-%d-%s-%s-%s-%d\n",__FILE__,__func__,__LINE__,
+			__DATE__,__TIME__,VERSION,getpid());
+
+#if 0
 	ret = sys_status_detect_init();
 	if (ret != SUCCESS)
 	{
 		printf("%s-%s-%d sys_status_detect_init failed\n",__FILE__,__func__,__LINE__);
 		goto ERR;
 	}
+#endif
 
 	ret = wifi_sys_signal_init();
 	if (ret != SUCCESS)
@@ -351,29 +327,32 @@ ERR:
 
 }
 
+/*
 
-//int main(void)
-//{
-//	pthread_t ctrl_tcps;
-//	int ret = 0;
-//	host_info net_info;
-//	void *retval;
-//	//首先检测网络是否启动
-//	ret = host_info_get_network_info(&net_info);
-//	if(ret == ERROR){
-//		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
-//	}
-//	ret = wifi_conference_sys_init();
-//	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
-//
-//	//测试线程
-//	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
-//	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
-//
-//	pthread_join(ctrl_tcps, &retval);
-//
-//
-//    return SUCCESS;
-//}
+int main(void)
+{
+	pthread_t ctrl_tcps;
+	int ret = 0;
+	host_info net_info;
+	void *retval;
+	//首先检测网络是否启动
+	ret = host_info_get_network_info(&net_info);
+	if(ret == ERROR){
+		printf("%s-%s-%d-network err=%d\n",__FILE__,__func__,__LINE__,ret);
+	}
+	ret = wifi_conference_sys_init();
+	printf("%s-%s-%d-ret=%d\n",__FILE__,__func__,__LINE__,ret);
+
+	//测试线程
+	pthread_create(&ctrl_tcps,NULL,control_tcp_send,NULL);
+	pthread_create(&ctrl_tcps,NULL,control_tcp_queue,NULL);
+
+	pthread_join(ctrl_tcps, &retval);
+
+
+    return SUCCESS;
+}
+*/
+
 
 

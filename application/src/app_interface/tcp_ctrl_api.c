@@ -69,6 +69,8 @@ int host_info_reset_factory_mode()
 //	    return -1;
 //	}
 //	fclose(fp);
+
+//	system("rm -f /etc/pointercal");
 	system("reboot");
 
 
@@ -451,7 +453,7 @@ int conf_info_set_spk_num(int num)
 	int ret;
 	ret=conf_status_set_spk_num(num);
 
-	printf("%s-%s-%d，%d\n",__FILE__,__func__,__LINE__,ret);
+	printf("%s-%s-%d,%d\n",__FILE__,__func__,__LINE__,ret);
 
 	return ret;
 }
@@ -574,8 +576,8 @@ int conf_info_set_conference_params(int fd,unsigned short id,unsigned char seat,
 	printf("%s-%s-%d ,ip=%s,id=%d\n",__FILE__,__func__,__LINE__,inet_ntoa(cli_addr.sin_addr),id);
 
 	data_info.fd = fd;
-	data_info.con_data.id = id;
-	data_info.con_data.seat = seat;
+	data_info.ucinfo.id = id;
+	data_info.ucinfo.seat = seat;
 
 	/*
 	 * 更新到链表
@@ -795,7 +797,6 @@ int conf_info_set_conference_params_test(int fd,unsigned short id,unsigned char 
 
 	int ret = 0;
 	char name[128] = "赵钱孙李";
-	char conf_name[128] = "WIFI会议第一次全体会议";
 
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -806,11 +807,10 @@ int conf_info_set_conference_params_test(int fd,unsigned short id,unsigned char 
 	 * 测试 发送
 	 */
 	data_info.fd = fd;
-	data_info.con_data.id = id;
-	data_info.con_data.seat = seat;
-	memcpy(data_info.con_data.name,name,strlen(name));
-	memcpy(data_info.con_data.conf_name,conf_name,strlen(conf_name));
-	data_info.con_data.sub_num = 10;
+	data_info.ucinfo.id = id;
+	data_info.ucinfo.seat = seat;
+	memcpy(data_info.ucinfo.name,name,strlen(name));
+	data_info.ucinfo.name_len = strlen(name);
 
 	/*
 	 * 增加到会议信息链表中
@@ -879,7 +879,6 @@ int wifi_meeting_get_elec_status(unsigned char num,Pelection_result result)
 	{
 		for(i=1;i<=conf_status_get_elec_totalp(num);i++)
 		{
-
 			result->ele_id[i] = conf_status_get_elec_result(num,i);
 		}
 
@@ -986,8 +985,8 @@ int conf_info_set_conference_sub_params()
 	 * 测试 发送
 	 */
 
-	memcpy(&data_info.con_data.subj[0],subject[i],19);
-
+	memcpy(&data_info.ccontent.scontent[0].sub,subject[i],19);
+	data_info.ccontent.scontent[0].slen = 19;
 	/*
 	 *
 	 * 组包下发

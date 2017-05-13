@@ -16,6 +16,8 @@
 #define DBG_OFF 0
 
 
+
+
 /*
  * 主机音效设置
  * 采用为管理分别从bit[0-2]表示状态
@@ -66,10 +68,16 @@ int sys_debug_set_switch(unsigned char value);
 int sys_debug_get_switch();
 
 
-int tcp_ctrl_report_enqueue(Pframe_type frame_type,int value);
+inline void sys_mutex_lock(int value);
+inline void sys_mutex_unlock(int value);
+
+inline void sys_semaphore_wait(int value);
+inline void sys_semaphore_post(int value);
+
+int tcp_ctrl_report_enqueue(Pframe_type type,int value);
 int tcp_ctrl_report_dequeue(Prun_status event_tmp);
 
-int tcp_ctrl_tpsend_enqueue(Pframe_type frame_type,unsigned char* msg);
+int tcp_ctrl_tpsend_enqueue(Pframe_type type,unsigned char* msg);
 int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp);
 
 int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len);
@@ -83,24 +91,30 @@ int conf_status_get_client_connect_len();
 
 int conf_status_get_conference_len();
 
-int conf_status_check_client_conf_legal(Pframe_type frame_type);
+int conf_status_check_client_conf_legal(Pframe_type type);
 
-int conf_status_check_chairman_legal(Pframe_type frame_type);
-int conf_status_check_pc_legal(Pframe_type frame_type);
+int conf_status_check_chairman_legal(Pframe_type type);
+int conf_status_check_pc_legal(Pframe_type type);
 
-int conf_status_check_client_connect_legal(Pframe_type frame_type);
+int conf_status_check_client_connect_legal(Pframe_type type);
 
 int conf_status_check_chariman_staus();
 
-int conf_status_find_did_sockfd_id(Pframe_type frame_type);
+int conf_status_find_did_sockfd_id(Pframe_type type);
 
-int conf_status_find_did_sockfd_sock(Pframe_type frame_type);
+int conf_status_find_pc_did_sockfd(Pframe_type type);
+int conf_status_pc_find_did_id(Pframe_type type);
 
-int conf_status_find_chairman_sockfd(Pframe_type frame_type);
+int conf_status_find_chairman_sockfd(Pframe_type type);
 
 int conf_status_find_max_id();
 
 int conf_status_compare_id(int value);
+
+int conf_status_set_spk_buf_offset(int num,int value);
+inline int conf_status_get_spk_buf_offset(int num);
+int conf_status_set_spk_timestamp(int num,int value);
+inline int conf_status_get_spk_timestamp(int num);
 
 int conf_status_set_cmspk(int value);
 
@@ -109,6 +123,11 @@ int conf_status_get_cmspk();
 int conf_status_set_current_subject(unsigned char num);
 int conf_status_get_current_subject();
 
+int conf_status_set_conference_name(const char* name,int len);
+
+int conf_status_set_subject_content(int num,const unsigned char* msg,int len);
+
+
 int conf_status_set_total_subject(unsigned char num);
 int conf_status_get_total_subject();
 
@@ -116,9 +135,9 @@ int conf_status_set_subject_property(unsigned char num,unsigned char prop);
 
 int conf_status_get_subject_property(unsigned char num);
 
-int conf_status_save_pc_conf_result(int len,const unsigned char* msg);
+int conf_status_set_pc_conf_result(int len,const unsigned char* msg);
 
-int conf_status_save_vote_result(int value);
+int conf_status_set_vote_result(int value);
 
 int conf_status_get_vote_result(unsigned char num,unsigned short* value);
 
@@ -128,7 +147,7 @@ int conf_status_reset_vote_status();
 
 int conf_status_calc_vote_result();
 
-int conf_status_save_elec_result(unsigned short value);
+int conf_status_set_elec_result(const unsigned char* msg);
 
 int conf_status_get_elec_result(unsigned char num,unsigned short value);
 
@@ -136,7 +155,7 @@ int conf_status_set_elec_totalp(unsigned char num,unsigned char pep);
 
 int conf_status_get_elec_totalp(unsigned char num);
 
-int conf_status_save_score_result(unsigned char value);
+int conf_status_set_score_result(unsigned char value);
 
 int conf_status_reset_score_status();
 
@@ -155,23 +174,14 @@ int conf_status_send_hscore_result();
  */
 
 int conf_status_set_mic_mode(int value);
-
-
 int conf_status_get_mic_mode();
 
 
 int conf_status_set_spk_num(int value);
-
 int conf_status_get_spk_num();
 
 int conf_status_set_spk_offset(int value);
 int conf_status_get_spk_offset();
-
-int conf_status_set_spk_buf_offset(int num,int value);
-int conf_status_get_spk_buf_offset(int num);
-
-int conf_status_set_spk_timestamp(int num,int value);
-int conf_status_get_spk_timestamp(int num);
 
 int conf_status_set_cspk_num(int value);
 int conf_status_get_cspk_num();
@@ -193,7 +203,7 @@ int conf_status_get_camera_track();
 int conf_status_set_conf_staus(int value);
 int conf_status_get_conf_staus();
 
-int conf_status_set_sys_time(Pframe_type frame_type,const unsigned char* msg);
+int conf_status_set_sys_time(Pframe_type type,const unsigned char* msg);
 int conf_status_get_sys_time(unsigned char* msg);
 
 int conf_status_set_sys_timestamp(unsigned int value);

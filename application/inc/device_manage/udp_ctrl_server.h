@@ -12,7 +12,6 @@
 typedef enum{
 	 UDP_BRD = 1,
 	 UDP_SIG,
-
 }udp_type;
 
 /*

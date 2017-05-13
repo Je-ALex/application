@@ -16,38 +16,30 @@
  */
 typedef struct {
 
+	int oldfd;
 	int sockfd;
 	int seat;
 	int asport;
 	unsigned int ts;
+	int status;
 
 }as_port,*Pas_port;
 
+typedef enum{
 
-int dmanage_send_mic_status_to_pc(Pframe_type type);
+	CMSM_OPEN_SUCCESS,
+	CMSM_PREPARE_CLOSE,
+	CMSM_WAIT_REPLY,
+	CMSM_UPDATE_REPLY,
+	CMSM_MIC_CLOSE,
 
-int dmanage_search_not_use_spk_port(Pframe_type type);
+}MicStatus;
 
-int dmanage_close_last_spk_client(Pframe_type type);
-
-int dmanage_close_first_spk_client(Pframe_type type);
-
-int dmanage_close_guest_spk_client(Pframe_type type);
-
-int dmanage_delete_spk_node(int fd);
-
-int dmanage_add_spk_node(Pframe_type type);
-
-int dmanage_search_last_spk_node(Pframe_type type);
-
-int dmanage_search_first_spk_node(Pframe_type type);
 
 int cmsm_refresh_spk_node(Pframe_type type);
 
-
-
 int cmsm_msg_classify_handle(Pframe_type frame_type,const unsigned char* msg);
 
-
+int cmsm_through_reply_proc_port(Pframe_type type);
 
 #endif /* INC_INFO_MANAGE_CLIENT_MIC_STATUS_MANAGE_H_ */

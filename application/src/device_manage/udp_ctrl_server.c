@@ -51,12 +51,10 @@ static void udp_data_frame(unsigned char* str,int* len)
 
     /*
      * data[5] 数据包长度
-     *
      */
 	udp_index++;
     /*
      * data[6] 保留
-     *
      */
 	udp_index++;
 	/*
@@ -87,12 +85,6 @@ static void udp_data_frame(unsigned char* str,int* len)
 
 }
 
-//static void sig_handler()
-//{
-//	sys_net_status_set(1);
-//
-//}
-
 /*
  * wifi_sys_ctrl_udp_server
  * 系统网络设备发现广播线程函数
@@ -110,7 +102,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
 
 	pthread_detach(pthread_self());
 
-	sock = socket(AF_INET,SOCK_DGRAM,0);
+	sock = socket(PF_INET,SOCK_DGRAM,0);
 	if(sock < 0)
 	{
 		 printf("%s-%s-%d init socket failed\n",__FILE__,__func__,__LINE__);
@@ -139,19 +131,16 @@ void* wifi_sys_ctrl_udp_server(void* p)
 			sizeof(struct sockaddr_in)) == -1)
 	{
 		printf("%s-%s-%d bind failed\n",__FILE__,__func__,__LINE__);
+		perror("bind");
 		pthread_exit(0);
 	}
 
     udp_data_frame(msg,&len);
 
-
     /*
      * UDP数据广播，1秒广播一次
      */
 	while(1){
-
-		if(sys_net_status_get() == 1)
-			goto ERR;
 
 		ret = 0;
 		ret = sendto(sock,msg,len,0,
@@ -172,7 +161,7 @@ void* wifi_sys_ctrl_udp_server(void* p)
 		}
 		sleep(1);
 	}
-ERR:
+
 	close(sock);
 	pthread_exit(0);
 }

@@ -1,7 +1,4 @@
 
-
-
-
 #include "wifi_sys_init.h"
 #include "sys_uart_init.h"
 #include "client_connect_manage.h"
@@ -21,23 +18,27 @@ extern Pglobal_info node_queue;
  * ccm_refresh_connected_list
  * 更新设备连接信息链表
  *
+ * 查找连接信息链表，是否有此设备，需要将原结点移除，增加新的结点，并且更新文件内容
  *
+ * 输入
+ * Pconference_list
+ * 输出
+ * 无
+ * 返回值
+ * 成功
+ * 失败
  */
-static int ccm_refresh_connected_list(Pconference_list data_info)
+static int ccm_refresh_connected_list(Pconference_list conf_info)
 {
-	pclient_node tmp = NULL;
-	pclient_node del = NULL;
-	Pclient_info cinfo;
-	Pclient_info tcinfo;
-	Pclient_info newinfo;
+	pclient_node tmp = NULL,del = NULL;
+	Pclient_info cinfo = NULL,tcinfo = NULL;
 
-	int pos = 0;
-	int status = 0;
+	int pos = 0,status = 0,ret = 0;
+
 	FILE* cfile;
-	int ret = 0;
 
 	/*
-	 * 首先在连接信息中搜寻socke_fd
+	 * 首先在连接信息中搜寻fd
 	 * 判断是否有此设备连接，删除存在结点，重新插入结点
 	 * 更新
 	 */
@@ -45,7 +46,7 @@ static int ccm_refresh_connected_list(Pconference_list data_info)
 	while(tmp!=NULL)
 	{
 		cinfo = tmp->data;
-		if(cinfo->client_fd == data_info->fd)
+		if(cinfo->client_fd == conf_info->fd)
 		{
 			status++;
 			break;
@@ -59,18 +60,18 @@ static int ccm_refresh_connected_list(Pconference_list data_info)
 		tcinfo = (Pclient_info)malloc(sizeof(client_info));
 		memset(tcinfo,0,sizeof(client_info));
 
-		list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
+		sys_list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
 		cinfo = del->data;
 		memcpy(tcinfo,cinfo,sizeof(client_info));
 
 		free(cinfo);
 		free(del);
-//		printf("%s-%s-%d,delete data in the connection list,then add it\n",
-//				__FILE__,__func__,__LINE__);
+		cinfo = NULL;
+		del = NULL;
 
-		tcinfo->id = data_info->con_data.id;
-		tcinfo->seat = data_info->con_data.seat;
-		list_add(node_queue->sys_list[CONNECT_LIST],tcinfo);
+		tcinfo->id = conf_info->ucinfo.id;
+		tcinfo->seat = conf_info->ucinfo.seat;
+		sys_list_add(node_queue->sys_list[CONNECT_LIST],tcinfo);
 
 	}else{
 		printf("%s-%s-%d,there is no client in the connection list\n",
@@ -87,18 +88,14 @@ static int ccm_refresh_connected_list(Pconference_list data_info)
 		tmp = node_queue->sys_list[CONNECT_LIST]->next;
 		while(tmp != NULL)
 		{
-			newinfo = tmp->data;
-			if(newinfo->client_fd > 0)
+			tcinfo = tmp->data;
+			if(tcinfo->client_fd > 0)
 			{
-//				printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
-//						__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
-
-				ret = fwrite(newinfo,sizeof(client_info),1,cfile);
-//				perror("fwrite");
+				ret = fwrite(tcinfo,sizeof(client_info),1,cfile);
 				if(ret != 1)
 				{
-					printf("%s-%s-%d,fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
-							__LINE__,newinfo->client_fd, newinfo->id,newinfo->seat);
+					printf("%s-%s-%d,ERROR fd=%d,id=%d,seat=%d\n",__FILE__,__func__,
+							__LINE__,tcinfo->client_fd, tcinfo->id,tcinfo->seat);
 					return ERROR;
 				}
 
@@ -108,7 +105,7 @@ static int ccm_refresh_connected_list(Pconference_list data_info)
 		}
 		fclose(cfile);
 	}
-	//end
+
 
 	return SUCCESS;
 }
@@ -118,16 +115,23 @@ static int ccm_refresh_connected_list(Pconference_list data_info)
  * ccm_refresh_conference_list
  * 更新会议信息链表
  *
+ * 查找会议信息链表中的设备，移除原设备结点，更新新的会议信息
+ *
+ * 输入
+ * Pconference_list
+ * 输出
+ * 无
+ * 返回值
+ * 成功
+ * 失败
  */
-int ccm_refresh_conference_list(Pconference_list data_info)
+int ccm_refresh_conference_list(Pconference_list conf_info)
 {
-	pclient_node tmp = NULL;
-	pclient_node del = NULL;
-	Pclient_info cinfo;
-	Pconference_list finfo;
+	pclient_node tmp = NULL,del = NULL;
+	Pclient_info cinfo = NULL;
+	Pconference_list finfo = NULL;
 
-	int pos = 0;
-	int status = 0;
+	int pos = 0,status = 0;
 
 	/*
 	 * 设置会议参数，需要判断是否当前有设备在连接信息链表中
@@ -136,7 +140,7 @@ int ccm_refresh_conference_list(Pconference_list data_info)
 	while(tmp!=NULL)
 	{
 		cinfo = tmp->data;
-		if(cinfo->client_fd == data_info->fd)
+		if(cinfo->client_fd == conf_info->fd)
 		{
 			status++;
 			break;
@@ -155,14 +159,14 @@ int ccm_refresh_conference_list(Pconference_list data_info)
 
 
 	/*
-	 * 判断会议信息中的设备参数socke_fd
+	 * 判断会议信息中的设备参数fd
 	 * 判断是否有此设备连接，删除存在结点，重新插入结点
 	 */
 	tmp = node_queue->sys_list[CONFERENCE_LIST]->next;;
 	while(tmp != NULL)
 	{
 		finfo = tmp->data;
-		if(finfo->fd == data_info->fd)
+		if(finfo->fd == conf_info->fd)
 		{
 			status++;
 			break;
@@ -172,21 +176,22 @@ int ccm_refresh_conference_list(Pconference_list data_info)
 	}
 	if(status > 0)
 	{
-		list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
+		sys_list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
 		finfo = del->data;
-		status = 0;
+
 		free(finfo);
 		free(del);
-//		printf("%s-%s-%d,delete data in the conference list,then add it\n",
-//				__FILE__,__func__,__LINE__);
+		finfo = NULL;
+		del = NULL;
+
 	}else{
 
 		printf("%s-%s-%d,there is no data in the conference list,add it\n",
 				__FILE__,__func__,__LINE__);
 	}
 
-	list_add(node_queue->sys_list[CONFERENCE_LIST],data_info);
-	//end
+	sys_list_add(node_queue->sys_list[CONFERENCE_LIST],conf_info);
+
 
 	return SUCCESS;
 }
@@ -195,57 +200,47 @@ int ccm_refresh_conference_list(Pconference_list data_info)
 /*
  * ccm_refresh_info
  * 更新设备信息
- * 1、连接链表信息，文本文件
- * 2、会议链表信息
+ *
+ * 在主机或者上位机对单元进行了信息编码的时候，需要对主机相关管理链表进行更新操作
+ * 对设备连接链表的信息进行更新，此链表主要是主机本地用于显示
+ * 对会议信息链表进行更新操作，
  *
  */
-int ccm_refresh_info(const Pframe_type data_info)
+int ccm_refresh_info(const Pframe_type type)
 {
-	Pconference_list confer_info = NULL;
+	Pconference_list conf_info = NULL;
 	int ret = 0;
-
-	/*
-	 * 更新到连接信息链表中
-	 */
-	ret = cmsm_refresh_spk_node(data_info);
-	if(ret)
-	{
-		printf("%s-%s-%d,dmanage_refresh_spk_node err\n",__FILE__,__func__,__LINE__);
-		free(confer_info);
-		return ERROR;
-	}
 
 	/*
 	 * 会议信息链表
 	 */
-	confer_info = (Pconference_list)malloc(sizeof(conference_list));
-	memset(confer_info,0,sizeof(conference_list));
-	confer_info->fd = data_info->fd;
-	confer_info->con_data.id = data_info->con_data.id;
-	confer_info->con_data.seat = data_info->con_data.seat;
-	memcpy(confer_info->con_data.name,data_info->con_data.name,strlen(data_info->con_data.name));
-	memcpy(confer_info->con_data.conf_name,data_info->con_data.conf_name,strlen(data_info->con_data.conf_name));
+	conf_info = (Pconference_list)malloc(sizeof(conference_list));
+	memset(conf_info,0,sizeof(conference_list));
+	conf_info->fd = type->fd;
+	conf_info->ucinfo.id = type->ucinfo.id;
+	conf_info->ucinfo.seat = type->ucinfo.seat;
+	memcpy(conf_info->ucinfo.name,type->ucinfo.name,type->ucinfo.name_len);
 
 	/*
 	 * 更新到连接信息链表中
 	 */
-	ret = ccm_refresh_connected_list(confer_info);
+	ret = ccm_refresh_connected_list(conf_info);
 	if(ret)
 	{
-		printf("%s-%s-%d,dmanage_refresh_connected_list id=%d,err\n",__FILE__,__func__,__LINE__,
-				confer_info->con_data.id);
-		free(confer_info);
+		printf("%s-%s-%d,ccm_refresh_connected_list id=%d,err\n",__FILE__,__func__,__LINE__,
+				conf_info->ucinfo.id);
+		free(conf_info);
 		return ERROR;
 	}
 
 	/*
 	 * 更新到会议信息链表中
 	 */
-	ret = ccm_refresh_conference_list(confer_info);
+	ret = ccm_refresh_conference_list(conf_info);
 	if(ret)
 	{
-		printf("%s-%s-%d,dmanage_refresh_conference_list err\n",__FILE__,__func__,__LINE__);
-		free(confer_info);
+		printf("%s-%s-%d,ccm_refresh_conference_list err\n",__FILE__,__func__,__LINE__);
+		free(conf_info);
 		return ERROR;
 	}
 
@@ -300,7 +295,7 @@ static int ccm_delete_connected_list(int fd)
 
 	if(status > 0)
 	{
-		list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
+		sys_list_delete(node_queue->sys_list[CONNECT_LIST],pos,&del);
 		pinfo = del->data;
 		printf("%s-%s-%d,remove %s in connected list\n",__FILE__,__func__,__LINE__,
 				inet_ntoa(pinfo->cli_addr.sin_addr));
@@ -372,12 +367,14 @@ static int ccm_delete_conference_list(int fd)
 	}
 	if(status > 0)
 	{
-		list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
+		sys_list_delete(node_queue->sys_list[CONFERENCE_LIST],pos,&del);
 		cinfo = del->data;
 
 		printf("%s-%s-%d remove %d in conference list\n",__FILE__,__func__,__LINE__,cinfo->fd);
 		free(cinfo);
 		free(del);
+		cinfo = NULL;
+		del = NULL;
 	}else{
 		printf("%s-%s-%d there is no data in conference list\n",__FILE__,__func__,__LINE__);
 		return ERROR;
@@ -414,8 +411,8 @@ int ccm_delete_info(int fd)
 			cinfo = ctmp->data;
 			if(cinfo->client_fd == fd)
 			{
-				tmp_type.con_data.id = cinfo->id;
-				tmp_type.con_data.seat = cinfo->seat;
+				tmp_type.ucinfo.id = cinfo->id;
+				tmp_type.ucinfo.seat = cinfo->seat;
 				break;
 			}
 			ctmp = ctmp->next;
@@ -429,7 +426,7 @@ int ccm_delete_info(int fd)
 		tmp_type.data_type = EVENT_DATA;
 		tmp_type.fd = fd;
 
-		tmp_type.evt_data.status = WIFI_MEETING_EVENT_SPK_CLOSE_MIC;
+		tmp_type.evt_data.status = CMSM_MIC_CLOSE;
 		ret = cmsm_refresh_spk_node(&tmp_type);
 		if(!ret)
 		{
@@ -439,7 +436,7 @@ int ccm_delete_info(int fd)
 				tmp--;
 				conf_status_set_cspk_num(tmp);
 			}
-			if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
+			if(tmp_type.ucinfo.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
 			{
 				conf_status_set_cmspk(WIFI_MEETING_CON_SE_GUEST);
 			}
@@ -461,8 +458,15 @@ int ccm_delete_info(int fd)
  * ccm_add_connected_info
  * 终端信息录入函数
  *
- * 生成设备连接信息文本文件，采用结构体方式进行存储
- * 应用在设置参数时，需要读取文本文件中的fd信息，进行参数设置
+ * 将临时结构中的信息保存到连接信息结构中，存入链表和文件中
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * 无
+ * 返回值
+ * 成功
+ * 失败
  *
  */
 static int ccm_add_connected_info(Pframe_type type)
@@ -481,9 +485,7 @@ static int ccm_add_connected_info(Pframe_type type)
 	/*
 	 * 将新连接终端信息录入结构体中
 	 * 这里可以将fd和IP信息存入到本地链表和文件中
-	 *
 	 * 区分上线的设备类型，单元机还是主机
-	 *
 	 */
 	info = (Pclient_info)malloc(sizeof(client_info));
 	memset(info,0,sizeof(client_info));
@@ -495,7 +497,8 @@ static int ccm_add_connected_info(Pframe_type type)
 	info->clilen = clilen;
 	sprintf(info->ip,"%s",inet_ntoa(cli_addr.sin_addr));
 
-	if(type->dev_type == PC_CTRL){
+	if(type->dev_type == PC_CTRL)
+	{
 
 		info->client_name = PC_CTRL;
 		conf_status_set_pc_staus(type->fd);
@@ -508,27 +511,17 @@ static int ccm_add_connected_info(Pframe_type type)
 	}else{
 
 		info->client_name = UNIT_CTRL;
-		info->seat = type->con_data.seat;
+		info->seat = type->ucinfo.seat;
 		info->id = type->s_id;
 		info->client_power = type->evt_data.electricity;
 		info->mac_addr = type->evt_data.unet_info.mac;
-
-		/*
-		 * 查找MAC表信息
-		 */
-//		ret = cmm_search_client_mac(info);
-//
-//		if(ret != SUCCESS)
-//			return ERROR;
 
 	}
 
 	/*
 	 * 检查该客户端是否已经存在
-	 *
 	 * 链表如果为空，则不需要进行检查，直接存储
 	 * 链表不为空，则通过读取再比对，进行存储
-	 *
 	 */
 	tmp_node = node_queue->sys_list[CONNECT_LIST]->next;
 	do
@@ -538,14 +531,14 @@ static int ccm_add_connected_info(Pframe_type type)
 			break;
 		}else{
 			pinfo = tmp_node->data;
-			if(type->dev_type != PC_CTRL){
-	//			if(pinfo->client_fd == type->fd)
-
+			if(type->dev_type != PC_CTRL)
+			{
 				if(pinfo->mac_addr == type->evt_data.unet_info.mac)
 				{
 					state++;
 					printf("%s-%s-%d,the client is exist\n",__FILE__,__func__,__LINE__);
 					free(info);
+					info = NULL;
 					return ERROR;
 				}
 			}else{
@@ -554,6 +547,7 @@ static int ccm_add_connected_info(Pframe_type type)
 						state++;
 						printf("%s-%s-%d,the client is exist\n",__FILE__,__func__,__LINE__);
 						free(info);
+						info = NULL;
 						return ERROR;
 					}
 			}
@@ -568,7 +562,7 @@ static int ccm_add_connected_info(Pframe_type type)
 		/*
 		 * 连接信息存入链表
 		 */
-		list_add(node_queue->sys_list[CONNECT_LIST],info);
+		sys_list_add(node_queue->sys_list[CONNECT_LIST],info);
 
 		/*
 		 * 存入到文本文件
@@ -636,36 +630,46 @@ int dmanage_sync_conference_status(Pframe_type type)
 
 /*
  * ccm_add_conference_info
- * 终端信息录入函数
+ * 单元信息录入会议链表函数
  *
- * 生成设备连接信息文本文件，采用结构体方式进行存储
- * 应用在设置参数时，需要读取文本文件中的fd信息，进行参数设置
+ * 单元上线主要分为两种
+ * 一上线单元有ID号，则表示此单元可能有会议相关内容，则将内容更新到会议信息链表中
+ *   判断单元ID与链表中的信息进行匹配，如果当前有此ID，则需要对其重新编号为最大ID
+ *
+ * 二上线单元没有ID号，如果是会议中上线的单元，则需要对此单元进行默认编号，用于会议管理
+ *   判断是否是已经开始会议，开始会议则需要对其进行编号为最大ID
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * Pframe_type
+ * 返回值
+ * 成功
+ * 失败
  *
  */
 static int ccm_add_conference_info(Pframe_type type)
 {
-	Pconference_list confer_info;
+	Pconference_list conf_info = NULL;
 
-	confer_info = (Pconference_list)malloc(sizeof(conference_list));
-	memset(confer_info,0,sizeof(conference_list));
+	conf_info = (Pconference_list)malloc(sizeof(conference_list));
+	memset(conf_info,0,sizeof(conference_list));
 
 	/*
 	 * 保存至会议信息链表
 	 * 如果上线单元机有id号则将上线单元机信息进行存储
-	 *
 	 * 会议中上线的单元机，主机会自动给其分配ID号，用于管理
 	 */
-	confer_info->fd = type->fd;
-	confer_info->con_data.id = type->con_data.id = type->s_id;
-	confer_info->con_data.seat = type->con_data.seat;
+	conf_info->fd = type->fd;
+	conf_info->ucinfo.id = type->ucinfo.id = type->s_id;
+	conf_info->ucinfo.seat = type->ucinfo.seat;
 	//判断当前是否有会议主席，如果有则上线的单元设置为客席，会议链表中只能存在一个主席
 	if(conf_status_check_chariman_staus())
 	{
-		if(type->con_data.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
+		if(type->ucinfo.seat == WIFI_MEETING_CON_SE_CHAIRMAN)
 		{
-			confer_info->con_data.seat = type->con_data.seat = WIFI_MEETING_CON_SE_GUEST;
+			conf_info->ucinfo.seat = type->ucinfo.seat = WIFI_MEETING_CON_SE_GUEST;
 		}
-
 	}
 	/*
 	 * 1、判断源地址是否存在，存在则判断是否与现有设备冲突，冲突则设置为最大ID并保存到链表
@@ -675,16 +679,16 @@ static int ccm_add_conference_info(Pframe_type type)
 	{
 		if(conf_status_compare_id(type->s_id))
 		{
-			type->s_id = conf_status_find_max_id();
+			type->s_id = conf_status_find_max_id() + 1;
 
-			confer_info->con_data.id = type->con_data.id = type->s_id;
+			conf_info->ucinfo.id = type->ucinfo.id = type->s_id;
 			//将修改后的会议参数下发给单元机
-			conf_info_set_conference_params(type->fd,type->con_data.id ,
-					type->con_data.seat,NULL,NULL);
+			conf_info_set_conference_params(type->fd,type->ucinfo.id ,
+					type->ucinfo.seat,NULL,NULL);
 
+		}else{
+			ccm_refresh_conference_list(conf_info);
 		}
-		ccm_refresh_conference_list(confer_info);
-
 		/*
 		 * 判断会议状态，如果是中途加入的id大于0的设备，则须告知当前会议状态
 		 */
@@ -696,14 +700,12 @@ static int ccm_add_conference_info(Pframe_type type)
 				WIFI_MEETING_EVENT_CON_MAG_START))
 		{
 			//会议过程中上线的设备，需要对其进行编号
-			type->s_id = conf_status_find_max_id();
-			confer_info->con_data.id = type->con_data.id = type->s_id;
+			type->s_id = conf_status_find_max_id() + 1;
+			conf_info->ucinfo.id = type->ucinfo.id = type->s_id;
 			//将修改后的会议参数下发给单元机
-			conf_info_set_conference_params(type->fd,type->con_data.id,
-					type->con_data.seat,NULL,NULL);
-			ccm_refresh_conference_list(confer_info);
+			conf_info_set_conference_params(type->fd,type->ucinfo.id,
+					type->ucinfo.seat,NULL,NULL);
 		}
-
 	}
 
 	return SUCCESS;
@@ -715,7 +717,7 @@ static int ccm_add_conference_info(Pframe_type type)
  * 同步会议单元的系统时间
  *
  */
-static int dmanage_sync_client_sys_time(Pframe_type type)
+static int ccm_sync_client_sys_time(Pframe_type type)
 {
 	int ret = 0;
 	unsigned char msg[4] = {0};
@@ -738,19 +740,38 @@ static int dmanage_sync_client_sys_time(Pframe_type type)
 
 /*
  * ccm_add_info
+ * 设备连接管理信息添加函数
  *
+ * 设备上线后需要发送上线请求消息，通过此函数将上线消息内容保存到数据结构中
+ * 在进行逻辑判断后存入设备连接链表和会议信息链表中
+ *
+ * 设备连接链表
+ * 主要是将连接至主机的所有设备添加到连接信息链表，主要是连接的信息FD/IP/MAC/席别/电量等等
+ *
+ * 设备心跳链表
+ * 将单元增加到心跳链表，主要是FD/HEART
+ *
+ * 会议信息链表
+ * 将单元的信息添加到会议信息链表中FD/ID/会议内容
+ *
+ * 上线消息进行上报，本地上报和上位机上报，判断进行时间同步
+ *
+ * 输入
+ * Pframe_type
+ * 输出
+ * 返回值
+ * 成功
+ * 失败
  */
 int ccm_add_info(const unsigned char* msg,Pframe_type type)
 {
 	int tmp_fd = 0;
 	int tmp_did = 0;
 	int ret = 0;
-	/*
-	 * 判断设备类型
-	 */
+
 	if(type->dev_type == UNIT_CTRL)
 	{
-		type->con_data.seat = msg[0];
+		type->ucinfo.seat = msg[0];
 		type->evt_data.electricity = msg[1];
 
 //		type->evt_data.unet_info.mac = msg[2]<<24;
@@ -768,37 +789,21 @@ int ccm_add_info(const unsigned char* msg,Pframe_type type)
 		return ERROR;
 	}
 
-	/*
-	 * 消息上报
-	 *
-	 * 添加心跳链表设备
-	 */
-	if(type->dev_type != PC_CTRL){
-
-		/*
-		 * 增加心跳设备
-		 */
+	if(type->dev_type != PC_CTRL)
+	{
 		chm_set_communication_heart(type);
-
 		ccm_add_conference_info(type);
-		/*
-		 * 发送至本地上报队列
-		 */
+
 		tcp_ctrl_msg_send_to(type,msg,WIFI_MEETING_EVENT_ONLINE_REQ);
 
 		type->fd = tmp_fd;
 		type->d_id = tmp_did;
 		type->s_id = 0;
 
-		/*
-		 * 下发系统时间给上线单元
-		 */
-		if(conf_status_get_pc_staus()>0)
+		if(conf_status_get_pc_staus() > 0)
 		{
-			dmanage_sync_client_sys_time(type);
+			ccm_sync_client_sys_time(type);
 		}
-
-
 	}
 
 	return SUCCESS;

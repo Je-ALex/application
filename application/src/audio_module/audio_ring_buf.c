@@ -77,6 +77,7 @@ void* audio_dequeue(Paudio_queue queue)
     {
         return NULL;
     }
+
     result = queue->elements[queue->head];
 
     queue->head = (queue->head + 1) % queue->size;

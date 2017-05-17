@@ -20,18 +20,13 @@
 #include "wifi_sys_init.h"
 #include "wifi_sys_list.h"
 #include "wifi_sys_queue.h"
-
 #include "tcp_ctrl_server.h"
-
 #include "tcp_ctrl_device_status.h"
 #include "tcp_ctrl_data_compose.h"
 #include "tcp_ctrl_data_process.h"
-
 #include "client_heart_manage.h"
 #include "client_connect_manage.h"
-
 #include "tcp_ctrl_api.h"
-
 #include "sys_uart_init.h"
 
 
@@ -62,11 +57,11 @@ static int tcp_ctrl_local_addr_init(int port)
 	int ret;
 
     bzero(&sin, sizeof(sin));
-    sin.sin_family = PF_INET;
+    sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = INADDR_ANY;
     sin.sin_port = htons(port);
 
-    sock_fd = socket(PF_INET, SOCK_STREAM, 0);
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (-1 == sock_fd)
     {
     	printf("%s-%s-%d socket failed\n",__FILE__,__func__,__LINE__);
@@ -230,7 +225,6 @@ static int tcp_ctrl_org_data_analysis(int fd,unsigned char* buf,int len)
 		}
 	}
 
-
 	return SUCCESS;
 }
 
@@ -331,7 +325,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 			if (wait_event[n].data.fd == listenfd
 					&& (EPOLLIN == (wait_event[n].events & (EPOLLIN|EPOLLERR))))
 			{
-				sys_mutex_lock(CTRL_TCP_MUTEX);
 				newfd = accept(listenfd, (struct sockaddr *) &cli_addr,
 								(socklen_t*)&clilen);
 				if (newfd < 0) {
@@ -359,7 +352,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 						pthread_exit(0);
 					}
 					maxi++;
-					sys_mutex_unlock(CTRL_TCP_MUTEX);
 				}
 
 			}else if(wait_event[n].events & EPOLLIN)
@@ -399,7 +391,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 
 			}else if(wait_event[n].events & EPOLLERR)
 			{
-
 				printf("%d client %d offline\n",__LINE__,wait_event[n].data.fd);
 				ctrl_ret = epoll_ctl(epoll_fd, EPOLL_CTL_DEL,
 						wait_event[n].data.fd,&event);
@@ -418,10 +409,10 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 		}//end for
 
 	}//end while
+
 	free(wait_event);
 	close(epoll_fd);
     close(listenfd);
-
     pthread_exit(0);
 
 }
@@ -497,10 +488,12 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 
 
 
+
+
+
 /*
  * TODO 测试用
  */
-
 void read_file(char* fname)
 {
 

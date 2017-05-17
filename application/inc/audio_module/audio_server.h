@@ -49,10 +49,10 @@ extern "C" {
 #define DEFAULT_SAMPLE_RATE      (48000)
 #define DEFAULT_SAMPLE_LENGTH    (16)
 
-#define 	RECV_LEN	1028
+
 #define 	AUDIO_BLEN	512
 #define 	AUDIO_FLEN	128
-#define		RS_NUM 		50
+#define		RS_NUM 		10
 #define 	LOG_NAME 	"audio.log"
 
 /*

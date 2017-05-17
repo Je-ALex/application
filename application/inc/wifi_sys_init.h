@@ -65,7 +65,7 @@ typedef long long 		off64;
  * 设备系统参数
  */
 #define LOG_FILE	"LOG.txt"
-#define VERSION		"V 1.1.0-r511"
+#define VERSION		"V 1.1.0-r517"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
@@ -90,10 +90,10 @@ typedef long long 		off64;
 
 #define SYS_VAL 10
 
-#define		AUDP_RECV_NUM	9
-#define 	MAX_SPK_NUM 	8
-#define 	DEF_SPK_NUM 	4
-#define 	DEF_MIC_MODE 	2
+#define		AUDP_RECV_NUM	7 //网络音频接收数(+1偏移量)
+#define 	MAX_SPK_NUM 	8 //音频数据总通道数(网络+本地+1偏移量)
+#define 	DEF_SPK_NUM 	4 //默认发言人数
+#define 	DEF_MIC_MODE 	2 //默认话筒发言模式
 
 
 

@@ -63,9 +63,12 @@ static int cmsm_delete_spk_node(int fd)
 		sinfo = tmp_node->data;
 		if(sinfo->sockfd == fd)
 		{
-			num = (sinfo->asport-AUDIO_RECV_PORT)/2 + 1;
-			conf_status_set_spk_buf_offset(num,0);
-			conf_status_set_spk_timestamp(num,0);
+			if(sinfo->asport > 0)
+			{
+				num = (sinfo->asport-AUDIO_RECV_PORT)/2 + 1;
+				conf_status_set_spk_buf_offset(num,0);
+				conf_status_set_spk_timestamp(num,0);
+			}
 			status++;
 			break;
 		}

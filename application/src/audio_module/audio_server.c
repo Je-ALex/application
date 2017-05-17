@@ -2,15 +2,14 @@
 #include "audio_params_init.h"
 #include "audio_ring_buf.h"
 #include "tcp_ctrl_device_status.h"
-#include "audio_codec_api.h"
+
 
 
 snd_data_format playback;
 snd_data_format capture;
 
 WAVContainer wav;
-//Paudio_queue* rqueue;
-Paudio_queue rqueue[10];
+Paudio_queue* rqueue;
 Paudio_queue squeue;
 
 audio_signal sem;
@@ -67,7 +66,7 @@ static int audio_set_swparams(snd_data_format *sndpcm, snd_pcm_sw_params_t *swpa
  */
 static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 {
-//	int err
+//	int err;
 //	char *devicename = "default";
 	char *devicename = "hw:0,0";
 //	snd_pcm_sw_params_t *swparams = NULL;
@@ -95,6 +94,7 @@ static int audio_snd_init_capture(Psnd_data_format capt,PWAVContainer wav)
 //        printf("Setting of swparams failed: %s\n", snd_strerror(err));
 //            return ERROR;
 //    }
+
 //	if (set_params(capt, wav) < 0) {
 //		printf("Error set_snd_pcm_params\n");
 //		return ERROR;
@@ -139,10 +139,11 @@ static int audio_snd_init_playback(Psnd_data_format play,PWAVContainer wav)
 		printf("Error set_snd_pcm_params\n");
 		return ERROR;
 	}
-//    if ((err = audio_set_swparams(play, swparams)) < 0) {
-//        printf("Setting of swparams failed: %s\n", snd_strerror(err));
-//            return ERROR;
-//    }
+    if ((err = audio_set_swparams(play, swparams)) < 0) {
+        printf("Setting of swparams failed: %s\n", snd_strerror(err));
+            return ERROR;
+    }
+
 	snd_pcm_dump(play->handle, play->log);
 
 	return SUCCESS;
@@ -161,7 +162,7 @@ static int audio_snd_init_playback(Psnd_data_format play,PWAVContainer wav)
  * 返回值：
  * 无
  */
-static void audio_data_mix( char** sourseFile, char* objectFile,
+inline static void audio_data_mix( char** sourseFile, char* objectFile,
 		int* number,int* length)
 {
 
@@ -261,9 +262,7 @@ static void audio_data_mix( char** sourseFile, char* objectFile,
 static int audio_udp_init(int port)
 {
 	int socket_fd = -1;
-	/*
-	 *configuration the socket  parameter
-	 */
+
 	struct sockaddr_in addr_serv;
 
 	socket_fd = socket(PF_INET,SOCK_DGRAM,0);
@@ -277,17 +276,14 @@ static int audio_udp_init(int port)
 	addr_serv.sin_addr.s_addr=htonl(INADDR_ANY);
 	addr_serv.sin_port = htons(port);
 
-	/*
-	 * bind the socket
-	 */
 	if(bind(socket_fd,(struct sockaddr *)&(addr_serv),
 			sizeof(struct sockaddr_in)) == -1)
 	{
 		printf("%s-%s-%d bind failed\n",__FILE__,__func__,__LINE__);
 	}
 
-	int nZero=32*1024;
-	setsockopt(socket_fd,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof(nZero));
+//	int nZero=0;
+//	setsockopt(socket_fd,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof(nZero));
 
 	return socket_fd;
 }
@@ -310,14 +306,7 @@ static int audio_udp_init(int port)
 static void* audio_data_local_capture(void* p)
 {
 	int frame_size = 0;
-	Paudio_frame tmp[10];
-
-    char** recvbuf = NULL;
-
-//    char* recvbuf[10] = {NULL};
-
-	int i,num,q;
-	int length = 0;
+	int i;
 
 	pthread_detach(pthread_self());
 
@@ -343,6 +332,15 @@ static void* audio_data_local_capture(void* p)
 		}
 		memset(buffer[i],0,capture.chunk_bytes);
 	}
+
+#if MIX_THREAD
+
+#else
+	Paudio_frame tmp[10];
+    char** recvbuf = NULL;
+	int num,q;
+	int length = capture.chunk_bytes;
+
 	Paudio_frame mixdata[RS_NUM];
 	for(i=0;i<RS_NUM;i++)
 	{
@@ -366,14 +364,13 @@ static void* audio_data_local_capture(void* p)
 		}
 		memset(mixbuffer[i],0,capture.chunk_bytes);
 	}
-
-	i=0;
-
 	recvbuf = (char**)malloc(sizeof(char*)*(AUDP_RECV_NUM));
 	memset(recvbuf,0,sizeof(char*)*(AUDP_RECV_NUM));
+#endif
 
 	frame_size = capture.chunk_bytes * 8 / capture.bits_per_frame;
-	length = capture.chunk_bytes;
+
+	i=0;
 
 	while (1)
 	{
@@ -384,14 +381,6 @@ static void* audio_data_local_capture(void* p)
 		data[i]->len = capture.chunk_bytes;
 		audio_enqueue(rqueue[0],data[i]);
 
-//		 printf("data[%d]->len = %d\n",i,data[i]->len);
-//		/*
-//		 * play
-//		 */
-//		playback.data_buf = buffer[i];
-//		audio_module_data_write(&playback, frame_size);
-
-		//start
 #else
 		recvbuf[0] = buffer[i];
 		num = 1;
@@ -401,14 +390,12 @@ static void* audio_data_local_capture(void* p)
 			if(tmp[q] != NULL)
 			{
 				recvbuf[num] = tmp[q]->msg;
-//				if(length < tmp[q]->len)
-//					 length = tmp[q]->len;
 				num++;
 			}
 		}
 
 		audio_data_mix(recvbuf,mixbuffer[i],&num,&length);
-//		frame_len = length * 8 / playback.bits_per_frame;
+
 		audio_data_write(&playback,mixbuffer[i],frame_size);
 
 		if(conf_status_get_snd_brd())
@@ -442,6 +429,9 @@ static void* audio_data_local_capture(void* p)
 			free(buffer[i]);
 			buffer[i] = NULL;
 		}
+#if MIX_THREAD
+
+#else
 		if(mixdata[i] != NULL)
 		{
 			free(mixdata[i]);
@@ -453,16 +443,13 @@ static void* audio_data_local_capture(void* p)
 			free(mixbuffer[i]);
 			mixbuffer[i] = NULL;
 		}
+#endif
+
 	}
 	pthread_exit(0);
 
 }
 
-static int char2int(char* buf)
-{
-    return (buf[0]<<24) | (buf[1]<<16)
-         | (buf[2]<< 8) |  buf[3];
-}
 
 /*
  * audio_recv_thread
@@ -482,15 +469,14 @@ static int char2int(char* buf)
  */
 void* audio_recv_thread(void* p)
 {
-
 //	struct timeval start,stop;
 //	timetime diff;
-	struct sockaddr_in fromAddr;
-	int fromLen = sizeof(struct sockaddr_in );
+//	struct sockaddr_in fromAddr;
+//	int fromLen = sizeof(struct sockaddr_in );
 
 	int socket_fd = -1;
 
-	int i;
+	int i,j;
 	int port = (int)p;
 	int queue_num = port-AUDIO_RECV_PORT;
 
@@ -530,84 +516,32 @@ void* audio_recv_thread(void* p)
 		memset(buffer[i],0,playback.chunk_bytes);
 	}
 
-	i=0;
-
-//	FILE* audio;
-//	char file_name[20] = {0};
-//	sprintf(file_name,"%d",queue_num);
-//	audio = fopen(file_name,"w+");
-//
-//	framecontent tmp;
-//  memset(&tmp,0,sizeof(framecontent));
-//
-//	OpusDecoder *dec=NULL;
-//  dec = decoder_init(&tmp);
-//  char *outFile;
-//  FILE *fout;
-//  outFile = "demo.opus";
-//  fout = fopen(outFile, "wb+");
-//  if (!fout)
-//  {
-//     fprintf (stderr, "Could not open output file\n");
-//  }
-//  unsigned int len = 0,range = 0;
-//  unsigned int recv_count = 0;
+	i=j=0;
 
     while(1)
     {
 
 #if 1
-
+    	memset(buffer[i],0,playback.chunk_bytes);
 		playback.recv_num = recv(socket_fd,buffer[i],playback.chunk_bytes,0);
 
-//		fwrite(&buffer[i][4],playback.chunk_bytes,1,audio);
-//		printf("%d:recv_num = %d recv_count = %d\n",port,playback.recv_num,recv_count);
-//
-//		if (fwrite(buffer[i], 1, playback.recv_num, fout) != (unsigned)playback.recv_num)
-//		{
-//		   fprintf(stderr, "Error writing.\n");
-//		   return -1;
-//		}
-
-//		if(conf_status_get_spk_buf_offset(queue_num) < 49)
-//		{
-//			conf_status_set_spk_buf_offset(queue_num,i);
-//		}else
-//		{
-//			tcp_ctrl_data_char2int(&i_ts,&buffer[i][0]);
-//			if(i_ts > conf_status_get_spk_timestamp(queue_num))
-//			{
-//				data[i]->msg = &buffer[i][4];
-//				data[i]->len = AUDIO_BLEN;
-//				audio_enqueue(rqueue[queue_num],data[i]);
-//				conf_status_set_spk_timestamp(queue_num,i_ts);
-//			}
-//			if (fwrite(buffer[i], 1, playback.recv_num, fout) != (unsigned)playback.recv_num)
-//			{
-//			   fprintf(stderr, "Error writing.\n");
-//			   return -1;
-//			}
-//			len = char2int(buffer[i]);
-//			range = char2int(&buffer[i][4]);
-//
-//			memcpy(tmp.data,&buffer[i][8],len);
-//			do_decode(dec,&tmp,len,range,NULL);
-//
-//			data[i]->msg = (char*)tmp.deodata;
-//			data[i]->len = playback.chunk_bytes * 8 / playback.bits_per_frame;
-//			audio_enqueue(rqueue[queue_num],data[i]);
-
-//			audio_data_write(&playback,(char*)tmp.deodata,tmp.frame_size);
-
+		if(conf_status_get_spk_buf_offset(queue_num) < 100)
+		{
+			conf_status_set_spk_buf_offset(queue_num,j);
+			j++;
+		}else
+		{
+			j=0;
 			data[i]->msg = buffer[i];
 			data[i]->len = playback.recv_num;
 			audio_enqueue(rqueue[queue_num],data[i]);
-//		}
-//		recv_count++;
+			i++;
+			if(i==RS_NUM)
+				i=0;
+		}
+//		msleep(2);
 
-		i++;
-		if(i==RS_NUM)
-			i=0;
+
 #else
 //	 	sem_wait(&sem.audio_recv_sem[queue_num]);
 
@@ -615,10 +549,8 @@ void* audio_recv_thread(void* p)
 //								0,(struct sockaddr*)&fromAddr,(socklen_t*)&fromLen);
 
 		playback.recv_num = recv(socket_fd,playback.data_buf,playback.chunk_bytes,0);
-
-		playback.recv_num = playback.recv_num * 8 / playback.bits_per_frame;
-
-		audio_module_data_write(&playback,playback.recv_num);
+		playback.recv_num = (playback.recv_num-4) * 8 / playback.bits_per_frame;
+		audio_data_write(&playback,playback.data_buf,playback.recv_num);
 
 #if 0
 		playback.recv_num = recv(socket_fd,playback.data_buf,playback.chunk_bytes+4,0);
@@ -658,13 +590,13 @@ void* audio_recv_thread(void* p)
  */
 static void* audio_data_mix_thread(void* p)
 {
-    Paudio_frame tmp[10];
+    Paudio_frame tmp[MAX_SPK_NUM];
 
     char** recvbuf ;
     recvbuf = (char**)malloc(sizeof( char*)*(AUDP_RECV_NUM));
 	memset(recvbuf,0,sizeof( char*)*(AUDP_RECV_NUM));
 
-	int i,j;
+	int i,j = 0,mix_i = 0;
 
 	int length = 0;
 	int frame_len = 0;
@@ -694,8 +626,7 @@ static void* audio_data_mix_thread(void* p)
 		}
 		memset(buffer[i],0,playback.chunk_bytes);
 	}
-	int mix_i = 0;
-	j=0;
+
 
 	while(1)
     {
@@ -709,36 +640,28 @@ static void* audio_data_mix_thread(void* p)
 
 				if(length < tmp[i]->len)
 					length = tmp[i]->len;
-
 				j++;
 			}
-//			else{
-//				//printf("queue[%d] %s-%s-%d queue empty\n",i,__FILE__,__func__,__LINE__);
-//			}
 		}
 
-			audio_data_mix(recvbuf,buffer[mix_i],&j,&length);
+		audio_data_mix(recvbuf,buffer[mix_i],&j,&length);
 
-			frame_len = length * 8 / playback.bits_per_frame;
+		frame_len = length * 8 / playback.bits_per_frame;
 
-			audio_data_write(&playback,buffer[mix_i],frame_len);
+		audio_data_write(&playback,buffer[mix_i],frame_len);
 
-			if(conf_status_get_snd_brd())
-			{
-	//				memcpy(buffer[m],playback.data_buf,length);
-	//				/*
-	//				 * 送入发送队列
-	//				 */
-				data[mix_i]->msg = buffer[mix_i];
-				data[mix_i]->len = length;
-				audio_enqueue(squeue,data[mix_i]);
-			}
+		if(conf_status_get_snd_brd())
+		{
+			data[mix_i]->msg = buffer[mix_i];
+			data[mix_i]->len = length;
+			audio_enqueue(squeue,data[mix_i]);
+		}
 
-			j=length=0;
+		j=length=0;
 
-			mix_i++;
-			if(mix_i==RS_NUM)
-				mix_i=0;
+		mix_i++;
+		if(mix_i==RS_NUM)
+			mix_i=0;
 
 		usleep(1);
     }
@@ -885,29 +808,28 @@ int wifi_sys_audio_init()
 	/*
 	 * 信号量初始化
 	 */
-	for(i=0;i<=MAX_SPK_NUM;i++)
-	{
-
-		ret = sem_init(&sem.audio_mix_sem[i], 0, 0);
-		if (ret != 0)
-		{
-			perror("audio_mix_sem failed ");
-			printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-		}
-		ret = sem_init(&sem.audio_recv_sem[i], 0, 0);
-		if (ret != 0)
-		{
-			perror("audio_recv_sem failed ");
-			printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-		}
-	}
+//	for(i=0;i<=MAX_SPK_NUM;i++)
+//	{
+//		ret = sem_init(&sem.audio_mix_sem[i], 0, 0);
+//		if (ret != 0)
+//		{
+//			perror("audio_mix_sem failed ");
+//			printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+//		}
+//		ret = sem_init(&sem.audio_recv_sem[i], 0, 0);
+//		if (ret != 0)
+//		{
+//			perror("audio_recv_sem failed ");
+//			printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
+//		}
+//	}
 
 	/*
 	 * 接收数据队列初始化
-	 * 大小为10个，1个本地+9个UDP
+	 * 大小为8个，1个本地+7个UDP
 	 */
-//	rqueue = (Paudio_queue*)malloc(sizeof(Paudio_queue)*(MAX_SPK_NUM+2));
-	for(i=0;i<=AUDP_RECV_NUM;i++)
+	rqueue = (Paudio_queue*)malloc(sizeof(Paudio_queue)*(MAX_SPK_NUM));
+	for(i=0;i<MAX_SPK_NUM;i++)
 	{
 		rqueue[i] = audio_queue_init(RS_NUM);
 	}
@@ -938,7 +860,6 @@ int wifi_sys_audio_init()
 		perror ("creat audio_data_mix_thread error");
 	}
 #endif
-
 //	pthread_join(th_a[0], &retval);
 //	snd_output_close(playback.log);
 //	if (playback.data_buf) free(playback.data_buf);

@@ -15,12 +15,6 @@ HOSTCFLAGS = -g -Wall \
 
 HOSTLIBS = 	-lasound -lpthread -lm
 
-#ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa_install/alsa_lib/include \
-#	-I./inc -I./inc/audio -I./inc/control -I./inc/utils -I./inc/uart
-#	
-#ARMLIBS = -L/home/wang/work/hushan/alsa_install/alsa_lib/lib \
-#	-lasound -lpthread -lm
-
 ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/include \
 	-I./inc \
 	-I./inc/audio_module \
@@ -33,11 +27,9 @@ ARMCFLAGS = -g -Wall -I/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/i
 	-I./inc/run_status_info \
 	-I./inc/app_interface \
 	-I./inc/sys_status_detect \
-	-I/home/wang/work/hushan/audio_lib_install_arm/opus/include/opus
-	
+
 ARMLIBS = -L/home/wang/work/hushan/alsa-install-gcc-1.0.24/alsa-lib/lib \
-	-lasound -lpthread -lm \
-	-L/home/wang/work/hushan/audio_lib_install_arm/opus/lib -lopus
+	-lasound -lpthread -lm
 
 CSOFLAGS= -shared -lc -fPIC
 
@@ -56,7 +48,6 @@ TEST_SOURCE = src/wifi_sys_init.c \
 			src/audio_module/audio_server.c \
 			src/audio_module/audio_params_init.c \
 			src/audio_module/audio_ring_buf.c \
-			src/audio_module/opus_codec_api.c \
 			src/uart/sys_uart_init.c \
 			src/uart/sys_snd_uart.c \
 			src/uart/sys_video_uart.c \

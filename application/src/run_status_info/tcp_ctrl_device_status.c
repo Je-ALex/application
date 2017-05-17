@@ -1024,7 +1024,8 @@ int conf_status_reset_vote_status()
 	node_queue->con_status->ccontent.scontent[sub_num].sresult.v_result.assent = 0;
 	node_queue->con_status->ccontent.scontent[sub_num].sresult.v_result.nay = 0;
 	node_queue->con_status->ccontent.scontent[sub_num].sresult.v_result.waiver = 0;
-	node_queue->con_status->ccontent.scontent[sub_num].sresult.v_result.timeout = conf_status_get_conference_len();
+	node_queue->con_status->ccontent.scontent[sub_num].sresult.v_result.timeout =
+			conf_status_get_conference_len();
 
 	return SUCCESS;
 }
@@ -1174,7 +1175,6 @@ int conf_status_send_vote_result()
 
 			ret = conf_status_get_pc_conf_result(msg);
 			data_info.data_len = ret;
-
 			tcp_ctrl_module_edit_info(&data_info,msg);
 
 //		}else{
@@ -1186,7 +1186,6 @@ int conf_status_send_vote_result()
 
 		ret = conf_status_get_pc_conf_result(msg);
 		data_info.data_len = ret;
-
 		tcp_ctrl_module_edit_info(&data_info,msg);
 
 	}

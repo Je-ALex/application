@@ -22,7 +22,7 @@
  */
 
 extern Pglobal_info node_queue;
-extern sys_info sys_in;
+//extern sys_info sys_in;
 
 
 /*
@@ -601,8 +601,7 @@ int tcp_ctrl_uevent_request_election(Pframe_type type,const unsigned char* msg)
 //		if((type->evt_data.value - WIFI_MEETING_EVT_ELECTION_RESULT)
 //				<= conf_status_get_elec_totalp(0))
 //		{
-			value = type->evt_data.value - WIFI_MEETING_EVT_ELECTION_RESULT;
-			conf_status_set_elec_result(&msg[WIFI_MEETING_EVT_ELECTION_RESULT]);
+			conf_status_set_elec_result(&msg[WIFI_MEETING_EVT_ELECTION_END]);
  			value = WIFI_MEETING_CONF_ELECTION_UNDERWAY;
 //		}
 		break;
@@ -1424,9 +1423,11 @@ int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type type)
 		 * 上线请求消息
 		 */
 		case ONLINE_REQ:
-			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
+//			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
+			sys_mutex_lock(LIST_MUTEX);
 			ccm_add_info(handlbuf,type);
-			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
+			sys_mutex_unlock(LIST_MUTEX);
+//			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 			break;
 		/*
 		 * 在线心跳

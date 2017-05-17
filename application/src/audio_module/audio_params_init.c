@@ -206,7 +206,7 @@ int audio_data_write(Psnd_data_format sndpcm, char* buf,int frame_len)
 {
 	int r;
 	int result = 0;
-	char* data = buf;
+//	char* data = buf;
 
 //	if (frame_len < sndpcm->period_size) {
 //		snd_pcm_format_set_silence(sndpcm->format,
@@ -216,7 +216,7 @@ int audio_data_write(Psnd_data_format sndpcm, char* buf,int frame_len)
 //		frame_len = sndpcm->period_size;
 //	}
 
-	while (frame_len > 0) {
+//	while (frame_len > 0) {
 
 		r = snd_pcm_writei(sndpcm->handle, buf, frame_len);
 
@@ -241,10 +241,10 @@ int audio_data_write(Psnd_data_format sndpcm, char* buf,int frame_len)
 
 		if (r > 0) {
 			result += r;
-			frame_len -= r;
-			data += r * sndpcm->bits_per_frame / 8;
+//			frame_len -= r;
+//			data += r * sndpcm->bits_per_frame / 8;
 		}
-	}
+//	}
 
 	return result;
 }
@@ -344,8 +344,6 @@ int audio_snd_params_init(Psnd_data_format sndpcm, PWAVContainer wav)
 //	buffer_time = 21333;//抖动
 	buffer_time = 10666;//抖动
 //	buffer_time = 10000;//抖动
-//	buffer_time = 5333;//抖动
-//	buffer_time = 5000;//抖动
 	period_time = buffer_time / 4;//5.3ms/1024B
 
 	//设置buffer_time的值，dir(-1,0,1 exact value is <,=,>)

@@ -1276,6 +1276,7 @@ static int cmsm_handle_snd_brd(Pframe_type type,const unsigned char* msg)
 		conf_status_set_snd_brd(WIFI_MEETING_EVENT_SPK_CLOSE_SND);
 		break;
 	}
+
 	}
 
 	return SUCCESS;

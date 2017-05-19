@@ -65,16 +65,16 @@ typedef long long 		off64;
  * 设备系统参数
  */
 #define LOG_FILE	"LOG.txt"
-#define VERSION		"V 1.1.0-r517"
+#define VERSION		"V 1.1.0-r55-518"
 #define	MODEL		"DS-WF620M"
 #define PRODUCT		"四川湖山电器有限责任公司"
 
 #define CONNECT_FILE 	"connection.info"
 #define PID_FILE 		"sys_init.pid"
+
 /*
  * 会议类相关宏定义
  */
-
 #define PC_ID 			0xFFFF
 #define HOST_ID 		0x0
 
@@ -98,7 +98,6 @@ typedef long long 		off64;
 
 
 #define msleep(x) usleep(x*1000)
-
 
 
 /*

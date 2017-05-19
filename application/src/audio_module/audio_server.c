@@ -163,7 +163,7 @@ static int audio_snd_init_playback(Psnd_data_format play,PWAVContainer wav)
  * 无
  */
 inline static void audio_data_mix( char** sourseFile, char* objectFile,
-		int* number,int* length)
+		const int* number,const int* length)
 {
 
 #if 1
@@ -400,10 +400,6 @@ static void* audio_data_local_capture(void* p)
 
 		if(conf_status_get_snd_brd())
 		{
-			/*
-			 * 送入发送队列
-			 */
-//			memcpy(sendbuffer[i],mixbuffer[i],length);
 			mixdata[i]->msg = mixbuffer[i];
 			mixdata[i]->len = length;
 			audio_enqueue(squeue,mixdata[i]);
@@ -476,7 +472,7 @@ void* audio_recv_thread(void* p)
 
 	int socket_fd = -1;
 
-	int i,j;
+	int i,j,k;
 	int port = (int)p;
 	int queue_num = port-AUDIO_RECV_PORT;
 
@@ -525,9 +521,17 @@ void* audio_recv_thread(void* p)
     	memset(buffer[i],0,playback.chunk_bytes);
 		playback.recv_num = recv(socket_fd,buffer[i],playback.chunk_bytes,0);
 
-		if(conf_status_get_spk_buf_offset(queue_num) < 100)
+		if(conf_status_get_spk_buf_offset(queue_num) < 20)
 		{
 			conf_status_set_spk_buf_offset(queue_num,j);
+
+			memset(buffer[i],0,playback.chunk_bytes);
+			data[k]->msg = buffer[i];
+			data[k]->len = playback.recv_num;
+			audio_enqueue(rqueue[queue_num],data[k]);
+			k++;
+			if(k==RS_NUM)
+				k=0;
 			j++;
 		}else
 		{
@@ -539,9 +543,6 @@ void* audio_recv_thread(void* p)
 			if(i==RS_NUM)
 				i=0;
 		}
-//		msleep(2);
-
-
 #else
 //	 	sem_wait(&sem.audio_recv_sem[queue_num]);
 
@@ -627,10 +628,8 @@ static void* audio_data_mix_thread(void* p)
 		memset(buffer[i],0,playback.chunk_bytes);
 	}
 
-
 	while(1)
     {
-
 		for(i=0;i<=conf_status_get_spk_offset();i++)
 		{
 			tmp[i] = audio_dequeue(rqueue[i]);
@@ -646,7 +645,7 @@ static void* audio_data_mix_thread(void* p)
 
 		audio_data_mix(recvbuf,buffer[mix_i],&j,&length);
 
-		frame_len = length * 8 / playback.bits_per_frame;
+		frame_len = length / 4;
 
 		audio_data_write(&playback,buffer[mix_i],frame_len);
 
@@ -656,7 +655,6 @@ static void* audio_data_mix_thread(void* p)
 			data[mix_i]->len = length;
 			audio_enqueue(squeue,data[mix_i]);
 		}
-
 		j=length=0;
 
 		mix_i++;
@@ -709,35 +707,22 @@ void* audio_send_thread(void* p)
 		printf("%s-%s-%d setsockopt failed\n",__FILE__,__func__,__LINE__);
 		pthread_exit(0);
 	}
-	/*
-	 * 配置udp服务端参数
-	 */
+
 	struct sockaddr_in addr_serv;
 	memset(&addr_serv,0,sizeof(addr_serv));
 	addr_serv.sin_family=AF_INET;
 	addr_serv.sin_addr.s_addr=htonl(INADDR_BROADCAST);
 	addr_serv.sin_port = htons(AUDIO_SEND_PORT);
 
-	/*
-	 * 绑定套接字号
-	 */
 	if(bind(sock,(struct sockaddr *)&(addr_serv),
 			sizeof(struct sockaddr_in)) == -1)
 	{
 		printf("%s-%s-%d bind failed\n",__FILE__,__func__,__LINE__);
 		pthread_exit(0);
 	}
+	int nZero=0;
+	setsockopt(sock,SOL_SOCKET,SO_SNDBUF,(char*)&nZero,sizeof(nZero));
 
-	/*
-	 * 压缩
-	 */
-//	OpusEncoder *enc=NULL;
-//	framecontent tmp;
-//  memset(&tmp,0,sizeof(framecontent));
-//
-//  enc = encoder_init(&tmp);
-//    int len;
-//    int i ;
 	while(1)
 	{
 		if(conf_status_get_snd_brd())
@@ -745,14 +730,11 @@ void* audio_send_thread(void* p)
 			send_msg = audio_dequeue(squeue);
 			if(send_msg != NULL)
 			{
-//				len = do_encode(enc,&tmp,send_msg->msg,120,NULL);
-//				ret = sendto(sock,tmp.enodata,len,0,
-//						(struct sockaddr*)&addr_serv,sizeof(addr_serv));
-
 				ret = sendto(sock,send_msg->msg,send_msg->len,0,
 						(struct sockaddr*)&addr_serv,sizeof(addr_serv));
 			}
-			usleep(1);
+			usleep(3);
+
 		}else{
 			msleep(2);
 		}
@@ -837,7 +819,7 @@ int wifi_sys_audio_init()
 	 * 发送数据队列初始化
 	 */
 	squeue = (Paudio_queue)malloc(sizeof(audio_queue));
-	squeue = audio_queue_init(RS_NUM);
+	squeue = audio_queue_init(100);
 
 	/*
 	 * 本地音频采集

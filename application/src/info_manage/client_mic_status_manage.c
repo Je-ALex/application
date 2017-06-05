@@ -1130,7 +1130,7 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 			tcp_ctrl_module_edit_info(type,NULL);
 
 		}else if(conf_status_get_cspk_num() == conf_status_get_spk_num()
-				&& conf_status_get_mic_mode() != WIFI_MEETING_EVT_MIC_FIFO){
+				&& conf_status_get_mic_mode() == WIFI_MEETING_EVT_MIC_STAD){
 
 			/*
 			 * 将请求消息发送给主席，无主席和上位机，则直接发送拒绝消息给单元

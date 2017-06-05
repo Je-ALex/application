@@ -62,7 +62,7 @@ typedef long long 		off64;
  * 设备系统参数
  */
 #define LOG_FILE		"LOG.txt"
-#define VERSION			"V 1.0.0-r61-603"
+#define VERSION			"V 1.0.0-r62-605"
 #define	MODEL			"DS-WF620M"
 #define PRODUCT			"四川湖山电器有限责任公司"
 #define CONNECT_FILE 	"connection.info"

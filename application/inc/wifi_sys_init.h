@@ -44,8 +44,6 @@ extern "C" {
 typedef char 	int8;
 typedef short 	int16;
 typedef int 	int32;
-
-
 typedef unsigned char  	uint8;
 typedef unsigned short 	uint16;
 typedef unsigned int   	uint32;
@@ -55,40 +53,36 @@ typedef long long 		off64;
 /*
  * socket相关端口信息
  */
-#define CTRL_BROADCAST_PORT 50001
-
-#define CTRL_TCP_PORT 		8080
-#define	AUDIO_RECV_PORT 	14336  //9000
-#define	AUDIO_SEND_PORT 	15000
+#define CTRL_BROADCAST_PORT 50001	//控制广播端口
+#define CTRL_TCP_PORT 		8080	//控制交互端口
+#define	AUDIO_RECV_PORT 	14336	//音频流接收端口
+#define	AUDIO_SEND_PORT 	15000	//音频流广播端口
 
 /*
  * 设备系统参数
  */
-#define LOG_FILE	"LOG.txt"
-#define VERSION		"V 1.1.0-r55-518"
-#define	MODEL		"DS-WF620M"
-#define PRODUCT		"四川湖山电器有限责任公司"
-
+#define LOG_FILE		"LOG.txt"
+#define VERSION			"V 1.0.0-r61-603"
+#define	MODEL			"DS-WF620M"
+#define PRODUCT			"四川湖山电器有限责任公司"
 #define CONNECT_FILE 	"connection.info"
 #define PID_FILE 		"sys_init.pid"
+
+
+#define DEBUG_SW  0
 
 /*
  * 会议类相关宏定义
  */
-#define PC_ID 			0xFFFF
-#define HOST_ID 		0x0
+#define PC_ID 			0xFFFF	//上位机默认ID
+#define HOST_ID 		0x0		//主机默认ID
 
-
-#define ELE_NUM 		32
-
-#define NAME_LEN		64
-
-#define CONF_NAME_LEN		128
-
-#define SUBJECT_NUM			50
-#define SUBJECT_NAME_LEN	128
-
-#define SYS_VAL 10
+#define WIFI_SYS_ELE_NUM 			32		//被选举人中最大编号
+#define WIFI_SYS_PEP_NAME_LEN		64		//名称长度
+#define WIFI_SYS_CONF_NAME_LEN		128		//会议名称长度
+#define WIFI_SYS_SUBJECT_NUM		50		//当前会议议题数目
+#define WIFI_SYS_SUB_TITLE_LEN		128		//议题标题长度
+#define WIFI_SYS_VAR_NUM			10		//系统信号数目
 
 #define		AUDP_RECV_NUM	7 //网络音频接收数(+1偏移量)
 #define 	MAX_SPK_NUM 	8 //音频数据总通道数(网络+本地+1偏移量)
@@ -184,8 +178,8 @@ typedef enum{
  */
 typedef struct{
 
-	pthread_mutex_t sys_mutex[SYS_VAL];
-	sem_t sys_sem[SYS_VAL];
+	pthread_mutex_t sys_mutex[WIFI_SYS_VAR_NUM];
+	sem_t sys_sem[WIFI_SYS_VAR_NUM];
 
 }sys_info;
 
@@ -224,7 +218,7 @@ typedef struct{
  */
 typedef struct{
 	//选举编号ID
-	unsigned short ele_id[ELE_NUM];
+	unsigned short ele_id[WIFI_SYS_ELE_NUM];
 	//被选举人总人数
 	unsigned char ele_total;
 
@@ -245,14 +239,13 @@ typedef struct{
 }score_result,*Pscore_result;
 
 
-
 /*
  * 提议公布结果内容
  */
 typedef struct {
 
 	//当前议题结果
-	unsigned char conf_result[CONF_NAME_LEN];
+	unsigned char conf_result[WIFI_SYS_CONF_NAME_LEN];
 	unsigned char len;
 
 }conf_pc_result;
@@ -268,7 +261,7 @@ typedef struct {
 typedef struct {
 
 	//议题名称和议题属性
-	char sub[SUBJECT_NAME_LEN];
+	char sub[WIFI_SYS_SUB_TITLE_LEN];
 	unsigned char slen;
 	unsigned char sprop;
 
@@ -278,9 +271,9 @@ typedef struct {
 
 typedef struct {
 
-	char conf_name[CONF_NAME_LEN];
+	char conf_name[WIFI_SYS_CONF_NAME_LEN];
 	unsigned char conf_nlen;
-	sub_content scontent[SUBJECT_NUM];
+	sub_content scontent[WIFI_SYS_SUBJECT_NUM];
 
 	unsigned char total_sub;
 
@@ -300,13 +293,25 @@ typedef struct {
 }conf_status,*Pconf_status;
 
 typedef struct {
-
-
+	//话筒模式
+	volatile unsigned char mic_mode;
+	//音效模式
+	volatile unsigned char snd_effect;
+	//音频下发状态
+	volatile unsigned char snd_brdcast;
+	//发言人数
+	volatile unsigned char spk_number;
+	//当前发言人数
+	volatile unsigned char current_spk;
+	//主席发言状态
+	volatile int chirman_t;
 }audio_status,*Paudio_status;
 
 typedef struct {
-
-
+	//上位机状态
+	volatile int pc_status;
+	//摄像跟踪状态
+	volatile unsigned char camera_track;
 }common_status,*Pcommon_status;
 
 
@@ -320,32 +325,15 @@ typedef struct {
 typedef struct {
 
 
-	 //1、会议内容部分
+//1、会议内容部分
 	conf_content ccontent;
-	 //2、会议状态部分
+//2、会议状态部分
 	conf_status cstatus;
-	 //3、音频状态部分
+//3、音频状态部分
 	audio_status astatus;
-	 //4、其他参数部分
+//4、其他参数部分
 	common_status cmstatus;
 
-	//上位机标记
-	volatile int pc_status;
-
-	//音频状态信息
-	volatile unsigned char mic_mode;
-	volatile unsigned char snd_effect;
-	volatile unsigned char snd_brdcast;
-	//设置的发言人数
-	volatile unsigned char spk_number;
-	//当前发言的人数
-	volatile unsigned char current_spk;
-	//摄像跟踪状态开关
-	volatile unsigned char camera_track;
-	//主席发言状态
-	volatile int chirman_t;
-
-	//DEBUG
 	int lan_stat;
 	//系统时间
 	unsigned char sys_time[4];
@@ -363,15 +351,11 @@ typedef struct{
 
 	pclient_node* sys_list;
 	Plinkqueue* sys_queue;
-	/*
-	 * 会议实时状态
-	 */
+
+	//会议实时状态
 	Pconference_status con_status;
 
 }global_info,*Pglobal_info;
-
-
-
 
 
 /*
@@ -391,7 +375,6 @@ typedef struct {
 }event_data;
 
 
-
 /*
  * 单元会议相关参数
  * ID/席别/姓名/姓名长度
@@ -400,7 +383,7 @@ typedef struct {
 
 	unsigned short id;
 	unsigned char seat;
-	char name[NAME_LEN];
+	char name[WIFI_SYS_PEP_NAME_LEN];
 	unsigned char name_len;
 
 }unit_cinfo,*Punit_cinfo;
@@ -448,7 +431,6 @@ typedef struct {
 
 	int fd;
 	unit_cinfo ucinfo;
-
 }conference_list,*Pconference_list;
 
 

@@ -17,6 +17,8 @@ extern Pglobal_info node_queue;
 
 static volatile int spk_offset[10] = {0};
 static volatile int spk_ts[10] = {0};
+
+
 /*
  * 网络状态
  */
@@ -105,10 +107,7 @@ inline void sys_semaphore_post(int value)
  */
 int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len)
 {
-
 	Pctrl_tcp_rsqueue tmp = NULL;
-
-
 	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
 	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
 
@@ -153,13 +152,10 @@ int tcp_ctrl_tprecv_enqueue(int* fd,unsigned char* msg,int* len)
 int tcp_ctrl_tprecv_dequeue(Pctrl_tcp_rsqueue msg_tmp)
 {
 	int ret;
-	Plinknode node;
-	Pctrl_tcp_rsqueue tmp;
+	Plinknode node = NULL;
+	Pctrl_tcp_rsqueue tmp = NULL;
 
 	sem_wait(&sys_in.sys_sem[CTRL_TCP_RECV_SEM]);
-
-//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-
 	ret = out_queue(node_queue->sys_queue[CTRL_TCP_RECV_QUEUE],&node);
 
 
@@ -201,14 +197,11 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type type,unsigned char* msg)
 {
 
 	Pctrl_tcp_rsqueue tmp = NULL;
-
 	tmp = (Pctrl_tcp_rsqueue)malloc(sizeof(ctrl_tcp_rsqueue));
 	memset(tmp,0,sizeof(ctrl_tcp_rsqueue));
 
 	tmp->msg = (unsigned char*)malloc(type->frame_len);
 	memset(tmp->msg,0,type->frame_len);
-
-//	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 
 	/*
 	 * 单元机固有属性
@@ -218,8 +211,6 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type type,unsigned char* msg)
 	memcpy(tmp->msg,msg,type->frame_len);
 
 	enter_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],tmp);
-
-//	sem_post(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
 
 	sys_semaphore_post(CTRL_TCP_SEND_SEM);
 
@@ -241,19 +232,15 @@ int tcp_ctrl_tpsend_enqueue(Pframe_type type,unsigned char* msg)
  */
 int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 {
-
 	int ret;
-	Plinknode node;
+	Plinknode node = NULL;
 	Pctrl_tcp_rsqueue tmp = NULL;
-
-//	sem_wait(&sys_in.sys_sem[CTRL_TCP_SEND_SEM]);
 
 	sys_semaphore_wait(CTRL_TCP_SEND_SEM);
 
 #if TCP_DBG
 	printf("get the value from tcp_ctrl_tpsend_outqueue queue\n");
 #endif
-
 
 	ret = out_queue(node_queue->sys_queue[CTRL_TCP_SEND_QUEUE],&node);
 	if(ret == 0)
@@ -275,7 +262,6 @@ int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 	}else{
 		return ERROR;
 	}
-
 
 	return SUCCESS;
 }
@@ -299,12 +285,9 @@ int tcp_ctrl_tpsend_dequeue(Pctrl_tcp_rsqueue event_tmp)
 int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 {
 
-	Prun_status tmp;
+	Prun_status tmp = NULL;
 	tmp = (Prun_status)malloc(sizeof(run_status));
 	memset(tmp,0,sizeof(run_status));
-
-//	printf("%s-%s-%d,value:%d\n",__FILE__,__func__,
-//			__LINE__,value);
 
 	/*
 	 * 单元机固有属性
@@ -317,9 +300,9 @@ int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 	printf("enter the tcp_ctrl_report_enqueue..\n");
 #endif
 
-	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
+	sys_mutex_lock(LOCAL_REP_MUTEX);
 	enter_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],tmp);
-	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
+	sys_mutex_unlock(LOCAL_REP_MUTEX);
 
 	sem_post(&sys_in.sys_sem[LOCAL_REP_SEM]);
 
@@ -328,16 +311,14 @@ int tcp_ctrl_report_enqueue(Pframe_type type,int value)
 
 int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 {
-
 	int ret;
-	Plinknode node;
-	Prun_status tmp;
+	Plinknode node = NULL;
+	Prun_status tmp = NULL;
 
 	sem_wait(&sys_in.sys_sem[LOCAL_REP_SEM]);
-
-	pthread_mutex_lock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
+	sys_mutex_lock(LOCAL_REP_MUTEX);
 	ret = out_queue(node_queue->sys_queue[LOCAL_REP_QUEUE],&node);
-	pthread_mutex_unlock(&sys_in.sys_mutex[LOCAL_REP_MUTEX]);
+	sys_mutex_unlock(LOCAL_REP_MUTEX);
 
 	if(ret == 0)
 	{
@@ -356,11 +337,12 @@ int tcp_ctrl_report_dequeue(Prun_status event_tmp)
 /*********************************
  *TODO 设备连接状态相关
  *********************************/
+
 /*
  * conf_status_get_connected_len
  * 获取会议中连接设备的数量
  */
-int conf_status_get_connected_len()
+inline int conf_status_get_connected_len()
 {
 	return node_queue->sys_list[CONNECT_LIST]->size;
 }
@@ -737,8 +719,7 @@ int conf_status_set_subject_content(int num,const unsigned char* msg,int len)
 
 	if(conf_status_get_total_subject() == num)
 	{
-		//需要将内容保存到文件
-
+		//fixme 需要将内容保存到文件
 	}
 
 	return SUCCESS;
@@ -776,13 +757,28 @@ int conf_status_set_conf_staus(int value)
 
 	node_queue->con_status->cstatus.confer_status = value;
 
-	/*
+	pclient_node tmp = NULL;
+	Pclient_info cnet_list = NULL;
+
+	/* FIXME
 	 * 会议结束需要将会议信息相关的参数情况
 	 * 如投票 选举等结果参数
 	 */
 	if(value == WIFI_MEETING_EVENT_CON_MAG_END)
 	{
 		memset(&node_queue->con_status->ccontent,0,sizeof(conf_content));
+
+		tmp = node_queue->sys_list[CONNECT_LIST]->next;
+		while(tmp!=NULL)
+		{
+			cnet_list = tmp->data;
+			if(cnet_list->client_fd && cnet_list->client_name == UNIT_CTRL)
+			{
+				cnet_list->seat = WIFI_MEETING_CON_SE_ATTEND;
+			}
+			usleep(10);
+			tmp=tmp->next;
+		}
 	}
 
 	return SUCCESS;
@@ -836,7 +832,6 @@ int conf_status_get_subjet_staus()
  */
 int conf_status_set_current_subject(unsigned char num)
 {
-
 	node_queue->con_status->cstatus.current_sub = num;
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
@@ -1617,7 +1612,7 @@ int conf_status_send_score_result()
 int conf_status_set_cmspk(int value)
 {
 
-	node_queue->con_status->chirman_t = value;
+	node_queue->con_status->astatus.chirman_t = value;
 
 	return SUCCESS;
 }
@@ -1628,7 +1623,7 @@ int conf_status_set_cmspk(int value)
  */
 int conf_status_get_cmspk()
 {
-	return node_queue->con_status->chirman_t;
+	return node_queue->con_status->astatus.chirman_t;
 }
 
 /*
@@ -1640,7 +1635,7 @@ int conf_status_set_cspk_num(int value)
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
-	node_queue->con_status->current_spk = value;
+	node_queue->con_status->astatus.current_spk = value;
 
 	return SUCCESS;
 }
@@ -1651,7 +1646,7 @@ int conf_status_set_cspk_num(int value)
  */
 int conf_status_get_cspk_num()
 {
-	return node_queue->con_status->current_spk;
+	return node_queue->con_status->astatus.current_spk;
 }
 
 /*
@@ -1667,11 +1662,11 @@ int conf_status_set_snd_brd(int value)
 
 	if(value == WIFI_MEETING_EVENT_SPK_REQ_SND)
 	{
-		node_queue->con_status->snd_brdcast++;
+		node_queue->con_status->astatus.snd_brdcast++;
 
 	}else if(value == WIFI_MEETING_EVENT_SPK_CLOSE_SND)
 	{
-		node_queue->con_status->snd_brdcast--;
+		node_queue->con_status->astatus.snd_brdcast--;
 	}
 
 	return SUCCESS;
@@ -1683,7 +1678,7 @@ int conf_status_set_snd_brd(int value)
  */
 int conf_status_get_snd_brd()
 {
-	return node_queue->con_status->snd_brdcast;
+	return node_queue->con_status->astatus.snd_brdcast;
 }
 
 
@@ -1705,7 +1700,7 @@ int conf_status_set_mic_mode(int value)
 
 	value = value+WIFI_MEETING_EVT_MIC_CHAIRMAN;
 
-	node_queue->con_status->mic_mode = value;
+	node_queue->con_status->astatus.mic_mode = value;
 
 	return SUCCESS;
 }
@@ -1720,7 +1715,7 @@ int conf_status_set_mic_mode(int value)
  */
 int conf_status_get_mic_mode()
 {
-	return node_queue->con_status->mic_mode;
+	return node_queue->con_status->astatus.mic_mode;
 }
 
 
@@ -1742,7 +1737,7 @@ int conf_status_set_snd_effect(int value)
 	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
 			value);
 
-	node_queue->con_status->snd_effect = value;
+	node_queue->con_status->astatus.snd_effect = value;
 
 	uart_snd_effect_set(value);
 
@@ -1761,9 +1756,9 @@ int conf_status_set_snd_effect(int value)
 int conf_status_get_snd_effect()
 {
 	printf("%s-%s-%d,value=0x%02x\n",__FILE__,__func__,__LINE__,
-			node_queue->con_status->snd_effect);
+			node_queue->con_status->astatus.snd_effect);
 
-	return node_queue->con_status->snd_effect;
+	return node_queue->con_status->astatus.snd_effect;
 
 }
 
@@ -1780,7 +1775,7 @@ int conf_status_set_spk_num(int value)
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
 
-	node_queue->con_status->spk_number = value;
+	node_queue->con_status->astatus.spk_number = value;
 
 	return SUCCESS;
 }
@@ -1793,7 +1788,7 @@ int conf_status_set_spk_num(int value)
  */
 int conf_status_get_spk_num()
 {
-	return node_queue->con_status->spk_number;
+	return node_queue->con_status->astatus.spk_number;
 }
 
 
@@ -1819,9 +1814,9 @@ int conf_status_get_spk_offset()
 
 	if(conf_status_get_cmspk() == WIFI_MEETING_CON_SE_CHAIRMAN)
 	{
-		value = node_queue->con_status->spk_number;
+		value = node_queue->con_status->astatus.spk_number;
 	}else{
-		value = node_queue->con_status->spk_number + WIFI_MEETING_CON_SE_CHAIRMAN;
+		value = node_queue->con_status->astatus.spk_number + WIFI_MEETING_CON_SE_CHAIRMAN;
 	}
 
 	return value;
@@ -1891,7 +1886,7 @@ int conf_status_camera_track_postion(int id,int value)
  */
 int conf_status_set_camera_track(int value)
 {
-	node_queue->con_status->camera_track = value;
+	node_queue->con_status->cmstatus.camera_track = value;
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
@@ -1905,7 +1900,7 @@ int conf_status_set_camera_track(int value)
  */
 int conf_status_get_camera_track()
 {
-	return node_queue->con_status->camera_track;
+	return node_queue->con_status->cmstatus.camera_track;
 }
 
 
@@ -1987,7 +1982,7 @@ int conf_status_set_pc_staus(int value)
 {
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			value);
-	node_queue->con_status->pc_status = value;
+	node_queue->con_status->cmstatus.pc_status = value;
 
 	return SUCCESS;
 }
@@ -1998,6 +1993,6 @@ int conf_status_set_pc_staus(int value)
  */
 int conf_status_get_pc_staus()
 {
-	return node_queue->con_status->pc_status;
+	return node_queue->con_status->cmstatus.pc_status;
 }
 

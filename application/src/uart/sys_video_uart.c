@@ -109,7 +109,7 @@ int sys_uart_video_set(unsigned short id,int value)
 
 
 /*
- * sys_video_uart_init
+ * wifi_sys_uvedio_init
  * 摄像跟踪接口初始化函数
  *
  * 初始化摄像跟踪接口参数
@@ -120,7 +120,7 @@ int sys_uart_video_set(unsigned short id,int value)
  * 失败-ERROR
  *
  */
-int sys_video_uart_init()
+int wifi_sys_uvedio_init()
 {
 	int ret = 0;
 

@@ -30,8 +30,6 @@
 #include "sys_uart_init.h"
 
 
-//互斥锁和信号量
-sys_info sys_in;
 //链表和结点
 Pglobal_info node_queue;
 
@@ -79,7 +77,7 @@ static int tcp_ctrl_local_addr_init(int port)
         perror("bind");
         return BINDERRO;
     }
-    ret = listen(sock_fd, 20);
+    ret = listen(sock_fd, 50);
     if (ret)
     {
     	printf("%s-%s-%d listen failed\n",__FILE__,__func__,__LINE__);
@@ -325,10 +323,12 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 			if (wait_event[n].data.fd == listenfd
 					&& (EPOLLIN == (wait_event[n].events & (EPOLLIN|EPOLLERR))))
 			{
+				sys_mutex_lock(CTRL_TCP_MUTEX);
 				newfd = accept(listenfd, (struct sockaddr *) &cli_addr,
 								(socklen_t*)&clilen);
 				if (newfd < 0) {
 					printf("%s-%s-%d accept failed\n",__FILE__,__func__,__LINE__);
+					sys_mutex_unlock(CTRL_TCP_MUTEX);
 					continue;
 				}else
 				{
@@ -338,7 +338,6 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				    	printf("%s-%s-%d tcp_ctrl_set_noblock failed\n",__FILE__,__func__,__LINE__);
 				    	pthread_exit(0);
 				    }
-
 					printf("%d---------------------------\n",newfd);
 					printf("client ip=%s,port=%d\n", inet_ntoa(cli_addr.sin_addr),
 							ntohs(cli_addr.sin_port));
@@ -352,6 +351,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 						pthread_exit(0);
 					}
 					maxi++;
+					sys_mutex_unlock(CTRL_TCP_MUTEX);
 				}
 
 			}else if(wait_event[n].events & EPOLLIN)
@@ -361,7 +361,7 @@ void* wifi_sys_ctrl_tcp_recv(void* p)
 				sys_mutex_unlock(CTRL_TCP_MUTEX);
 
 				//客户端关闭连接
-				if(len <= 0)// && errno != EAGAIN)
+				if(len <= 0 && (errno != EINTR || errno != EWOULDBLOCK || errno != EAGAIN))
 				{
 					printf("client %d offline,len=%d\n",wait_event[n].data.fd,len);
 
@@ -464,7 +464,7 @@ void* wifi_sys_ctrl_tcp_send(void* p)
 					printf("\n");
 				}
 //			}
-
+//			signal(SIGPIPE,SIG_IGN);
 			sys_mutex_lock(CTRL_TCP_MUTEX);
 			send(tmp->socket_fd,tmp->msg, tmp->len,0);
 			sys_mutex_unlock(CTRL_TCP_MUTEX);

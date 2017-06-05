@@ -56,6 +56,7 @@ int audio_enqueue(Paudio_queue queue, void* element)
 //        queue->head = 0;
 //        queue->tail = 0;
 //      printf("%s-%s-%d audio_queue_full\n",__FILE__,__func__,__LINE__);
+//    	return 0;
     }
 
     queue->elements[queue->tail] = element;

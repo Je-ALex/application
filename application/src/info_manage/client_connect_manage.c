@@ -106,7 +106,6 @@ static int ccm_refresh_connected_list(Pconference_list conf_info)
 		fclose(cfile);
 	}
 
-
 	return SUCCESS;
 }
 
@@ -256,7 +255,6 @@ int ccm_refresh_info(const Pframe_type type)
  */
 static int ccm_delete_connected_list(int fd)
 {
-
 	pclient_node tmp = NULL;
 	pclient_node del = NULL;
 
@@ -332,7 +330,6 @@ static int ccm_delete_connected_list(int fd)
 
 	return SUCCESS;
 }
-
 
 
 
@@ -700,12 +697,12 @@ static int ccm_add_conference_info(Pframe_type type)
 				WIFI_MEETING_EVENT_CON_MAG_START))
 		{
 			//会议过程中上线的设备，需要对其进行编号
-			type->s_id = conf_status_find_max_id() + 1;
-			conf_info->ucinfo.id = type->ucinfo.id = type->s_id;
+			type->ucinfo.id = conf_status_find_max_id() + 1;
 			//将修改后的会议参数下发给单元机
 			conf_info_set_conference_params(type->fd,type->ucinfo.id,
 					type->ucinfo.seat,NULL,NULL);
 		}
+		free(conf_info);
 	}
 
 	return SUCCESS;
@@ -776,8 +773,9 @@ int ccm_add_info(const unsigned char* msg,Pframe_type type)
 
 //		type->evt_data.unet_info.mac = msg[2]<<24;
 //		type->evt_data.unet_info.mac = type->evt_data.unet_info.mac+(msg[3]<<16);
-		type->evt_data.unet_info.mac = type->evt_data.unet_info.mac+(msg[4]<<8);
-		type->evt_data.unet_info.mac = type->evt_data.unet_info.mac+msg[5];
+//		type->evt_data.unet_info.mac = type->evt_data.unet_info.mac+(msg[4]<<8);
+//		type->evt_data.unet_info.mac = type->evt_data.unet_info.mac+msg[5];
+		type->evt_data.unet_info.mac = msg[4]<<8 | msg[5];
 	}
 
 	tmp_fd = type->fd;

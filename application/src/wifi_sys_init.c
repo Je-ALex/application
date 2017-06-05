@@ -10,7 +10,6 @@
  */
 
 #include "wifi_sys_init.h"
-
 #include "udp_ctrl_server.h"
 #include "tcp_ctrl_server.h"
 #include "tcp_ctrl_data_process.h"
@@ -20,7 +19,7 @@
 #include "sys_uart_init.h"
 #include "sys_status_detect.h"
 
-extern sys_info sys_in;
+sys_info sys_in;
 extern Pglobal_info node_queue;
 
 pthread_t ctrl_udp;
@@ -70,7 +69,7 @@ static int wifi_sys_signal_init()
 
 
 /*
- * wifi_sys_val_init
+ * wifi_sys_var_init
  *
  * 系统中链表、队列和全局变量初始化
  *
@@ -79,7 +78,7 @@ static int wifi_sys_signal_init()
  * 3、系统全局变量初始化 相关功能参数初始化默认发言人数4人/FIFO模式/摄像跟踪关闭
  * 4、连接信息的文本文件初始化
  */
-static int wifi_sys_val_init()
+static int wifi_sys_var_init()
 {
 	int i;
 	FILE* cfile;
@@ -124,9 +123,9 @@ static int wifi_sys_val_init()
 	node_queue->con_status = (Pconference_status)malloc(sizeof(conference_status));
 	memset(node_queue->con_status,0,sizeof(conference_status));
 
-	node_queue->con_status->spk_number = DEF_SPK_NUM;
+	node_queue->con_status->astatus.spk_number = DEF_SPK_NUM;
 
-	node_queue->con_status->mic_mode = DEF_MIC_MODE;
+	node_queue->con_status->astatus.mic_mode = DEF_MIC_MODE;
 
 	conf_status_set_camera_track(0);
 
@@ -174,11 +173,11 @@ int wifi_sys_net_thread_init()
     	port +=2;
     }
 	//语音发送线程
-	ret = pthread_create(&audp_send, NULL, audio_send_thread,NULL);
-	if (ret != 0)
-	{
-		printf("%s-%s-%d audio_send_thread failed\n",__FILE__,__func__,__LINE__);
-	}
+//	ret = pthread_create(&audp_send, NULL, audio_send_thread,NULL);
+//	if (ret != 0)
+//	{
+//		printf("%s-%s-%d audio_send_thread failed\n",__FILE__,__func__,__LINE__);
+//	}
 
 	return SUCCESS;
 }
@@ -244,13 +243,23 @@ int wifi_conference_sys_init()
 {
 	int ret;
 
+	sigset_t signal_mask;
+	sigemptyset(&signal_mask);
+	sigaddset(&signal_mask, SIGPIPE);
+	int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+	if (rc != 0) {
+		printf("block sigpipe error/n");
+	}
+
 	/*
 	 * 对标准输出进行重定向，指定到LOG文件
 	 */
+#if DEBUG_SW
 	fflush(stdout);
 	char* path = "/hushan/LOG.txt";
 	freopen(path,"w",stdout);
 	setvbuf(stdout,NULL,_IONBF,0);
+#endif
 
 	FILE *out;
 	int pid_fd;
@@ -281,23 +290,23 @@ int wifi_conference_sys_init()
 		goto ERR;
 	}
 
-	ret = wifi_sys_val_init();
+	ret = wifi_sys_var_init();
 	if (ret != SUCCESS)
 	{
 		printf("%s-%s-%d wifi_sys_val_init failed\n",__FILE__,__func__,__LINE__);
 		goto ERR;
 	}
 
-	ret = uart_snd_effect_init();
+	ret = wifi_sys_uaudio_init();
 	if (ret != SUCCESS)
 	{
-		printf("%s-%s-%d uart_snd_effect_init failed\n",__FILE__,__func__,__LINE__);
+		printf("%s-%s-%d wifi_sys_uaudio_init failed\n",__FILE__,__func__,__LINE__);
 		goto ERR;
 	}
-	ret = sys_video_uart_init();
+	ret = wifi_sys_uvedio_init();
 	if (ret != SUCCESS)
 	{
-		printf("%s-%s-%d sys_video_uart_init failed\n",__FILE__,__func__,__LINE__);
+		printf("%s-%s-%d wifi_sys_uvedio_init failed\n",__FILE__,__func__,__LINE__);
 		goto ERR;
 	}
 
@@ -352,6 +361,7 @@ int main(void)
 
     return SUCCESS;
 }
+
 */
 
 

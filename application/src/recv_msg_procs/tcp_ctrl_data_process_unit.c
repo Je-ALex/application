@@ -22,7 +22,7 @@
  */
 
 extern Pglobal_info node_queue;
-//extern sys_info sys_in;
+
 
 
 /*
@@ -1021,7 +1021,6 @@ int tcp_ctrl_unit_reply_conference(const unsigned char* msg,Pframe_type type)
 	 */
 	case W_REPLY_MSG:
 	{
-
 		type->name_type[0] = msg[tc_index++];
 		/*
 		 * 会议类控制应答，单元机只返回失败情况0xe3
@@ -1045,7 +1044,6 @@ int tcp_ctrl_unit_reply_conference(const unsigned char* msg,Pframe_type type)
 	}
 	case R_REPLY_MSG:
 	{
-
 		/*
 		 * 会议查询类应答，单元机应答全状态
 		 * 对于单主机情况，主机只关心ID 和席别
@@ -1423,15 +1421,10 @@ int tcp_ctrl_from_unit(const unsigned char* handlbuf,Pframe_type type)
 		 * 上线请求消息
 		 */
 		case ONLINE_REQ:
-//			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
 			sys_mutex_lock(LIST_MUTEX);
 			ccm_add_info(handlbuf,type);
 			sys_mutex_unlock(LIST_MUTEX);
-//			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
 			break;
-		/*
-		 * 在线心跳
-		 */
 		case ONLINE_HEART:
 			break;
 	}

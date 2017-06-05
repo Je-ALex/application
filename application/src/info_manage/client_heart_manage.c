@@ -169,7 +169,6 @@ int chm_get_communication_heart(Pframe_type type)
 int chm_process_communication_heart(const unsigned char* msg,Pframe_type type)
 {
 	pclient_node tmp_node = NULL;
-//	pclient_node del = NULL;
 	Pconnect_heart hinfo = NULL;
 
 	int ret,pos,status;
@@ -211,18 +210,6 @@ int chm_process_communication_heart(const unsigned char* msg,Pframe_type type)
 
 	if(status)
 	{
-
-//		list_delete(node_queue->sys_list[CONNECT_HEART],pos,&del);
-//		hinfo = del->data;
-//
-//		free(hinfo);
-//		free(del);
-//
-//		hinfo = NULL;
-//		del = NULL;
-//
-//		chm_set_communication_heart(type);
-
 		if(type->msg_type == ONLINE_HEART)
 		{
 			type->dev_type = HOST_CTRL;
@@ -231,7 +218,6 @@ int chm_process_communication_heart(const unsigned char* msg,Pframe_type type)
 			type->evt_data.status = WIFI_MEETING_EVENT_DEVICE_HEART;
 			tcp_ctrl_module_edit_info(type,msg);
 		}
-
 	}
 
 	return SUCCESS;

@@ -498,7 +498,6 @@ int tcp_ctrl_edit_event_content(Pframe_type type,unsigned char* buf)
 						//单元机电量信息
 						buf[tmp_index++] = WIFI_MEETING_EVT_RP_TO_PC_POWER;
 						buf[tmp_index++] = pinfo->client_power;
-
 					}
 					tmp = tmp->next;
 				}

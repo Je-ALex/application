@@ -250,7 +250,7 @@ static void* uart_snd_effect_get(void* p)
 }
 
 /*
- * uart_snd_effect_init
+ * wifi_sys_uaudio_init
  * 音频控制接口初始化函数
  *
  * 1、串口配置初始化，使用UART4，配置为8N1模式，波特率为57600
@@ -261,7 +261,7 @@ static void* uart_snd_effect_get(void* p)
  * 失败-ERROR
  *
  */
-int uart_snd_effect_init()
+int wifi_sys_uaudio_init()
 {
 	pthread_t snd_uart;
 	int ret = 0;

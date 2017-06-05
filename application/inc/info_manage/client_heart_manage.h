@@ -18,7 +18,7 @@ typedef struct {
 
 	int sockfd;
 	unsigned int mac_addr;
-	volatile char status;
+	int status;
 
 }connect_heart,*Pconnect_heart;
 

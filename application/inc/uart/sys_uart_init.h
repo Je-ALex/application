@@ -115,11 +115,11 @@ typedef enum {
 
 
 
-int uart_snd_effect_init();
+int wifi_sys_uaudio_init();
 int uart_snd_effect_set(int value);
 
 int sys_uart_video_set(unsigned short id,int value);
-int sys_video_uart_init();
+int wifi_sys_uvedio_init();
 
 
 

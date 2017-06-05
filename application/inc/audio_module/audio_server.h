@@ -119,12 +119,6 @@ typedef struct{
 
 }audio_frame,*Paudio_frame;
 
-typedef struct{
-
-	sem_t audio_mix_sem[10];
-	sem_t audio_recv_sem[10];
-
-}audio_signal;
 
 
 

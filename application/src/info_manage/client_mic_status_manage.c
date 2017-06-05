@@ -25,10 +25,18 @@
 
 
 extern Pglobal_info node_queue;
+extern Paudio_queue* rqueue;
 
 unsigned int spk_ts = 0;
 
 
+static int cmsm_spk_queue_reset(int num)
+{
+
+	audio_queue_reset(rqueue[num]);
+
+	return 0;
+}
 
 //TODO 链表操作相关
 /*
@@ -68,6 +76,7 @@ static int cmsm_delete_spk_node(int fd)
 				num = (sinfo->asport-AUDIO_RECV_PORT)/2 + 1;
 				conf_status_set_spk_buf_offset(num,0);
 				conf_status_set_spk_timestamp(num,0);
+				cmsm_spk_queue_reset(num);
 			}
 			status++;
 			break;
@@ -1103,12 +1112,12 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 	if(type->ucinfo.seat == WIFI_MEETING_CON_SE_CHAIRMAN){
 		cmsm_spk_port_status_onoff(type);
 	}else{
-		/*
+		/*fixme
 		 * 判断发言人数，如果发言人数为1，则表示主席优先模式打开
 		 * 发言人数为1 ，则直接拒绝单元申请
 		 *
 		 * 发言人数大于1，则需要判断话筒模式和发言人数
-		 * FIFO模式，则直接关闭最先发言单元，新单元加入
+		 * FIFO和自由模式模式，则直接关闭最先发言单元，新单元加入
 		 * 其他模式，先判断发言人数，饱和则需要通知主席
 		 */
 		if(conf_status_get_spk_num() == WIFI_MEETING_EVT_MIC_CHAIRMAN)
@@ -1148,7 +1157,10 @@ static int cmsm_handle_spk_request(Pframe_type type,const unsigned char* msg)
 			cmsm_port_status_sendto_pc(type);
 
 		}else{
-			//当前发言人数小于设置人数
+			/*
+			 * 1/话筒模式为FIFO
+			 * 2/当前发言人数小于设置人数
+			 */
 			cmsm_spk_port_status_onoff(type);
 		}
 	}

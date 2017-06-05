@@ -12,25 +12,27 @@
 #include "tcp_ctrl_data_process.h"
 
 
+
 /* config_conference_frame_info
  * 配置info信息
  */
-static int config_conference_frame_info(Pframe_type type,char value){
-
+static int config_conference_frame_info(Pframe_type type,char value)
+{
 	type->msg_type = value;
 	type->data_type = CONFERENCE_DATA;
 	type->dev_type = HOST_CTRL;
 
 	tcp_ctrl_source_dest_setting(-1,type->fd,type);
+
 	return SUCCESS;
 }
+
 
 /*
  * 配置info信息
  */
-static int config_event_frame_info(Pframe_type type,unsigned char value){
-
-
+static int config_event_frame_info(Pframe_type type,unsigned char value)
+{
 	type->msg_type = value;
 	type->data_type = EVENT_DATA;
 	type->dev_type = HOST_CTRL;
@@ -55,45 +57,11 @@ static int config_event_frame_info(Pframe_type type,unsigned char value){
  */
 int host_info_reset_factory_mode()
 {
-//	pclient_node tmp = NULL;
-//	Pclient_info pinfo;
-
 	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
-
-//	char command[128];
-//	FILE *fp=NULL;
-//	snprintf(command,sizeof(command),"reboot");
-//	fp=popen(command,"r");
-//	if(fp==NULL)
-//    {
-//	    printf("reboot error\n");
-//	    return -1;
-//	}
-//	fclose(fp);
-
-//	system("rm -f /etc/pointercal");
 	system("reboot");
-
-
-//	tmp = node_queue->sys_list[CONNECT_LIST]->next;
-//	while(tmp != NULL)
-//	{
-//		pinfo = tmp->data;
-//
-//		if(pinfo!=NULL)
-//		{
-//			printf("clean fd:%d,ip:%s\n",pinfo->client_fd,inet_ntoa(pinfo->cli_addr.sin_addr));
-//			pthread_mutex_lock(&sys_in.sys_mutex[LIST_MUTEX]);
-//			dmanage_delete_info(pinfo->client_fd);
-//			pthread_mutex_unlock(&sys_in.sys_mutex[LIST_MUTEX]);
-//
-//		}
-//		tmp = tmp->next;
-//		msleep(10);
-//	}
-
 	return SUCCESS;
 }
+
 
 /*
  * host_info_get_network_info
@@ -182,6 +150,8 @@ int host_info_get_network_info(Phost_info ninfo)
 	return SUCCESS;
 }
 
+
+
 /*
  * host_info_get_factory_info
  * 获取主机信息
@@ -201,7 +171,6 @@ int host_info_get_factory_info(Phost_info pinfo)
     strcpy(pinfo->factory_info,PRODUCT);
 
 	return SUCCESS;
-
 }
 
 /*
@@ -260,6 +229,7 @@ int host_info_get_system_time(unsigned char* value)
 
 	return SUCCESS;
 }
+
 /******************
  * TODO 单元机管理模块
  ******************/
@@ -280,15 +250,12 @@ int unit_info_get_connected_info(char* name)
 {
 	int ret = 0;
 
-	printf("%s-%s-%d\n",__FILE__,__func__,__LINE__);
 	strcpy(name,CONNECT_FILE);
-
 	ret = conf_status_get_connected_len();
 
 	printf("%s-%s-%d-connect size=%d\n",__FILE__,__func__,__LINE__,ret);
 
 	return ret;
-
 }
 
 
@@ -315,6 +282,7 @@ int unit_info_get_running_status(Prun_status data)
 	return SUCCESS;
 }
 
+
 /*
  * unit_info_set_device_power_off
  * 关闭所有单元机
@@ -325,7 +293,6 @@ int unit_info_get_running_status(Prun_status data)
  */
 int unit_info_set_device_power_off()
 {
-
 	frame_type data_info;
 	unsigned char buf[3] = {0};
 	int ret = 0;
@@ -353,6 +320,7 @@ int unit_info_set_device_power_off()
 
 }
 
+
 /*
  * unit_info_get_device_power
  * 获取单元机电源状态
@@ -366,7 +334,6 @@ int unit_info_set_device_power_off()
  */
 int unit_info_get_device_power(int fd)
 {
-
 	frame_type data_info;
 	memset(&data_info,0,sizeof(frame_type));
 
@@ -384,7 +351,6 @@ int unit_info_get_device_power(int fd)
 	tcp_ctrl_module_edit_info(&data_info,NULL);
 
 	return SUCCESS;
-
 }
 
 
@@ -412,6 +378,7 @@ int conf_info_set_mic_mode(int mode)
 {
 	int ret;
 	ret=conf_status_set_mic_mode(mode);
+
 	return ret;
 }
 
@@ -427,9 +394,7 @@ int conf_info_set_mic_mode(int mode)
 int conf_info_get_mic_mode()
 {
 	int mode = 0;
-
 	mode = conf_status_get_mic_mode() - WIFI_MEETING_EVT_MIC_CHAIRMAN;
-
 
 	printf("%s-%s-%d,value=%d\n",__FILE__,__func__,__LINE__,
 			mode);
@@ -474,6 +439,7 @@ int conf_info_get_spk_num()
 	ret = conf_status_get_spk_num();
 
 	printf("%s-%s-%d,%d\n",__FILE__,__func__,__LINE__,ret);
+
 	return ret;
 }
 

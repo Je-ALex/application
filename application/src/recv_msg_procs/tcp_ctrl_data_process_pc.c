@@ -636,7 +636,6 @@ static int tcp_ctrl_pc_request_conf_manage(Pframe_type type,const unsigned char*
 	if(value == WIFI_MEETING_EVENT_CON_MAG_END ||
 			value == WIFI_MEETING_EVENT_CON_MAG_START)
 	{
-		conf_status_set_conf_staus(value);
 		//变换为控制类消息下个给单元机
 		type->msg_type = WRITE_MSG;
 		type->dev_type = HOST_CTRL;
@@ -644,6 +643,7 @@ static int tcp_ctrl_pc_request_conf_manage(Pframe_type type,const unsigned char*
 		ret = tcp_ctrl_module_edit_info(type,msg);
 		if(ret)
 			return ERROR;
+		conf_status_set_conf_staus(value);
 	}
 
 	return SUCCESS;
